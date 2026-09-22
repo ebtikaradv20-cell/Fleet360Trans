@@ -1,11 +1,10 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import Fleet360Logo from "@/components/Fleet360Logo";
 
-export default function LoginPage()
+export default function LoginPage() {
   const router = useRouter();
   const { setUser } = useApp();
   const [username, setUsername] = useState("");
@@ -13,6 +12,7 @@ export default function LoginPage()
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Auto seed on first load
   useEffect(() => {
     fetch("/api/seed", { method: "POST" }).catch(() => {});
   }, []);
@@ -21,14 +21,12 @@ export default function LoginPage()
     e.preventDefault();
     setLoading(true);
     setError("");
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-
       const data = await res.json();
       if (data.success) {
         setUser(data.user);
@@ -53,7 +51,10 @@ export default function LoginPage()
       </div>
 
       {/* Grid pattern */}
-      <div className="absolute inset-0 opacity-5" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)", backgroundSize: "50px 50px" }} />
+      <div className="absolute inset-0 opacity-5" style={{
+        backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+        backgroundSize: "50px 50px"
+      }} />
 
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Card */}
@@ -64,7 +65,7 @@ export default function LoginPage()
               <Fleet360Logo size={64} showText={false} />
             </div>
             <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
-            <p className="text-blue-200 text-sm mt-1">إدارة الأسطول الشامل</p>
+            <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
             <p className="text-blue-300 text-xs mt-1">TRANSCAS / TAQA ARABIA</p>
           </div>
 
@@ -77,6 +78,7 @@ export default function LoginPage()
                 onChange={e => setUsername(e.target.value)}
                 placeholder="أدخل اسم المستخدم"
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:border-transparent"
+                style={{ focusRingColor: "#F97316" } as React.CSSProperties}
                 required
               />
             </div>
