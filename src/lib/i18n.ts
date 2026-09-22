@@ -2,7 +2,7 @@ export const translations = {
   ar: {
     // General
     appName: "Fleet360",
-    appSubtitle: "تطبيق إدارة الأسطول الشامل",
+    appSubtitle: " إدارة الأسطول الشامل",
     dashboard: "لوحة التحكم",
     vehicles: "السيارات",
     fuel: "الوقود",
