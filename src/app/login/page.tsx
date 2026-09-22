@@ -110,14 +110,6 @@ export default function LoginPage() {
               {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-            <p className="text-blue-200 text-xs text-center mb-2 font-semibold">بيانات تجريبية:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-blue-300">
-              <div className="text-center">
-                <div className="font-medium text-white">مدير النظام</div>
-                <div>admin / admin123</div>
               </div>
               <div className="text-center">
                 <div className="font-medium text-white">مستخدم</div>
