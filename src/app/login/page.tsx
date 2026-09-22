@@ -109,8 +109,6 @@ export default function LoginPage() {
             >
               {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
             </button>
-          </form>
-
-         
+          </form>      
   );
 }
