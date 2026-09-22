@@ -66,7 +66,7 @@ export const translations = {
     // Fuel
     liters: "اللترات",
     costPerLiter: "سعر اللتر",
-    totalCost: "التكلفة الإجمالية",
+    totalCost: "التكلفة الإجمالية (ج.م)",
     odometer: "العداد",
     station: "المحطة",
     fuelDate: "تاريخ التزويد",
