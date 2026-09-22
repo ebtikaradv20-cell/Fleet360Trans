@@ -102,13 +102,16 @@ export default function LoginPage() {
             )}
 
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-6 disabled:opacity-70"
-              style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
-            >
-              {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
-            </button>
-          </form>      
-  );
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-6 disabled:opacity-70"
+            style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
+          >
+            {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+);
 }
