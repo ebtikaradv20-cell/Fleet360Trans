@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Auto seed on first load
   useEffect(() => {
     fetch("/api/seed", { method: "POST" }).catch(() => {});
   }, []);
@@ -43,7 +42,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
-      {/* Background */}
       <div 
         className="absolute inset-0" 
         style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1d4ed8 50%, #0284C7 100%)" }} 
@@ -53,7 +51,6 @@ export default function LoginPage() {
         <div className="absolute bottom-20 right-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
       </div>
 
-      {/* Grid pattern */}
       <div 
         className="absolute inset-0 opacity-5" 
         style={{
@@ -63,9 +60,7 @@ export default function LoginPage() {
       />
 
       <div className="relative z-10 w-full max-w-md px-6">
-        {/* Card */}
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <Fleet360Logo size={64} showText={false} />
