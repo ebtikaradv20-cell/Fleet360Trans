@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import Fleet360Logo from "@/components/Fleet360Logo";
 
-export default function LoginPage() {
+export default function LoginPage()
   const router = useRouter();
   const { setUser } = useApp();
   const [username, setUsername] = useState("");
@@ -111,4 +111,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-    );
+  );
+}
