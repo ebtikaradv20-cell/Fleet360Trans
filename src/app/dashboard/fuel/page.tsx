@@ -89,7 +89,7 @@ export default function FuelPage() {
     { key: "driverName", header: t.driverName },
     { key: "liters", header: t.liters, render: (r: FuelRecord) => `${r.liters} L` },
     { key: "costPerLiter", header: t.costPerLiter, render: (r: FuelRecord) => `${r.costPerLiter} ر.س` },
-    { key: "totalCost", header: t.totalCost, render: (r: FuelRecord) => <span className="font-bold text-green-600 dark:text-green-400">{r.totalCost?.toLocaleString()} ر.س</span> },
+    { key: "totalCost", header: t.totalCost, render: (r: FuelRecord) => <span className="font-bold text-green-600 dark:text-green-400">{r.totalCost?.toLocaleString()} ج.م</span> },
     { key: "odometer", header: t.odometer, render: (r: FuelRecord) => `${(r.odometer || 0).toLocaleString()} كم` },
     { key: "station", header: t.station },
     { key: "fuelDate", header: t.fuelDate, render: (r: FuelRecord) => formatDate(r.fuelDate) },
