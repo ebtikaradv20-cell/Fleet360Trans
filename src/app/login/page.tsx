@@ -44,17 +44,23 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
       {/* Background */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1d4ed8 50%, #0284C7 100%)" }} />
+      <div 
+        className="absolute inset-0" 
+        style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1d4ed8 50%, #0284C7 100%)" }} 
+      />
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-20 left-20 w-64 h-64 rounded-full" style={{ background: "#F97316", filter: "blur(80px)" }} />
         <div className="absolute bottom-20 right-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
       </div>
 
       {/* Grid pattern */}
-      <div className="absolute inset-0 opacity-5" style={{
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
-        backgroundSize: "50px 50px"
-      }} />
+      <div 
+        className="absolute inset-0 opacity-5" 
+        style={{
+          backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+          backgroundSize: "50px 50px"
+        }} 
+      />
 
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Card */}
@@ -64,7 +70,9 @@ export default function LoginPage() {
             <div className="flex justify-center mb-4">
               <Fleet360Logo size={64} showText={false} />
             </div>
-            <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
+            <h1 className="text-4xl font-black text-white tracking-wider">
+              FLEET<span className="text-[#F97316]">360</span>
+            </h1>
             <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
             <p className="text-blue-300 text-xs mt-1">TRANSCAS / TAQA ARABIA</p>
           </div>
@@ -75,10 +83,9 @@ export default function LoginPage() {
               <input
                 type="text"
                 value={username}
-                onChange={e => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value)}
                 placeholder="أدخل اسم المستخدم"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ focusRingColor: "#F97316" } as React.CSSProperties}
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent"
                 required
               />
             </div>
@@ -88,9 +95,9 @@ export default function LoginPage() {
               <input
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="أدخل كلمة المرور"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 focus:outline-none focus:ring-2"
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-[#F97316]"
                 required
               />
             </div>
