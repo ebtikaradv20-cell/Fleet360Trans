@@ -112,8 +112,7 @@ export default function VehiclesPage() {
       {children}
     </div>
   );
-  const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-
+const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-blue-500";
   return (
     <div className="fade-in">
       <PageHeader
