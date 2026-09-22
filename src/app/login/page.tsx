@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import Fleet360Logo from "@/components/Fleet360Logo";
 
-export default function LoginPage() 
+export default function LoginPage() {
   const router = useRouter();
   const { setUser } = useApp();
   const [username, setUsername] = useState("");
@@ -62,7 +62,7 @@ export default function LoginPage()
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Fleet360Logo size={64} showText={false} />
+              <Fleet360Logo size5={64} showText={false} />
             </div>
             <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
             <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
@@ -114,4 +114,4 @@ export default function LoginPage()
       </div>
     </div>
   );
-{}
+}
