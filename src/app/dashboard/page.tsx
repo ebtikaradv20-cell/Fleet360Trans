@@ -79,7 +79,8 @@ export default function DashboardPage() {
     );
   }
 
-  const formatCurrency = (n: number) => `${(n || 0).toLocaleString()} ر.س`;
+  // تم تحديث العملة هنا إلى الجنيه المصري (ج.م)
+  const formatCurrency = (n: number) => `${(n || 0).toLocaleString()} ج.م`;
 
   return (
     <div className="fade-in">
