@@ -29,6 +29,13 @@ const ALL_PERMISSIONS = [
 
 const emptyUser = { username: "", name: "", role: "user", password: "", permissions: "[]" };
 
+// 1. عزل مكون Field خارج الصفحة لمنع فقدان التركيز
+const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
+  <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
+);
+
+const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 export default function UsersPage() {
   const { lang, user: currentUser } = useApp();
   const t = translations[lang];
@@ -38,6 +45,7 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<typeof emptyUser & { id?: number }>(emptyUser);
   const [isEdit, setIsEdit] = useState(false);
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false); // 2. حالة الحفظ لمنع التكرار
 
   if (currentUser?.role !== "admin") {
     return (
@@ -52,26 +60,58 @@ export default function UsersPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/users");
-    const d = await res.json();
-    setData(Array.isArray(d) ? d : []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/users");
+      const d = await res.json();
+      setData(Array.isArray(d) ? d : []);
+    } catch (error) {
+      console.error("Failed to load users:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  // 3. معالجة الحفظ بشكل آمن مع تفعيل حالة الـ saving
   const handleSave = async () => {
-    const payload = { ...editing, permissions: JSON.stringify(selectedPerms) };
-    const method = isEdit ? "PUT" : "POST";
-    const url = isEdit ? `/api/users/${editing.id}` : "/api/users";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) { setModalOpen(false); load(); }
+    if (saving) return;
+    try {
+      setSaving(true);
+      const payload = { ...editing, permissions: JSON.stringify(selectedPerms) };
+      const method = isEdit ? "PUT" : "POST";
+      const url = isEdit ? `/api/users/${editing.id}` : "/api/users";
+      
+      const res = await fetch(url, { 
+        method, 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
+
+      if (res.ok) { 
+        setModalOpen(false); 
+        load(); 
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "حدث خطأ أثناء حفظ المستخدم");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (row: User) => {
     if (row.id === currentUser?.userId) return alert(lang === "ar" ? "لا يمكنك حذف حسابك الخاص" : "Cannot delete your own account");
-    await fetch(`/api/users/${row.id}`, { method: "DELETE" });
-    load();
+    if (!confirm("هل أنت متأكد من حذف هذا المستخدم؟")) return;
+    try {
+      await fetch(`/api/users/${row.id}`, { method: "DELETE" });
+      load();
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
   };
 
   const openAdd = () => {
@@ -120,11 +160,6 @@ export default function UsersPage() {
     }},
     { key: "createdAt", header: t.createdAt, render: (r: User) => formatDate(r.createdAt) },
   ];
-
-  const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
-  );
 
   return (
     <div className="fade-in">
@@ -178,8 +213,13 @@ export default function UsersPage() {
           )}
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
-            💾 {t.save}
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-50" 
+            style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
+          >
+            {saving ? "⏳ جارِ الحفظ..." : `💾 ${t.save}`}
           </button>
           <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold">
             {t.cancel}
