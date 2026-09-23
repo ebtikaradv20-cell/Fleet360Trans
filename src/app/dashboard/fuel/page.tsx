@@ -29,6 +29,13 @@ const emptyRecord: Partial<FuelRecord> = {
   odometer: 0, station: "", fuelDate: new Date().toISOString().slice(0, 10), notes: ""
 };
 
+// 1. نقل مكون Field خارج الصفحة لمنع فقدان التركيز أثناء الكتابة
+const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
+  <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
+);
+
+const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 export default function FuelPage() {
   const { lang, user } = useApp();
   const t = translations[lang];
@@ -38,6 +45,7 @@ export default function FuelPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<FuelRecord>>(emptyRecord);
   const [isEdit, setIsEdit] = useState(false);
+  const [saving, setSaving] = useState(false); // 2. حالة الحفظ لمنع التكرار ومعالجة الزر
   const [search, setSearch] = useState("");
   const [driverFilter, setDriverFilter] = useState("");
   const [stationFilter, setStationFilter] = useState("");
@@ -48,16 +56,21 @@ export default function FuelPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (driverFilter) params.set("driver", driverFilter);
-    if (stationFilter) params.set("station", stationFilter);
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
-    const res = await fetch(`/api/fuel?${params}`);
-    const d = await res.json();
-    setData(Array.isArray(d) ? d : []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (driverFilter) params.set("driver", driverFilter);
+      if (stationFilter) params.set("station", stationFilter);
+      if (dateFrom) params.set("from", dateFrom);
+      if (dateTo) params.set("to", dateTo);
+      const res = await fetch(`/api/fuel?${params}`);
+      const d = await res.json();
+      setData(Array.isArray(d) ? d : []);
+    } catch (error) {
+      console.error("Failed to load fuel records:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [search, driverFilter, stationFilter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
@@ -65,20 +78,57 @@ export default function FuelPage() {
     fetch("/api/vehicles").then(r => r.json()).then(d => setVehicles(Array.isArray(d) ? d : []));
   }, []);
 
+  // 3. تحديث دالة الحفظ مع تنظيف البيانات ومعالجة الأخطاء
   const handleSave = async () => {
-    const method = isEdit ? "PUT" : "POST";
-    const url = isEdit ? `/api/fuel/${editing.id}` : "/api/fuel";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
-    if (res.ok) { setModalOpen(false); load(); }
+    if (saving) return;
+    try {
+      setSaving(true);
+      const method = isEdit ? "PUT" : "POST";
+      const url = isEdit ? `/api/fuel/${editing.id}` : "/api/fuel";
+      
+      const payload = {
+        ...editing,
+        vehicleId: Number(editing.vehicleId) || null,
+        liters: Number(editing.liters) || 0,
+        costPerLiter: Number(editing.costPerLiter) || 0,
+        totalCost: Number(editing.totalCost) || 0,
+        odometer: Number(editing.odometer) || 0,
+        fuelDate: editing.fuelDate && editing.fuelDate.trim() !== "" ? editing.fuelDate : null,
+      };
+
+      const res = await fetch(url, { 
+        method, 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
+
+      if (res.ok) { 
+        setModalOpen(false); 
+        load(); 
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "حدث خطأ أثناء حفظ سجل الوقود");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (row: FuelRecord) => {
-    await fetch(`/api/fuel/${row.id}`, { method: "DELETE" });
-    load();
+    if (!confirm("هل أنت متأكد من حذف هذا السجل؟")) return;
+    try {
+      await fetch(`/api/fuel/${row.id}`, { method: "DELETE" });
+      load();
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
   };
 
   const openAdd = () => { setEditing(emptyRecord); setIsEdit(false); setModalOpen(true); };
-  const openEdit = (row: FuelRecord) => { setEditing(row); setIsEdit(true); setModalOpen(true); };
+  const openEdit = (row: FuelRecord) => { setEditing({...row}); setIsEdit(true); setModalOpen(true); };
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB") : "-";
 
   const totalCost = data.reduce((s, r) => s + (r.totalCost || 0), 0);
@@ -95,11 +145,6 @@ export default function FuelPage() {
     { key: "fuelDate", header: t.fuelDate, render: (r: FuelRecord) => formatDate(r.fuelDate) },
     { key: "createdAt", header: t.createdAt, render: (r: FuelRecord) => formatDate(r.createdAt) },
   ];
-
-  const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
-  );
 
   const drivers = [...new Set(vehicles.map(v => v.driverName).filter(Boolean))];
   const stations = [...new Set(data.map(r => r.station).filter(Boolean))];
@@ -161,14 +206,14 @@ export default function FuelPage() {
           </Field>
           <Field label={t.liters}>
             <input type="number" className={inputClass} value={editing.liters || ""} onChange={e => {
-              const liters = parseFloat(e.target.value);
+              const liters = parseFloat(e.target.value) || 0;
               setEditing({...editing, liters, totalCost: liters * (editing.costPerLiter || 0)});
             }} />
           </Field>
           <Field label={t.costPerLiter}>
             <input type="number" step="0.01" className={inputClass} value={editing.costPerLiter || ""}
               onChange={e => {
-                const cpl = parseFloat(e.target.value);
+                const cpl = parseFloat(e.target.value) || 0;
                 setEditing({...editing, costPerLiter: cpl, totalCost: (editing.liters || 0) * cpl});
               }} />
           </Field>
@@ -176,7 +221,7 @@ export default function FuelPage() {
             <input type="number" className={inputClass} value={editing.totalCost || ""} readOnly style={{ background: "#f9fafb" }} />
           </Field>
           <Field label={t.odometer}>
-            <input type="number" className={inputClass} value={editing.odometer || ""} onChange={e => setEditing({...editing, odometer: parseInt(e.target.value)})} />
+            <input type="number" className={inputClass} value={editing.odometer || ""} onChange={e => setEditing({...editing, odometer: parseInt(e.target.value) || 0})} />
           </Field>
           <Field label={t.station}>
             <input className={inputClass} value={editing.station || ""} onChange={e => setEditing({...editing, station: e.target.value})} />
@@ -191,8 +236,13 @@ export default function FuelPage() {
           </div>
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
-            💾 {t.save}
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-50" 
+            style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
+          >
+            {saving ? "⏳ جارِ الحفظ..." : `💾 ${t.save}`}
           </button>
           <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold">
             {t.cancel}
