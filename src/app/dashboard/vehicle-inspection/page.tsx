@@ -54,6 +54,13 @@ const emptyHistory: Partial<PartHistory> = {
   kmAtAction: 0, cost: 0, technician: "", workshop: "", notes: ""
 };
 
+// 1. عزل مكون Field خارج الصفحة لمنع فقدان التركيز
+const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
+  <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
+);
+
+const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 export default function VehicleInspectionPage() {
   const { lang } = useApp();
   const t = translations[lang];
@@ -67,6 +74,7 @@ export default function VehicleInspectionPage() {
   const [editing, setEditing] = useState<Partial<VehiclePart>>(emptyPart);
   const [editingHist, setEditingHist] = useState<Partial<PartHistory>>(emptyHistory);
   const [isEdit, setIsEdit] = useState(false);
+  const [saving, setSaving] = useState(false); // 2. حالة الحفظ لمنع التكرار
   const [selectedPart, setSelectedPart] = useState<VehiclePart | null>(null);
   const [vehicleFilter, setVehicleFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -76,19 +84,24 @@ export default function VehicleInspectionPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (vehicleFilter) params.set("vehicleId", vehicleFilter);
-    if (categoryFilter) params.set("category", categoryFilter);
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
-    const [partsRes, histRes] = await Promise.all([
-      fetch(`/api/vehicle-parts?${params}`),
-      fetch(`/api/vehicle-parts-history?${params}`)
-    ]);
-    const [partsData, histData] = await Promise.all([partsRes.json(), histRes.json()]);
-    setData(Array.isArray(partsData) ? partsData : []);
-    setHistory(Array.isArray(histData) ? histData : []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (vehicleFilter) params.set("vehicleId", vehicleFilter);
+      if (categoryFilter) params.set("category", categoryFilter);
+      if (dateFrom) params.set("from", dateFrom);
+      if (dateTo) params.set("to", dateTo);
+      const [partsRes, histRes] = await Promise.all([
+        fetch(`/api/vehicle-parts?${params}`),
+        fetch(`/api/vehicle-parts-history?${params}`)
+      ]);
+      const [partsData, histData] = await Promise.all([partsRes.json(), histRes.json()]);
+      setData(Array.isArray(partsData) ? partsData : []);
+      setHistory(Array.isArray(histData) ? histData : []);
+    } catch (error) {
+      console.error("Failed to load vehicle inspection data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [vehicleFilter, categoryFilter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
@@ -97,25 +110,89 @@ export default function VehicleInspectionPage() {
   }, []);
 
   const handleSave = async () => {
-    const method = isEdit ? "PUT" : "POST";
-    const url = isEdit ? `/api/vehicle-parts/${editing.id}` : "/api/vehicle-parts";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
-    if (res.ok) { setModalOpen(false); load(); }
+    if (saving) return;
+    try {
+      setSaving(true);
+      const method = isEdit ? "PUT" : "POST";
+      const url = isEdit ? `/api/vehicle-parts/${editing.id}` : "/api/vehicle-parts";
+      
+      const payload = {
+        ...editing,
+        vehicleId: Number(editing.vehicleId) || null,
+        kmAtInstall: Number(editing.kmAtInstall) || 0,
+        cost: Number(editing.cost) || 0,
+        installDate: editing.installDate && editing.installDate.trim() !== "" ? editing.installDate : null,
+      };
+
+      const res = await fetch(url, { 
+        method, 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
+
+      if (res.ok) { 
+        setModalOpen(false); 
+        load(); 
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "حدث خطأ أثناء حفظ القطعة");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (row: VehiclePart) => {
-    await fetch(`/api/vehicle-parts/${row.id}`, { method: "DELETE" });
-    load();
+    if (!confirm("هل أنت متأكد من حذف هذه القطعة؟")) return;
+    try {
+      await fetch(`/api/vehicle-parts/${row.id}`, { method: "DELETE" });
+      load();
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
   };
 
   const handleSaveHistory = async () => {
-    const payload = { ...editingHist, vehiclePartId: selectedPart?.id, vehicleId: selectedPart?.vehicleId, plateNumber: selectedPart?.plateNumber, partName: selectedPart?.partName };
-    const res = await fetch("/api/vehicle-parts-history", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) { setHistModalOpen(false); load(); }
+    if (saving) return;
+    try {
+      setSaving(true);
+      const payload = { 
+        ...editingHist, 
+        vehiclePartId: selectedPart?.id, 
+        vehicleId: Number(selectedPart?.vehicleId) || null, 
+        plateNumber: selectedPart?.plateNumber, 
+        partName: selectedPart?.partName,
+        kmAtAction: Number(editingHist.kmAtAction) || 0,
+        cost: Number(editingHist.cost) || 0,
+        actionDate: editingHist.actionDate && editingHist.actionDate.trim() !== "" ? editingHist.actionDate : null,
+      };
+
+      const res = await fetch("/api/vehicle-parts-history", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
+
+      if (res.ok) { 
+        setHistModalOpen(false); 
+        load(); 
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "حدث خطأ أثناء حفظ سجل القطعة");
+      }
+    } catch (error) {
+      console.error("Save history error:", error);
+      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openAdd = () => { setEditing(emptyPart); setIsEdit(false); setModalOpen(true); };
-  const openEdit = (row: VehiclePart) => { setEditing(row); setIsEdit(true); setModalOpen(true); };
+  const openEdit = (row: VehiclePart) => { setEditing({...row}); setIsEdit(true); setModalOpen(true); };
   const openHistory = (row: VehiclePart) => { setSelectedPart(row); setHistModalOpen(true); setEditingHist(emptyHistory); };
   const viewHistory = (row: VehiclePart) => { setSelectedPart(row); setHistViewOpen(true); };
 
@@ -130,7 +207,7 @@ export default function VehicleInspectionPage() {
     { key: "brand", header: t.brand },
     { key: "installDate", header: t.installDate, render: (r: VehiclePart) => formatDate(r.installDate) },
     { key: "kmAtInstall", header: t.kmAtInstall, render: (r: VehiclePart) => `${(r.kmAtInstall || 0).toLocaleString()} كم` },
-    { key: "cost", header: t.cost, render: (r: VehiclePart) => `${(r.cost || 0).toLocaleString()} ر.س` },
+    { key: "cost", header: t.cost, render: (r: VehiclePart) => `${(r.cost || 0).toLocaleString()} ج.م` }, // التعديل إلى الجنيه المصري
     { key: "condition", header: t.condition, render: (r: VehiclePart) => <StatusBadge status={r.condition} /> },
     { key: "createdAt", header: t.createdAt, render: (r: VehiclePart) => formatDate(r.createdAt) },
   ];
@@ -141,16 +218,11 @@ export default function VehicleInspectionPage() {
     { key: "action", header: t.action, render: (r: PartHistory) => <StatusBadge status={r.action} /> },
     { key: "actionDate", header: t.actionDate, render: (r: PartHistory) => formatDate(r.actionDate) },
     { key: "kmAtAction", header: t.kmAtAction, render: (r: PartHistory) => `${(r.kmAtAction || 0).toLocaleString()} كم` },
-    { key: "cost", header: t.cost, render: (r: PartHistory) => `${(r.cost || 0).toLocaleString()} ر.س` },
+    { key: "cost", header: t.cost, render: (r: PartHistory) => `${(r.cost || 0).toLocaleString()} ج.م` }, // التعديل إلى الجنيه المصري
     { key: "technician", header: t.technician },
     { key: "workshop", header: t.workshop },
     { key: "createdAt", header: t.createdAt, render: (r: PartHistory) => formatDate(r.createdAt) },
   ];
-
-  const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
-  );
 
   return (
     <div className="fade-in">
@@ -247,10 +319,10 @@ export default function VehicleInspectionPage() {
             <input type="date" className={inputClass} value={editing.installDate || ""} onChange={e => setEditing({...editing, installDate: e.target.value})} />
           </Field>
           <Field label={t.kmAtInstall}>
-            <input type="number" className={inputClass} value={editing.kmAtInstall || ""} onChange={e => setEditing({...editing, kmAtInstall: parseInt(e.target.value)})} />
+            <input type="number" className={inputClass} value={editing.kmAtInstall || ""} onChange={e => setEditing({...editing, kmAtInstall: parseInt(e.target.value) || 0})} />
           </Field>
           <Field label={t.cost}>
-            <input type="number" className={inputClass} value={editing.cost || ""} onChange={e => setEditing({...editing, cost: parseFloat(e.target.value)})} />
+            <input type="number" className={inputClass} value={editing.cost || ""} onChange={e => setEditing({...editing, cost: parseFloat(e.target.value) || 0})} />
           </Field>
           <Field label={t.condition}>
             <select className={inputClass} value={editing.condition || "good"} onChange={e => setEditing({...editing, condition: e.target.value})}>
@@ -267,8 +339,13 @@ export default function VehicleInspectionPage() {
           </div>
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
-            💾 {t.save}
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-50" 
+            style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
+          >
+            {saving ? "⏳ جارِ الحفظ..." : `💾 ${t.save}`}
           </button>
           <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold">
             {t.cancel}
@@ -297,10 +374,10 @@ export default function VehicleInspectionPage() {
             <input type="date" className={inputClass} value={editingHist.actionDate || ""} onChange={e => setEditingHist({...editingHist, actionDate: e.target.value})} />
           </Field>
           <Field label={t.kmAtAction}>
-            <input type="number" className={inputClass} value={editingHist.kmAtAction || ""} onChange={e => setEditingHist({...editingHist, kmAtAction: parseInt(e.target.value)})} />
+            <input type="number" className={inputClass} value={editingHist.kmAtAction || ""} onChange={e => setEditingHist({...editingHist, kmAtAction: parseInt(e.target.value) || 0})} />
           </Field>
           <Field label={t.cost}>
-            <input type="number" className={inputClass} value={editingHist.cost || ""} onChange={e => setEditingHist({...editingHist, cost: parseFloat(e.target.value)})} />
+            <input type="number" className={inputClass} value={editingHist.cost || ""} onChange={e => setEditingHist({...editingHist, cost: parseFloat(e.target.value) || 0})} />
           </Field>
           <Field label={t.technician}>
             <input className={inputClass} value={editingHist.technician || ""} onChange={e => setEditingHist({...editingHist, technician: e.target.value})} />
@@ -315,8 +392,13 @@ export default function VehicleInspectionPage() {
           </div>
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={handleSaveHistory} className="flex-1 py-2.5 rounded-xl text-white font-semibold" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
-            💾 {t.save}
+          <button 
+            onClick={handleSaveHistory} 
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-50" 
+            style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
+          >
+            {saving ? "⏳ جارِ الحفظ..." : `💾 ${t.save}`}
           </button>
           <button onClick={() => setHistModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold">
             {t.cancel}
@@ -348,7 +430,7 @@ export default function VehicleInspectionPage() {
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     {h.kmAtAction > 0 && <span className="me-4">📍 {h.kmAtAction.toLocaleString()} كم</span>}
-                    {h.cost > 0 && <span className="me-4">💰 {h.cost.toLocaleString()} ر.س</span>}
+                    {h.cost > 0 && <span className="me-4">💰 {h.cost.toLocaleString()} ج.م</span>}
                     {h.technician && <span className="me-4">👤 {h.technician}</span>}
                     {h.workshop && <span>🏭 {h.workshop}</span>}
                   </div>
