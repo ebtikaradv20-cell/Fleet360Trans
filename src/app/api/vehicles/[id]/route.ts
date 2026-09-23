@@ -1,41 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { vehicles } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
-function auth(req: NextRequest) {
-  const token = req.cookies.get("fleet360_token")?.value;
-  if (!token) return null;
-  return verifyToken(token);
-}
+export async function POST(req: NextRequest) {
+  try {
+    const token = req.cookies.get("fleet360_token")?.value;
+    const user = token ? verifyToken(token) : null;
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
-  const [row] = await db.select().from(vehicles).where(eq(vehicles.id, parseInt(id)));
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(row);
-}
+    const body = await req.json();
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin" && !user.permissions.includes("vehicles:write")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // إدخال البيانات باستخدام Drizzle ORM لتجنب أخطاء ترتيب الـ Parameters نهائياً
+    const newVehicle = await db.insert(vehicles).values({
+      plateNumber: body.plate_number || body.plateNumber,
+      brand: body.brand,
+      model: body.model,
+      year: body.year ? Number(body.year) : null,
+      department: body.department,
+      driverName: body.driver_name || body.driverName,
+      status: body.status || "active",
+      currentKm: body.current_km ? Number(body.current_km) : 0,
+      licenseExpiry: body.license_expiry || body.licenseExpiry || null,
+      insuranceExpiry: body.insurance_expiry || body.insuranceExpiry || null,
+      color: body.color,
+      vin: body.vin,
+      notes: body.notes,
+    }).returning();
+
+    return NextResponse.json({ success: true, vehicle: newVehicle[0] });
+  } catch (error) {
+    console.error("Error adding vehicle:", error);
+    return NextResponse.json({ error: "Failed to add vehicle", details: String(error) }, { status: 500 });
   }
-  const { id } = await params;
-  const body = await req.json();
-  const [row] = await db.update(vehicles).set({ ...body, updatedAt: new Date() }).where(eq(vehicles.id, parseInt(id))).returning();
-  return NextResponse.json(row);
-}
-
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { id } = await params;
-  await db.delete(vehicles).where(eq(vehicles.id, parseInt(id)));
-  return NextResponse.json({ success: true });
 }
