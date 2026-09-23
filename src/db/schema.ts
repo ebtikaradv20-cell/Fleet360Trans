@@ -27,17 +27,17 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // استقبال البيانات سواء كانت مرسلة بصيغة snake_case أو camelCase من الواجهة
+    // معالجة مرنة للبيانات القادمة من الواجهة الأمامية
     const plateNumber = body.plate_number || body.plateNumber || "";
     const brand = body.brand || "";
     const model = body.model || "";
-    const year = body.year ? parseInt(body.year) : null;
+    const year = body.year ? parseInt(body.year, 10) : null;
     const department = body.department || "";
     const driverName = body.driver_name || body.driverName || "";
     const status = body.status === "نشطة" || body.status === "active" ? "active" : (body.status || "active");
-    const currentKm = body.current_km !== undefined ? parseInt(body.current_km) : (body.currentKm !== undefined ? parseInt(body.currentKm) : 0);
+    const currentKm = body.current_km !== undefined ? parseInt(body.current_km, 10) : (body.currentKm !== undefined ? parseInt(body.currentKm, 10) : 0);
     
-    // التعامل الآمن مع التواريخ (منع إرسال نصوص فارغة)
+    // معالجة آمنة للتواريخ وتجنب القيم الفارغة
     const licenseExpiry = body.license_expiry || body.licenseExpiry ? new Date(body.license_expiry || body.licenseExpiry).toISOString().split('T')[0] : null;
     const insuranceExpiry = body.insurance_expiry || body.insuranceExpiry ? new Date(body.insurance_expiry || body.insuranceExpiry).toISOString().split('T')[0] : null;
     
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const vin = body.vin || null;
     const notes = body.notes || null;
 
-    // استخدام Drizzle ORM مع أسماء الحقول المطابقة تماماً لملف الـ Schema الخاص بك
+    // تنفيذ الإدخال الآمن عبر Drizzle ORM
     const newVehicle = await db.insert(vehicles).values({
       plateNumber,
       brand,
