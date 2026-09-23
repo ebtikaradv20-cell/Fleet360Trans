@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import { useApp } from "@/context/AppContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { setUser, user, isRTL } = useApp();
+  const { setUser, user, isRTL, sidebarCollapsed } = useApp(); // جلب حالة طي القائمة
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
@@ -36,10 +36,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // تحديد الهامش بناءً على اتجاه الصفحة (RTL/LTR) وحالة طي القائمة الجانبية
+  // إذا كانت القائمة مطوية تصبح المسافة أصغر (مثلاً w-20 أي ما يعادل ml-20 أو mr-20)
+  const sidebarWidthClass = sidebarCollapsed 
+    ? (isRTL ? "mr-20" : "ml-20") 
+    : (isRTL ? "mr-64" : "ml-64");
+
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar />
-      <div className={`flex-1 flex flex-col ${isRTL ? "mr-64" : "ml-64"} transition-all duration-300`}>
+      <div className={`flex-1 flex flex-col ${sidebarWidthClass} transition-all duration-300`}>
         <Navbar />
         <main className="flex-1 p-6 fade-in">
           {children}
