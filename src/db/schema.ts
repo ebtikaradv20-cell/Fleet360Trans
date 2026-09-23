@@ -3,49 +3,83 @@ import { db } from "@/db";
 import { vehicles } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
 
-function auth(req: NextRequest) {
+/**
+ * دالة مركزية للتحقق من المصادقة واستخراج بيانات المستخدم من ملفات تعريف الارتباط
+ */
+function authenticateUser(req: NextRequest) {
   const token = req.cookies.get("fleet360_token")?.value;
   if (!token) return null;
   return verifyToken(token);
 }
 
+/**
+ * دالة لمعالجة وتحويل التواريخ بشكل آمن لتوافق قاعدة البيانات
+ */
+function parseDate(dateValue: unknown): string | null {
+  if (!dateValue) return null;
+  try {
+    const parsed = new Date(dateValue as string);
+    return isNaN(parsed.getTime()) ? null : parsed.toISOString().split("T")[0];
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = authenticateUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const allVehicles = await db.select().from(vehicles);
-    return NextResponse.json(allVehicles);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(allVehicles, { status: 200 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("Database Fetch Error (Vehicles):", errorMessage);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = authenticateUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await req.json();
 
-    // معالجة مرنة للبيانات القادمة من الواجهة الأمامية
-    const plateNumber = body.plate_number || body.plateNumber || "";
-    const brand = body.brand || "";
-    const model = body.model || "";
+    // استخلاص ومعالجة البيانات بمرونة تامة (دعم camelCase و snake_case)
+    const plateNumber = String(body.plate_number || body.plateNumber || "").trim();
+    const brand = String(body.brand || "").trim();
+    const model = String(body.model || "").trim();
     const year = body.year ? parseInt(body.year, 10) : null;
-    const department = body.department || "";
-    const driverName = body.driver_name || body.driverName || "";
-    const status = body.status === "نشطة" || body.status === "active" ? "active" : (body.status || "active");
-    const currentKm = body.current_km !== undefined ? parseInt(body.current_km, 10) : (body.currentKm !== undefined ? parseInt(body.currentKm, 10) : 0);
+    const department = String(body.department || "").trim();
+    const driverName = String(body.driver_name || body.driverName || "").trim();
     
-    // معالجة آمنة للتواريخ وتجنب القيم الفارغة
-    const licenseExpiry = body.license_expiry || body.licenseExpiry ? new Date(body.license_expiry || body.licenseExpiry).toISOString().split('T')[0] : null;
-    const insuranceExpiry = body.insurance_expiry || body.insuranceExpiry ? new Date(body.insurance_expiry || body.insuranceExpiry).toISOString().split('T')[0] : null;
+    const rawStatus = body.status;
+    const status = rawStatus === "نشطة" || rawStatus === "active" ? "active" : (rawStatus || "active");
     
-    const color = body.color || null;
-    const vin = body.vin || null;
-    const notes = body.notes || null;
+    const rawKm = body.current_km !== undefined ? body.current_km : body.currentKm;
+    const currentKm = rawKm !== undefined && rawKm !== null ? Number(rawKm) : 0;
+    
+    const licenseExpiry = parseDate(body.license_expiry || body.licenseExpiry);
+    const insuranceExpiry = parseDate(body.insurance_expiry || body.insuranceExpiry);
+    
+    const color = body.color ? String(body.color).trim() : null;
+    const vin = body.vin ? String(body.vin).trim() : null;
+    const notes = body.notes ? String(body.notes).trim() : null;
 
-    // تنفيذ الإدخال الآمن عبر Drizzle ORM
+    // التحقق من الحقول الإجبارية الأساسية لمنع إدخال بيانات ناقصة
+    if (!plateNumber || !brand || !model) {
+      return NextResponse.json(
+        { error: "Missing required fields: plateNumber, brand, and model are required." },
+        { status: 400 }
+      );
+    }
+
+    // إدخال البيانات المعتمد على Drizzle ORM
     const newVehicle = await db.insert(vehicles).values({
       plateNumber,
       brand,
@@ -63,8 +97,9 @@ export async function POST(req: NextRequest) {
     }).returning();
 
     return NextResponse.json({ success: true, data: newVehicle[0] }, { status: 201 });
-  } catch (error: any) {
-    console.error("Database Insert Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to insert vehicle" }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Failed to insert vehicle";
+    console.error("Database Insert Error (Vehicles):", error);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
