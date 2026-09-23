@@ -33,6 +33,16 @@ const emptyVehicle: Partial<Vehicle> = {
   licenseExpiry: "", insuranceExpiry: "", color: "", vin: "", notes: ""
 };
 
+// 1. تم نقل مكون Field خارج الصفحة لمنع إعادة إنشائه وفقدان التركيز أثناء الكتابة
+const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
+    {children}
+  </div>
+);
+
+const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 export default function VehiclesPage() {
   const { lang, user } = useApp();
   const t = translations[lang];
@@ -41,6 +51,7 @@ export default function VehiclesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Vehicle>>(emptyVehicle);
   const [isEdit, setIsEdit] = useState(false);
+  const [saving, setSaving] = useState(false); // حالة لمنع التكرار ومعالجة زر الحفظ
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
@@ -52,35 +63,67 @@ export default function VehiclesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (statusFilter) params.set("status", statusFilter);
-    if (brandFilter) params.set("brand", brandFilter);
-    if (deptFilter) params.set("department", deptFilter);
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
-    const res = await fetch(`/api/vehicles?${params}`);
-    const d = await res.json();
-    setData(Array.isArray(d) ? d : []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (statusFilter) params.set("status", statusFilter);
+      if (brandFilter) params.set("brand", brandFilter);
+      if (deptFilter) params.set("department", deptFilter);
+      if (dateFrom) params.set("from", dateFrom);
+      if (dateTo) params.set("to", dateTo);
+      const res = await fetch(`/api/vehicles?${params}`);
+      const d = await res.json();
+      setData(Array.isArray(d) ? d : []);
+    } catch (error) {
+      console.error("Failed to load vehicles:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [search, statusFilter, brandFilter, deptFilter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
+  // 2. تحديث دالة الحفظ لضمان معالجة الأخطاء واستجابة الزر بشكل مثالي
   const handleSave = async () => {
-    const method = isEdit ? "PUT" : "POST";
-    const url = isEdit ? `/api/vehicles/${editing.id}` : "/api/vehicles";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
-    if (res.ok) { setModalOpen(false); load(); }
+    if (saving) return;
+    try {
+      setSaving(true);
+      const method = isEdit ? "PUT" : "POST";
+      const url = isEdit ? `/api/vehicles/${editing.id}` : "/api/vehicles";
+      
+      const res = await fetch(url, { 
+        method, 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(editing) 
+      });
+
+      if (res.ok) { 
+        setModalOpen(false); 
+        load(); 
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "حدث خطأ أثناء حفظ البيانات");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (row: Vehicle) => {
-    await fetch(`/api/vehicles/${row.id}`, { method: "DELETE" });
-    load();
+    if (!confirm("هل أنت متأكد من حذف هذا العنصر؟")) return;
+    try {
+      await fetch(`/api/vehicles/${row.id}`, { method: "DELETE" });
+      load();
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
   };
 
   const openAdd = () => { setEditing(emptyVehicle); setIsEdit(false); setModalOpen(true); };
-  const openEdit = (row: Vehicle) => { setEditing(row); setIsEdit(true); setModalOpen(true); };
+  const openEdit = (row: Vehicle) => { setEditing({...row}); setIsEdit(true); setModalOpen(true); };
 
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB") : "-";
   const isExpiringSoon = (d: string) => {
@@ -106,13 +149,6 @@ export default function VehiclesPage() {
     { key: "createdAt", header: t.createdAt, render: (r: Vehicle) => formatDate(r.createdAt) },
   ];
 
-  const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
-      {children}
-    </div>
-  );
-const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-blue-500";
   return (
     <div className="fade-in">
       <PageHeader
@@ -169,7 +205,7 @@ const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text
             <input className={inputClass} value={editing.model || ""} onChange={e => setEditing({...editing, model: e.target.value})} />
           </Field>
           <Field label={t.year}>
-            <input type="number" className={inputClass} value={editing.year || ""} onChange={e => setEditing({...editing, year: parseInt(e.target.value)})} />
+            <input type="number" className={inputClass} value={editing.year || ""} onChange={e => setEditing({...editing, year: parseInt(e.target.value) || 0})} />
           </Field>
           <Field label={t.department}>
             <input className={inputClass} value={editing.department || ""} onChange={e => setEditing({...editing, department: e.target.value})} />
@@ -178,7 +214,7 @@ const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text
             <input className={inputClass} value={editing.driverName || ""} onChange={e => setEditing({...editing, driverName: e.target.value})} />
           </Field>
           <Field label={t.currentKm}>
-            <input type="number" className={inputClass} value={editing.currentKm || ""} onChange={e => setEditing({...editing, currentKm: parseInt(e.target.value)})} />
+            <input type="number" className={inputClass} value={editing.currentKm || ""} onChange={e => setEditing({...editing, currentKm: parseInt(e.target.value) || 0})} />
           </Field>
           <Field label={t.status}>
             <select className={inputClass} value={editing.status || "active"} onChange={e => setEditing({...editing, status: e.target.value})}>
@@ -206,8 +242,13 @@ const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text
           </div>
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
-            💾 {t.save}
+          <button 
+            onClick={handleSave} 
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-50" 
+            style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
+          >
+            {saving ? "⏳ جارِ الحفظ..." : `💾 ${t.save}`}
           </button>
           <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold transition-all">
             {t.cancel}
