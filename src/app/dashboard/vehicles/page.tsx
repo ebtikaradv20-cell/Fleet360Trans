@@ -33,7 +33,7 @@ const emptyVehicle: Partial<Vehicle> = {
   licenseExpiry: "", insuranceExpiry: "", color: "", vin: "", notes: ""
 };
 
-// 1. تم نقل مكون Field خارج الصفحة لمنع إعادة إنشائه وفقدان التركيز أثناء الكتابة
+// مكون Field معزول لمنع فقدان التركيز (Focus Loss) أثناء الكتابة
 const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
   <div>
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
@@ -51,7 +51,7 @@ export default function VehiclesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Vehicle>>(emptyVehicle);
   const [isEdit, setIsEdit] = useState(false);
-  const [saving, setSaving] = useState(false); // حالة لمنع التكرار ومعالجة زر الحفظ
+  const [saving, setSaving] = useState(false); 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
@@ -83,7 +83,7 @@ export default function VehiclesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 2. تحديث دالة الحفظ لضمان معالجة الأخطاء واستجابة الزر بشكل مثالي
+  // دالة الحفظ المُحدثة مع تنظيف البيانات الفارغة وتحويلها لـ null
   const handleSave = async () => {
     if (saving) return;
     try {
@@ -91,10 +91,19 @@ export default function VehiclesPage() {
       const method = isEdit ? "PUT" : "POST";
       const url = isEdit ? `/api/vehicles/${editing.id}` : "/api/vehicles";
       
+      // معالجة وتنظيف البيانات قبل إرسالها لـ API لتجنب رفض قاعدة البيانات (مثل تحويل التواريخ الفارغة لـ null)
+      const payload = {
+        ...editing,
+        year: Number(editing.year) || new Date().getFullYear(),
+        currentKm: Number(editing.currentKm) || 0,
+        licenseExpiry: editing.licenseExpiry && editing.licenseExpiry.trim() !== "" ? editing.licenseExpiry : null,
+        insuranceExpiry: editing.insuranceExpiry && editing.insuranceExpiry.trim() !== "" ? editing.insuranceExpiry : null,
+      };
+
       const res = await fetch(url, { 
         method, 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(editing) 
+        body: JSON.stringify(payload) 
       });
 
       if (res.ok) { 
