@@ -42,10 +42,10 @@ export default function Sidebar() {
       className={`${sidebarCollapsed ? "w-16" : "w-64"} transition-all duration-300 h-screen flex flex-col fixed top-0 ${isRTL ? "right-0" : "left-0"} z-40 shadow-xl`}
       style={{ background: "linear-gradient(180deg, #1E3A8A 0%, #1e40af 60%, #1d4ed8 100%)" }}
     >
-      {/* Header */}
+      {/* Header - تم إضافة variant="dark" للوجو لكي يظل ثابتاً وواضحاً على الخلفية الزرقاء */}
       <div className="p-4 flex items-center justify-between border-b border-blue-700">
-        {!sidebarCollapsed && <Fleet360Logo size={36} showText={true} />}
-        {sidebarCollapsed && <Fleet360Logo size={32} showText={false} />}
+        {!sidebarCollapsed && <Fleet360Logo size={36} showText={true} variant="dark" />}
+        {sidebarCollapsed && <Fleet360Logo size={32} showText={false} variant="dark" />}
         <button
           onClick={() => setSidebarCollapsed(prev => !prev)}
           className="text-white/70 hover:text-white p-1 rounded"
