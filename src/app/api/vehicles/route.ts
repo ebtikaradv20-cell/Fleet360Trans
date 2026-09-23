@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const plateNumber = body.plate_number || body.plateNumber || "";
     const brand = body.brand || "";
     const model = body.model || "";
-    const year = body.year ? parseInt(body.year) : null;
+    const year = body.year ? parseInt(body.year, 10) : null;
     const department = body.department || "";
     const driverName = body.driver_name || body.driverName || "";
     const status = body.status === "نشطة" || body.status === "active" ? "active" : (body.status || "active");
