@@ -81,11 +81,11 @@ export default function LoginPage() {
           <div>
             {/* Logo & Branding */}
             <div className="text-center mb-6">
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-3">
                 <img 
                   src="/logo.png" 
                   alt="Fleet360 Logo" 
-                  className="w-24 h-24 object-contain rounded-2xl shadow-lg bg-white/20 p-2 border border-white/30"
+                  className="w-32 h-32 object-contain filter drop-shadow-md"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}
@@ -93,7 +93,7 @@ export default function LoginPage() {
               </div>
               <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
               <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
-              <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSGAS / TAQA ARABIA</p>
+              <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSCAS / TAQA ARABIA</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -158,10 +158,10 @@ export default function LoginPage() {
             </form>
           </div>
 
-          {/* الإمضاء في أسفل الكارت تماماً بلون أبيض وبدون خلفية */}
-          <div className="text-center mt-8 pt-4 border-t border-white/10">
+          {/* الإمضاء في أسفل الكارت بلون أبيض ناصع بدون خلفية */}
+          <div className="text-center mt-6 pt-3 border-t border-white/10">
             <p className="text-white text-xs font-medium tracking-wider opacity-90">
-              Developed by  Omar Abd Elhalim
+              Developed by Eng. Omar Abd Elhalim
             </p>
           </div>
         </div>
