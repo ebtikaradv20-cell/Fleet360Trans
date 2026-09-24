@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
@@ -44,16 +45,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar />
+      
+      {/* 💡 تم دمج توقيعك الهندسي هنا بداخل الـ Sidebar أو أسفل الهيكل الداخلي */}
       <div className={`flex-1 flex flex-col ${marginClass} transition-all duration-300`}>
         <Navbar />
         <main className="flex-1 p-6 fade-in">
           {children}
         </main>
+        
+        {/* البصمة والتوقيع الرسمي في أسفل لوحة التحكم */}
+        <footer className="py-3 px-6 border-t border-slate-200/60 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-1">
+          <span>Fleet360 System v1.0 &copy; {new Date().getFullYear()}</span>
+          <span className="font-bold text-slate-700 dark:text-slate-300 tracking-wide">
+            Architected & Developed by <span className="text-blue-600 dark:text-blue-400">Omar Abd Elhalim</span>
+          </span>
+        </footer>
       </div>
     </div>
   );
 }
-<div className="mt-auto p-4 border-t border-slate-100 text-center bg-slate-50/50">
-  <p className="text-[11px] text-slate-400">Fleet360 System v1.0</p>
-  <p className="text-xs font-bold text-slate-700 mt-0.5">By Omar Abd Elhalim</p>
-</div>
