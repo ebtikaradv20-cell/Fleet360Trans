@@ -78,22 +78,26 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Card */}
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Logo */}
+          {/* Logo & Branding */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <img 
                 src="/logo.png" 
                 alt="Fleet360 Logo" 
-                className="w-16 h-16 object-contain rounded-2xl shadow-md bg-white/20 p-1"
+                className="w-24 h-24 object-contain rounded-2xl shadow-lg bg-white/20 p-2 border border-white/30"
                 onError={(e) => {
-                  // Fallback if image path differs
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
             </div>
             <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
             <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
-            <p className="text-blue-300 text-xs mt-1">TRANSCAS / TAQA ARABIA</p>
+            <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSCAS / TAQA ARABIA</p>
+            
+            {/* إمضاء المهندس بوضوح */}
+            <div className="mt-3 inline-block px-4 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-bold tracking-wide shadow-inner">
+              Developed by Eng. Omar Abd Elhalim
+            </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
