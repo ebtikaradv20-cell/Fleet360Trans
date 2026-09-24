@@ -1,225 +1,226 @@
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { translations } from "@/lib/i18n";
-import PageHeader from "@/components/ui/PageHeader";
-import DataTable from "@/components/ui/DataTable";
-import StatusBadge from "@/components/ui/StatusBadge";
-import Modal from "@/components/ui/Modal";
-import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
 
-interface WorkOrder {
-  id: number;
-  orderNumber: string;
-  vehicleId: number;
-  plateNumber: string;
-  maintenanceType: string;
-  status: string;
-  workshop: string;
-  description: string;
-  cost: number;
-  startDate: string;
-  endDate: string;
-  technicianName: string;
-  notes: string;
-  createdAt: string;
+interface DashboardData {
+  totalVehicles: number;
+  activeVehicles: number;
+  maintenanceVehicles: number;
+  expiredVehicles: number;
+  totalFuelCost: number;
+  totalMaintenanceCost: number;
+  openWorkOrders: number;
+  lowStockParts: number;
+  licenseAlerts: number;
+  insuranceAlerts: number;
+  oilAlerts: number;
+  recentFuel: unknown[];
+  recentWorkOrders: unknown[];
 }
 
-interface Vehicle { id: number; plateNumber: string; }
+function StatCard({ icon, label, value, sub, color, gradient, onClick, alert }: {
+  icon: string; label: string; value: string | number; sub?: string;
+  color: string; gradient: string; onClick?: () => void; alert?: boolean;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded-2xl p-5 shadow-lg card-hover text-white relative overflow-hidden ${onClick ? "cursor-pointer" : ""} ${alert ? "alert-pulse" : ""}`}
+      style={{ background: gradient }}
+    >
+      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-20 -translate-y-6 translate-x-6"
+        style={{ background: "white" }} />
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-3">
+          <div className="text-3xl">{icon}</div>
+          {alert && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">!</span>}
+        </div>
+        <div className="text-3xl font-black mb-1">{value}</div>
+        <div className="text-sm font-semibold opacity-90">{label}</div>
+        {sub && <div className="text-xs opacity-75 mt-1">{sub}</div>}
+        {onClick && (
+          <div className="text-xs opacity-75 mt-2 flex items-center gap-1">
+            <span>اضغط للعرض</span>
+            <span>←</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-const emptyWO: Partial<WorkOrder> = {
-  orderNumber: `WO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`,
-  plateNumber: "", maintenanceType: "preventive", status: "pending",
-  workshop: "", description: "", cost: 0, startDate: new Date().toISOString().slice(0, 10),
-  endDate: "", technicianName: "", notes: ""
-};
-
-export default function WorkOrdersPage() {
-  const { lang, user } = useApp();
+export default function DashboardPage() {
+  const { lang } = useApp();
   const t = translations[lang];
-  const [data, setData] = useState<WorkOrder[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const router = useRouter();
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Partial<WorkOrder>>(emptyWO);
-  const [isEdit, setIsEdit] = useState(false);
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [workshopFilter, setWorkshopFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
 
-  const canWrite = user?.role === "admin" || user?.permissions?.includes("maintenance:write");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (typeFilter) params.set("maintenanceType", typeFilter);
-    if (statusFilter) params.set("status", statusFilter);
-    if (workshopFilter) params.set("workshop", workshopFilter);
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
-    const res = await fetch(`/api/work-orders?${params}`);
-    const d = await res.json();
-    setData(Array.isArray(d) ? d : []);
-    setLoading(false);
-  }, [search, typeFilter, statusFilter, workshopFilter, dateFrom, dateTo]);
-
-  useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    fetch("/api/vehicles").then(r => r.json()).then(d => setVehicles(Array.isArray(d) ? d : []));
+    fetch("/api/dashboard")
+      .then(r => r.json())
+      .then(d => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const handleSave = async () => {
-    const method = isEdit ? "PUT" : "POST";
-    const url = isEdit ? `/api/work-orders/${editing.id}` : "/api/work-orders";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(editing) });
-    if (res.ok) { setModalOpen(false); load(); }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-spin">⚙️</div>
+          <div className="text-gray-500 dark:text-gray-400">{t.loading}</div>
+        </div>
+      </div>
+    );
+  }
 
-  const handleDelete = async (row: WorkOrder) => {
-    await fetch(`/api/work-orders/${row.id}`, { method: "DELETE" });
-    load();
-  };
-
-  const openAdd = () => { setEditing({...emptyWO, orderNumber: `WO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`}); setIsEdit(false); setModalOpen(true); };
-  const openEdit = (row: WorkOrder) => { setEditing(row); setIsEdit(true); setModalOpen(true); };
-  const formatDate = (d: string) => d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB") : "-";
-
-  const totalCost = data.reduce((s, r) => s + (r.cost || 0), 0);
-  const workshops = [...new Set(data.map(r => r.workshop).filter(Boolean))];
-
-  const columns = [
-    { key: "orderNumber", header: t.orderNumber, render: (r: WorkOrder) => <span className="font-bold text-blue-600 dark:text-blue-400">{r.orderNumber}</span> },
-    { key: "plateNumber", header: t.plateNumber },
-    { key: "maintenanceType", header: t.maintenanceType, render: (r: WorkOrder) => <StatusBadge status={r.maintenanceType} /> },
-    { key: "status", header: t.status, render: (r: WorkOrder) => <StatusBadge status={r.status} /> },
-    { key: "workshop", header: t.workshop },
-    { key: "description", header: lang === "ar" ? "الوصف" : "Description", render: (r: WorkOrder) => <span className="max-w-32 truncate block" title={r.description}>{r.description}</span> },
-    { key: "cost", header: t.cost, render: (r: WorkOrder) => <span className="font-bold text-green-600 dark:text-green-400">{(r.cost || 0).toLocaleString()} ج.م</span> },
-    { key: "startDate", header: t.startDate, render: (r: WorkOrder) => formatDate(r.startDate) },
-    { key: "technicianName", header: t.technician },
-    { key: "createdAt", header: t.createdAt, render: (r: WorkOrder) => formatDate(r.createdAt) },
-  ];
-
-  const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>{children}</div>
-  );
+  // تنسيق عملة الوقود بالجنيه المصري
+  const formatFuelCurrency = (n: number) => `${(n || 0).toLocaleString()} ج.م`;
+  // تنسيق باقي العملات (مثل الصيانة) إذا أرَدت تغييرها أيضاً أو إبقاؤها
+  const formatCurrency = (n: number) => `${(n || 0).toLocaleString()} ر.س`;
 
   return (
     <div className="fade-in">
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">{lang === "ar" ? "إجمالي التكلفة" : "Total Cost"}</div>
-          <div className="text-2xl font-black text-green-600">{totalCost.toLocaleString()} ج.م</div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">{lang === "ar" ? "أوامر مفتوحة" : "Open Orders"}</div>
-          <div className="text-2xl font-black text-orange-500">{data.filter(r => r.status !== "completed").length}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">{lang === "ar" ? "مكتملة" : "Completed"}</div>
-          <div className="text-2xl font-black text-blue-600">{data.filter(r => r.status === "completed").length}</div>
-        </div>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-black text-gray-900 dark:text-white">
+          {t.dashboard}
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
+          {lang === "ar" ? "مرحباً بك في نظام إدارة الأسطول الشامل Fleet360" : "Welcome to Fleet360 - Comprehensive Fleet Management System"}
+        </p>
       </div>
 
-      <PageHeader title={lang === "ar" ? "أوامر الشغل والصيانة" : "Work Orders & Maintenance"} icon="🔧"
-        subtitle={lang === "ar" ? `${data.length} أمر شغل` : `${data.length} work orders`}
-        onAdd={canWrite ? openAdd : undefined} addLabel={t.addWorkOrder}
-        data={data.map(r => ({ ...r }))} exportFileName="work_orders"
-      >
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={`🔍 ${t.search}...`}
-          className="border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
-      </PageHeader>
+      {/* Alerts Banner */}
+      {data && ((data.licenseAlerts || 0) + (data.oilAlerts || 0) + (data.insuranceAlerts || 0)) > 0 && (
+        <div className="mb-6 p-4 rounded-2xl border-2 flex items-center gap-4" style={{ borderColor: "#F97316", background: "rgba(249,115,22,0.05)" }}>
+          <div className="text-3xl animate-bounce">⚠️</div>
+          <div>
+            <div className="font-bold text-orange-600 dark:text-orange-400">
+              {lang === "ar" ? "تنبيهات تحتاج اهتمامك!" : "Alerts require your attention!"}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {data.licenseAlerts > 0 && <span className="me-4">📋 {data.licenseAlerts} {lang === "ar" ? "رخصة تنتهي قريباً" : "licenses expiring soon"}</span>}
+              {data.insuranceAlerts > 0 && <span className="me-4">🛡️ {data.insuranceAlerts} {lang === "ar" ? "تأمين ينتهي قريباً" : "insurance expiring soon"}</span>}
+              {data.oilAlerts > 0 && <span>🛢️ {data.oilAlerts} {lang === "ar" ? "تغيير زيوت مطلوب" : "oil changes due"}</span>}
+            </div>
+          </div>
+        </div>
+      )}
 
-      <FilterBar dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} showDateRange>
-        <FilterSelect label={t.maintenanceType} value={typeFilter} onChange={setTypeFilter} options={[
-          { value: "preventive", label: t.preventive },
-          { value: "emergency", label: t.emergency },
-        ]} />
-        <FilterSelect label={t.status} value={statusFilter} onChange={setStatusFilter} options={[
-          { value: "pending", label: t.pending },
-          { value: "in_progress", label: t.in_progress },
-          { value: "completed", label: t.completed },
-        ]} />
-        <FilterSelect label={t.workshop} value={workshopFilter} onChange={setWorkshopFilter}
-          options={workshops.map(w => ({ value: w, label: w }))} />
-      </FilterBar>
-
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
-        <DataTable columns={columns} data={data} loading={loading}
-          onEdit={canWrite ? openEdit : undefined}
-          onDelete={user?.role === "admin" ? handleDelete : undefined}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+        <StatCard
+          icon="🚗" label={t.totalVehicles} value={data?.totalVehicles || 0}
+          sub={`${data?.activeVehicles || 0} ${t.activeVehicles}`}
+          color="#1E3A8A" gradient="linear-gradient(135deg, #1E3A8A, #1d4ed8)"
+          onClick={() => router.push("/dashboard/vehicles")}
+        />
+        <StatCard
+          icon="🔧" label={t.openWorkOrders} value={data?.openWorkOrders || 0}
+          sub={lang === "ar" ? "أوامر شغل مفتوحة" : "Open work orders"}
+          color="#F97316" gradient="linear-gradient(135deg, #F97316, #EA580C)"
+          onClick={() => router.push("/dashboard/work-orders")}
+        />
+        <StatCard
+          icon="⛽" label={t.totalFuelCost} value={formatFuelCurrency(data?.totalFuelCost || 0)}
+          sub={lang === "ar" ? "إجمالي تكاليف الوقود" : "Total fuel costs"}
+          color="#0284C7" gradient="linear-gradient(135deg, #0284C7, #0369a1)"
+          onClick={() => router.push("/dashboard/fuel")}
+        />
+        <StatCard
+          icon="📦" label={t.lowStockParts} value={data?.lowStockParts || 0}
+          sub={lang === "ar" ? "قطع منخفضة أو منتهية" : "Low or out of stock"}
+          color="#7C3AED" gradient="linear-gradient(135deg, #7C3AED, #6d28d9)"
+          onClick={() => router.push("/dashboard/spare-parts")}
+          alert={(data?.lowStockParts || 0) > 0}
+        />
+        <StatCard
+          icon="🛢️" label={t.oilChangeAlerts} value={data?.oilAlerts || 0}
+          sub={lang === "ar" ? "تغيير زيوت مطلوب" : "Oil changes needed"}
+          color="#D97706" gradient="linear-gradient(135deg, #D97706, #B45309)"
+          onClick={() => router.push("/dashboard/oil-changes")}
+          alert={(data?.oilAlerts || 0) > 0}
+        />
+        <StatCard
+          icon="📋" label={t.licenseAlerts} value={data?.licenseAlerts || 0}
+          sub={lang === "ar" ? "رخص تنتهي خلال 30 يوم" : "Licenses expiring in 30 days"}
+          color="#DC2626" gradient="linear-gradient(135deg, #DC2626, #B91C1C)"
+          onClick={() => router.push("/dashboard/vehicles?filter=expired")}
+          alert={(data?.licenseAlerts || 0) > 0}
+        />
+        <StatCard
+          icon="💰" label={t.totalMaintenanceCost} value={formatCurrency(data?.totalMaintenanceCost || 0)}
+          sub={lang === "ar" ? "إجمالي تكاليف الصيانة" : "Total maintenance costs"}
+          color="#059669" gradient="linear-gradient(135deg, #059669, #047857)"
+          onClick={() => router.push("/dashboard/work-orders")}
+        />
+        <StatCard
+          icon="🔍" label={t.vehicleInspection} value={lang === "ar" ? "فحص" : "Inspect"}
+          sub={lang === "ar" ? "فحص كامل للسيارات" : "Full vehicle inspection"}
+          color="#0891B2" gradient="linear-gradient(135deg, #0891B2, #0e7490)"
+          onClick={() => router.push("/dashboard/vehicle-inspection")}
         />
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEdit ? t.edit : t.addWorkOrder} size="lg">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label={t.orderNumber}>
-            <input className={inputClass} value={editing.orderNumber || ""} onChange={e => setEditing({...editing, orderNumber: e.target.value})} />
-          </Field>
-          <Field label={t.plateNumber}>
-            <select className={inputClass} value={editing.plateNumber || ""}
-              onChange={e => {
-                const v = vehicles.find(v => v.plateNumber === e.target.value);
-                setEditing({...editing, plateNumber: e.target.value, vehicleId: v?.id});
-              }}>
-              <option value="">-- {lang === "ar" ? "اختر" : "Select"} --</option>
-              {vehicles.map(v => <option key={v.id} value={v.plateNumber}>{v.plateNumber}</option>)}
-            </select>
-          </Field>
-          <Field label={t.maintenanceType}>
-            <select className={inputClass} value={editing.maintenanceType || "preventive"} onChange={e => setEditing({...editing, maintenanceType: e.target.value})}>
-              <option value="preventive">{t.preventive}</option>
-              <option value="emergency">{t.emergency}</option>
-            </select>
-          </Field>
-          <Field label={t.status}>
-            <select className={inputClass} value={editing.status || "pending"} onChange={e => setEditing({...editing, status: e.target.value})}>
-              <option value="pending">{t.pending}</option>
-              <option value="in_progress">{t.in_progress}</option>
-              <option value="completed">{t.completed}</option>
-            </select>
-          </Field>
-          <Field label={t.workshop}>
-            <input className={inputClass} value={editing.workshop || ""} onChange={e => setEditing({...editing, workshop: e.target.value})} />
-          </Field>
-          <Field label={t.technician}>
-            <input className={inputClass} value={editing.technicianName || ""} onChange={e => setEditing({...editing, technicianName: e.target.value})} />
-          </Field>
-          <Field label={t.cost}>
-            <input type="number" className={inputClass} value={editing.cost || ""} onChange={e => setEditing({...editing, cost: parseFloat(e.target.value)})} />
-          </Field>
-          <div />
-          <Field label={t.startDate}>
-            <input type="date" className={inputClass} value={editing.startDate || ""} onChange={e => setEditing({...editing, startDate: e.target.value})} />
-          </Field>
-          <Field label={t.endDate}>
-            <input type="date" className={inputClass} value={editing.endDate || ""} onChange={e => setEditing({...editing, endDate: e.target.value})} />
-          </Field>
-          <div className="col-span-2">
-            <Field label={lang === "ar" ? "الوصف" : "Description"}>
-              <textarea className={inputClass} rows={2} value={editing.description || ""} onChange={e => setEditing({...editing, description: e.target.value})} />
-            </Field>
-          </div>
-          <div className="col-span-2">
-            <Field label={t.notes}>
-              <textarea className={inputClass} rows={2} value={editing.notes || ""} onChange={e => setEditing({...editing, notes: e.target.value})} />
-            </Field>
+      {/* Vehicle Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border dark:border-gray-700 p-6">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
+            🚗 {lang === "ar" ? "توزيع حالة الأسطول" : "Fleet Status Distribution"}
+          </h3>
+          <div className="space-y-3">
+            {[
+              { label: lang === "ar" ? "نشطة" : "Active", value: data?.activeVehicles || 0, color: "#22C55E", max: data?.totalVehicles || 1 },
+              { label: lang === "ar" ? "قيد الصيانة" : "In Maintenance", value: data?.maintenanceVehicles || 0, color: "#F97316", max: data?.totalVehicles || 1 },
+              { label: lang === "ar" ? "منتهية الرخصة" : "License Expired", value: data?.expiredVehicles || 0, color: "#EF4444", max: data?.totalVehicles || 1 },
+            ].map(item => (
+              <div key={item.label}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-600 dark:text-gray-400">{item.label}</span>
+                  <span className="font-bold text-gray-800 dark:text-white">{item.value}</span>
+                </div>
+                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${(item.value / item.max) * 100}%`, background: item.color }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
-            💾 {t.save}
-          </button>
-          <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold">
-            {t.cancel}
-          </button>
+
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border dark:border-gray-700 p-6">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
+            ⚡ {lang === "ar" ? "الإجراءات السريعة" : "Quick Actions"}
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: lang === "ar" ? "إضافة سيارة" : "Add Vehicle", icon: "🚗", path: "/dashboard/vehicles", color: "#1E3A8A" },
+              { label: lang === "ar" ? "إضافة وقود" : "Add Fuel", icon: "⛽", path: "/dashboard/fuel", color: "#0284C7" },
+              { label: lang === "ar" ? "أمر شغل جديد" : "New Work Order", icon: "🔧", path: "/dashboard/work-orders", color: "#F97316" },
+              { label: lang === "ar" ? "تغيير زيوت" : "Oil Change", icon: "🛢️", path: "/dashboard/oil-changes", color: "#059669" },
+              { label: lang === "ar" ? "فحص سيارة" : "Inspect Vehicle", icon: "🔍", path: "/dashboard/vehicle-inspection", color: "#7C3AED" },
+              { label: lang === "ar" ? "المخزون" : "Inventory", icon: "📦", path: "/dashboard/spare-parts", color: "#DC2626" },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => router.push(item.path)}
+                className="flex items-center gap-2 p-3 rounded-xl border dark:border-gray-700 hover:shadow-md transition-all card-hover text-start"
+              >
+                <span className="text-xl">{item.icon}</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </Modal>
+      </div>
     </div>
   );
 }
