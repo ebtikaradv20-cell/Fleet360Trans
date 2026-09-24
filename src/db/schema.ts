@@ -112,3 +112,18 @@ export const vehicleParts = pgTable("vehicle_parts", {
   cost: decimal("cost"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+// 8. جدول سجل أجزاء المركبة (History)
+export const vehiclePartsHistory = pgTable("vehicle_parts_history", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id"),
+  vehiclePartId: integer("vehicle_part_id"),
+  plateNumber: text("plate_number"),
+  partName: text("part_name"),
+  partCategory: text("part_category"),
+  installDate: date("install_date"),
+  brand: text("brand"),
+  condition: text("condition"),
+  kmAtInstall: integer("km_at_install"),
+  cost: decimal("cost"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
