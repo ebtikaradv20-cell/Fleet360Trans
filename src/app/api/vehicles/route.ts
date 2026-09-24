@@ -3,6 +3,10 @@ import { db } from "@/db";
 import { vehicles } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
 
+// إيقاف التخزين المؤقت تماماً لضمان جلب البيانات الحية من القاعدة فوراً
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function parseDate(dateValue: unknown): string | null {
   if (!dateValue) return null;
   try {
@@ -26,25 +30,34 @@ export async function GET(req: NextRequest) {
     
     const rawVehicles = await db.select().from(vehicles);
     
-    // خريطة تحويل احترافية لتجنب أي اختلاف بين أسماء الحقول في القاعدة والتطبيق
+    // توفير كلا الشكلين (camelCase و snake_case) لضمان توافقها مع أي مكون في الـ Frontend
     const formattedVehicles = rawVehicles.map((v: any) => ({
       id: v.id,
       plateNumber: v.plateNumber || v.plate_number || "",
+      plate_number: v.plateNumber || v.plate_number || "",
       brand: v.brand || "غير محدد",
       model: v.model || "",
       year: v.year || null,
       department: v.department || "",
       driverName: v.driverName || v.driver_name || "",
+      driver_name: v.driverName || v.driver_name || "",
       status: v.status || "active",
       currentKm: v.currentKm ?? v.current_km ?? 0,
+      current_km: v.currentKm ?? v.current_km ?? 0,
       licenseExpiry: v.licenseExpiry || v.license_expiry || null,
+      license_expiry: v.licenseExpiry || v.license_expiry || null,
       insuranceExpiry: v.insuranceExpiry || v.insurance_expiry || null,
+      insurance_expiry: v.insuranceExpiry || v.insurance_expiry || null,
       color: v.color || null,
       vin: v.vin || null,
       notes: v.notes || null,
     }));
 
-    return NextResponse.json(formattedVehicles);
+    return NextResponse.json(formattedVehicles, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error: any) {
     console.error("Database Fetch Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
