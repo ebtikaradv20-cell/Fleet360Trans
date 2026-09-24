@@ -23,11 +23,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    // جلب البيانات باستخدام استعلام SQL مباشر لضمان عدم حدوث أي خطأ في الـ ORM Schema
     const rawVehicles = await db.execute(sql`SELECT * FROM vehicles`);
     const rows = rawVehicles.rows || rawVehicles;
 
-    // إعادة تشكيل البيانات بصيغة متكاملة تخدم الـ Frontend بأمان مطلَق
     const formattedVehicles = (Array.isArray(rows) ? rows : []).map((v: any) => ({
       id: v?.id ?? 0,
       plateNumber: String(v?.plate_number || v?.plateNumber || "غير محدد"),
