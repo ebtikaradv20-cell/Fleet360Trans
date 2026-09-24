@@ -62,11 +62,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
-      {/* Background */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1d4ed8 50%, #0284C7 100%)" }} />
+      {/* Background with inverted gradient */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0284C7 0%, #1d4ed8 50%, #1E3A8A 100%)" }} />
       <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-20 left-20 w-64 h-64 rounded-full" style={{ background: "#F97316", filter: "blur(80px)" }} />
-        <div className="absolute bottom-20 right-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
+        <div className="absolute top-20 right-20 w-64 h-64 rounded-full" style={{ background: "#F97316", filter: "blur(80px)" }} />
+        <div className="absolute bottom-20 left-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
       </div>
 
       {/* Grid pattern */}
@@ -77,89 +77,93 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Card */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Logo & Branding */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <img 
-                src="/logo.png" 
-                alt="Fleet360 Logo" 
-                className="w-24 h-24 object-contain rounded-2xl shadow-lg bg-white/20 p-2 border border-white/30"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            </div>
-            <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
-            <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
-            <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSCAS / TAQA ARABIA</p>
-            
-            {/* إمضاء المهندس بوضوح */}
-            <div className="mt-3 inline-block px-4 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-300 text-xs font-bold tracking-wide shadow-inner">
-              Developed by Eng. Omar Abd Elhalim
-            </div>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-blue-200 text-sm mb-2 font-medium">اسم المستخدم</label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="أدخل اسم المستخدم"
-                className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-blue-200 text-sm mb-2 font-medium">كلمة المرور</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="أدخل كلمة المرور"
-                className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
-                required
-              />
-            </div>
-
-            {/* Remember me & Forgot password */}
-            <div className="flex items-center justify-between text-sm py-1">
-              <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20 flex flex-col justify-between min-h-[580px]">
+          <div>
+            {/* Logo & Branding */}
+            <div className="text-center mb-6">
+              <div className="flex justify-center mb-4">
+                <img 
+                  src="/logo.png" 
+                  alt="Fleet360 Logo" 
+                  className="w-24 h-24 object-contain rounded-2xl shadow-lg bg-white/20 p-2 border border-white/30"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
                 />
-                <span className="text-blue-200 font-medium">تذكر بياناتي</span>
-              </label>
+              </div>
+              <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
+              <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
+              <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSCAS / TAQA ARABIA</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-blue-200 text-sm mb-2 font-medium">اسم المستخدم</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder="أدخل اسم المستخدم"
+                  className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-blue-200 text-sm mb-2 font-medium">كلمة المرور</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="أدخل كلمة المرور"
+                  className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              {/* Remember me & Forgot password */}
+              <div className="flex items-center justify-between text-sm py-1">
+                <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                  />
+                  <span className="text-blue-200 font-medium">تذكر بياناتي</span>
+                </label>
+
+                <button
+                  onClick={handleForgotPassword}
+                  className="text-orange-300 hover:text-orange-400 transition text-xs font-semibold underline"
+                >
+                  نسيت كلمة المرور؟
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 text-red-200 text-sm text-center">
+                  ⚠️ {error}
+                </div>
+              )}
 
               <button
-                onClick={handleForgotPassword}
-                className="text-orange-300 hover:text-orange-400 transition text-xs font-semibold underline"
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-4 disabled:opacity-70 shadow-lg"
+                style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
               >
-                نسيت كلمة المرور؟
+                {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
               </button>
-            </div>
+            </form>
+          </div>
 
-            {error && (
-              <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 text-red-200 text-sm text-center">
-                ⚠️ {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-4 disabled:opacity-70 shadow-lg"
-              style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
-            >
-              {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
-            </button>
-          </form>
+          {/* الإمضاء في أسفل الكارت تماماً بلون أبيض وبدون خلفية */}
+          <div className="text-center mt-8 pt-4 border-t border-white/10">
+            <p className="text-white text-xs font-medium tracking-wider opacity-90">
+              Developed by Eng. Omar Abd Elhalim
+            </p>
+          </div>
         </div>
       </div>
     </div>
