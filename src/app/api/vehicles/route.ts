@@ -23,20 +23,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
-    // جلب البيانات مع حماية كاملة ضد أي استثناءات
+    // جلب البيانات من قاعدة البيانات بأمان
     const rawVehicles = await db.select().from(vehicles).catch(() => []);
     
-    // تنسيق صارم وآمن يضمن عدم إرجاع أي قيمة قد تتسبب في كسر الـ Frontend
+    // تنسيق البيانات لتطابق كافة احتمالات الواجهة الأمامية
     const formattedVehicles = (rawVehicles || []).map((v: any) => ({
-      id: v?.id ?? Math.random(),
+      id: v?.id ?? 0,
       plateNumber: String(v?.plateNumber || v?.plate_number || "غير محدد"),
+      plate_number: String(v?.plateNumber || v?.plate_number || "غير محدد"),
       brand: String(v?.brand || "غير محدد"),
       model: String(v?.model || "غير محدد"),
       year: Number(v?.year || 2020),
       department: String(v?.department || "غير محدد"),
       driverName: String(v?.driverName || v?.driver_name || "غير متوفر"),
+      driver_name: String(v?.driverName || v?.driver_name || "غير متوفر"),
       status: String(v?.status || "active"),
       currentKm: Number(v?.currentKm ?? v?.current_km ?? 0),
+      current_km: Number(v?.currentKm ?? v?.current_km ?? 0),
       licenseExpiry: v?.licenseExpiry || v?.license_expiry || "",
       insuranceExpiry: v?.insuranceExpiry || v?.insurance_expiry || "",
       color: String(v?.color || ""),
@@ -44,6 +47,7 @@ export async function GET(req: NextRequest) {
       notes: String(v?.notes || ""),
     }));
 
+    // إرجاع البيانات في شكل كائن آمن ومتوافق مع المكونات التي تتوقع data أو مصفوفة مباشرة
     return NextResponse.json(formattedVehicles, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -51,7 +55,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("API Critical Error:", error);
-    // إرجاع مصفوفة فارغة بدلاً من انهيار الخادم بالكامل لتجنب شاشة الخطأ
     return NextResponse.json([], { status: 200 });
   }
 }
