@@ -161,7 +161,7 @@ export default function LoginPage() {
           {/* الإمضاء في أسفل الكارت تماماً بلون أبيض وبدون خلفية */}
           <div className="text-center mt-8 pt-4 border-t border-white/10">
             <p className="text-white text-xs font-medium tracking-wider opacity-90">
-              Developed by Eng. Omar Abd Elhalim
+              Developed by  Omar Abd Elhalim
             </p>
           </div>
         </div>
