@@ -93,7 +93,7 @@ export default function LoginPage() {
               </div>
               <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
               <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
-              <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSCAS / TAQA ARABIA</p>
+              <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSGAS / TAQA ARABIA</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
