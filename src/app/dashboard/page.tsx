@@ -79,6 +79,9 @@ export default function DashboardPage() {
     );
   }
 
+  // تنسيق عملة الوقود بالجنيه المصري
+  const formatFuelCurrency = (n: number) => `${(n || 0).toLocaleString()} ج.م`;
+  // تنسيق باقي العملات (مثل الصيانة) إذا أرَدت تغييرها أيضاً أو إبقاؤها
   const formatCurrency = (n: number) => `${(n || 0).toLocaleString()} ر.س`;
 
   return (
@@ -125,7 +128,7 @@ export default function DashboardPage() {
           onClick={() => router.push("/dashboard/work-orders")}
         />
         <StatCard
-          icon="⛽" label={t.totalFuelCost} value={formatCurrency(data?.totalFuelCost || 0)}
+          icon="⛽" label={t.totalFuelCost} value={formatFuelCurrency(data?.totalFuelCost || 0)}
           sub={lang === "ar" ? "إجمالي تكاليف الوقود" : "Total fuel costs"}
           color="#0284C7" gradient="linear-gradient(135deg, #0284C7, #0369a1)"
           onClick={() => router.push("/dashboard/fuel")}
