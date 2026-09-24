@@ -3,6 +3,19 @@ import { db } from "@/db";
 import { vehicles } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
 
+/**
+ * دالة آمنة لمعالجة وتحويل التواريخ لتتوافق مع قاعدة البيانات
+ */
+function parseDate(dateValue: unknown): string | null {
+  if (!dateValue) return null;
+  try {
+    const parsed = new Date(dateValue as string);
+    return isNaN(parsed.getTime()) ? null : parsed.toISOString().split("T")[0];
+  } catch {
+    return null;
+  }
+}
+
 function auth(req: NextRequest) {
   const token = req.cookies.get("fleet360_token")?.value;
   if (!token) return null;
@@ -38,8 +51,8 @@ export async function POST(req: NextRequest) {
     const currentKm = body.current_km !== undefined ? parseFloat(body.current_km) : (body.currentKm !== undefined ? parseFloat(body.currentKm) : 0);
     
     // معالجة آمنة للتواريخ لتجنب أخطاء صيغة الإدخال
-    const licenseExpiry = body.license_expiry || body.licenseExpiry ? new Date(body.license_expiry || body.licenseExpiry) : null;
-    const insuranceExpiry = body.insurance_expiry || body.insuranceExpiry ? new Date(body.insurance_expiry || body.insuranceExpiry) : null;
+    const licenseExpiry = parseDate(body.license_expiry || body.licenseExpiry);
+    const insuranceExpiry = parseDate(body.insurance_expiry || body.insuranceExpiry);
     
     const color = body.color || null;
     const vin = body.vin || null;
