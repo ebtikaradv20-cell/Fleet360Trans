@@ -33,6 +33,20 @@ const emptyVehicle: Partial<Vehicle> = {
   licenseExpiry: "", insuranceExpiry: "", color: "", vin: "", notes: ""
 };
 
+// فصل مكون الحقل خارج المكون الرئيسي لمنع فقدان التركيز أثناء الكتابة
+interface FieldProps {
+  label: string;
+  children: React.ReactNode;
+}
+const Field = ({ label, children }: FieldProps) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
+    {children}
+  </div>
+);
+
+const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 export default function VehiclesPage() {
   const { lang, user } = useApp();
   const t = translations[lang] || translations["ar"];
@@ -67,7 +81,6 @@ export default function VehiclesPage() {
       if (!res.ok) throw new Error("Failed to fetch vehicles");
       const d = await res.json();
       
-      // معالجة آمنة لضمان قراءة البيانات أياً كان شكل الـ API response
       if (Array.isArray(d)) {
         setData(d);
       } else if (d && Array.isArray(d.vehicles)) {
@@ -91,20 +104,26 @@ export default function VehiclesPage() {
   const handleSave = async () => {
     try {
       const method = isEdit ? "PUT" : "POST";
-      const url = isEdit ? `/api/vehicles/${editing.id}` : "/api/vehicles";
+      // التأكد من إرسال الـ id بشكل صحيح في رابط الـ API عند التعديل
+      const url = isEdit && editing.id ? `/api/vehicles/${editing.id}` : "/api/vehicles";
+      
       const res = await fetch(url, { 
         method, 
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify(editing) 
       });
+
       if (res.ok) { 
         setModalOpen(false); 
         load(); 
       } else {
-        alert(lang === "ar" ? "فشل حفظ بيانات المركبة" : "Failed to save vehicle data");
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Server save error details:", errorData);
+        alert(lang === "ar" ? "فشل حفظ بيانات المركبة، تأكد من صحة المدخلات" : "Failed to save vehicle data");
       }
     } catch (err) {
-      console.error("Save error:", err);
+      console.error("Save error exception:", err);
+      alert(lang === "ar" ? "حدث خطأ غير متوقع أثناء الحفظ" : "An unexpected error occurred during save");
     }
   };
 
@@ -121,7 +140,7 @@ export default function VehiclesPage() {
   };
 
   const openAdd = () => { setEditing(emptyVehicle); setIsEdit(false); setModalOpen(true); };
-  const openEdit = (row: Vehicle) => { setEditing(row); setIsEdit(true); setModalOpen(true); };
+  const openEdit = (row: Vehicle) => { setEditing({ ...row }); setIsEdit(true); setModalOpen(true); };
 
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB") : "-";
   const isExpiringSoon = (d: string) => {
@@ -146,14 +165,6 @@ export default function VehiclesPage() {
     )},
     { key: "createdAt", header: t.createdAt || "تاريخ الإضافة", render: (r: Vehicle) => formatDate(r.createdAt) },
   ];
-
-  const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
-      {children}
-    </div>
-  );
-  const inputClass = "w-full border dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
     <div className="fade-in space-y-4">
@@ -197,7 +208,6 @@ export default function VehiclesPage() {
         </div>
       )}
 
-      {/* الجدول مغلف بـ overflow-x-auto لضمان التجاوب الكامل على الموبايل والشاشات الصغيرة */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden w-full overflow-x-auto">
         <DataTable
           columns={columns} data={data} loading={loading}
@@ -209,48 +219,48 @@ export default function VehiclesPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEdit ? (t.edit || "تعديل") : (t.addVehicle || "إضافة مركبة")} size="lg">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label={t.plateNumber || "رقم اللوحة"}>
-            <input className={inputClass} value={editing.plateNumber || ""} onChange={e => setEditing({...editing, plateNumber: e.target.value})} />
+            <input className={inputClass} value={editing.plateNumber || ""} onChange={e => setEditing(prev => ({...prev, plateNumber: e.target.value}))} />
           </Field>
           <Field label={t.brand || "الماركة"}>
-            <input className={inputClass} value={editing.brand || ""} onChange={e => setEditing({...editing, brand: e.target.value})} />
+            <input className={inputClass} value={editing.brand || ""} onChange={e => setEditing(prev => ({...prev, brand: e.target.value}))} />
           </Field>
           <Field label={t.model || "الموديل"}>
-            <input className={inputClass} value={editing.model || ""} onChange={e => setEditing({...editing, model: e.target.value})} />
+            <input className={inputClass} value={editing.model || ""} onChange={e => setEditing(prev => ({...prev, model: e.target.value}))} />
           </Field>
           <Field label={t.year || "السنة"}>
-            <input type="number" className={inputClass} value={editing.year || ""} onChange={e => setEditing({...editing, year: parseInt(e.target.value) || 0})} />
+            <input type="number" className={inputClass} value={editing.year || ""} onChange={e => setEditing(prev => ({...prev, year: parseInt(e.target.value) || 0}))} />
           </Field>
           <Field label={t.department || "القسم"}>
-            <input className={inputClass} value={editing.department || ""} onChange={e => setEditing({...editing, department: e.target.value})} />
+            <input className={inputClass} value={editing.department || ""} onChange={e => setEditing(prev => ({...prev, department: e.target.value}))} />
           </Field>
           <Field label={t.driverName || "السائق"}>
-            <input className={inputClass} value={editing.driverName || ""} onChange={e => setEditing({...editing, driverName: e.target.value})} />
+            <input className={inputClass} value={editing.driverName || ""} onChange={e => setEditing(prev => ({...prev, driverName: e.target.value}))} />
           </Field>
           <Field label={t.currentKm || "الكيلومترات الحالية"}>
-            <input type="number" className={inputClass} value={editing.currentKm || ""} onChange={e => setEditing({...editing, currentKm: parseInt(e.target.value) || 0})} />
+            <input type="number" className={inputClass} value={editing.currentKm || ""} onChange={e => setEditing(prev => ({...prev, currentKm: parseInt(e.target.value) || 0}))} />
           </Field>
           <Field label={t.status || "الحالة"}>
-            <select className={inputClass} value={editing.status || "active"} onChange={e => setEditing({...editing, status: e.target.value})}>
+            <select className={inputClass} value={editing.status || "active"} onChange={e => setEditing(prev => ({...prev, status: e.target.value}))}>
               <option value="active">{t.active || "نشط"}</option>
               <option value="maintenance">{lang === "ar" ? "قيد الصيانة" : "In Maintenance"}</option>
               <option value="expired">{t.expired || "منتهي"}</option>
             </select>
           </Field>
           <Field label={t.licenseExpiry || "انتهاء الرخصة"}>
-            <input type="date" className={inputClass} value={editing.licenseExpiry || ""} onChange={e => setEditing({...editing, licenseExpiry: e.target.value})} />
+            <input type="date" className={inputClass} value={editing.licenseExpiry || ""} onChange={e => setEditing(prev => ({...prev, licenseExpiry: e.target.value}))} />
           </Field>
           <Field label={t.insuranceExpiry || "انتهاء التأمين"}>
-            <input type="date" className={inputClass} value={editing.insuranceExpiry || ""} onChange={e => setEditing({...editing, insuranceExpiry: e.target.value})} />
+            <input type="date" className={inputClass} value={editing.insuranceExpiry || ""} onChange={e => setEditing(prev => ({...prev, insuranceExpiry: e.target.value}))} />
           </Field>
           <Field label={t.color || "اللون"}>
-            <input className={inputClass} value={editing.color || ""} onChange={e => setEditing({...editing, color: e.target.value})} />
+            <input className={inputClass} value={editing.color || ""} onChange={e => setEditing(prev => ({...prev, color: e.target.value}))} />
           </Field>
           <Field label={t.vin || "رقم الشاصي (VIN)"}>
-            <input className={inputClass} value={editing.vin || ""} onChange={e => setEditing({...editing, vin: e.target.value})} />
+            <input className={inputClass} value={editing.vin || ""} onChange={e => setEditing(prev => ({...prev, vin: e.target.value}))} />
           </Field>
           <div className="col-span-1 md:col-span-2">
             <Field label={t.notes || "ملاحظات"}>
-              <textarea className={inputClass} rows={3} value={editing.notes || ""} onChange={e => setEditing({...editing, notes: e.target.value})} />
+              <textarea className={inputClass} rows={3} value={editing.notes || ""} onChange={e => setEditing(prev => ({...prev, notes: e.target.value}))} />
             </Field>
           </div>
         </div>
@@ -258,7 +268,7 @@ export default function VehiclesPage() {
           <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 shadow-md" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
             💾 {t.save || "حفظ"}
           </button>
-          <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold transition-all">
+          <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold transition-all">
             {t.cancel || "إلغاء"}
           </button>
         </div>
