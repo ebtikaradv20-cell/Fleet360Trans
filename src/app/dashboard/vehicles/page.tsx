@@ -33,7 +33,6 @@ const emptyVehicle: Partial<Vehicle> = {
   licenseExpiry: "", insuranceExpiry: "", color: "", vin: "", notes: ""
 };
 
-// فصل مكون الحقل خارج المكون الرئيسي لمنع فقدان التركيز أثناء الكتابة
 interface FieldProps {
   label: string;
   children: React.ReactNode;
@@ -103,23 +102,37 @@ export default function VehiclesPage() {
 
   const handleSave = async () => {
     try {
+      // تجهيز وتنسيق البيانات المرسلة لضمان توافقها مع الـ API وقاعدة البيانات
+      const payload = {
+        ...editing,
+        year: editing.year ? Number(editing.year) : new Date().getFullYear(),
+        currentKm: editing.currentKm ? Number(editing.currentKm) : 0,
+        status: editing.status || "active"
+      };
+
       const method = isEdit ? "PUT" : "POST";
-      // التأكد من إرسال الـ id بشكل صحيح في رابط الـ API عند التعديل
       const url = isEdit && editing.id ? `/api/vehicles/${editing.id}` : "/api/vehicles";
       
       const res = await fetch(url, { 
         method, 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(editing) 
+        body: JSON.stringify(payload) 
       });
+
+      const responseText = await res.text();
+      let resultData;
+      try {
+        resultData = JSON.parse(responseText);
+      } catch {
+        resultData = { message: responseText };
+      }
 
       if (res.ok) { 
         setModalOpen(false); 
         load(); 
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        console.error("Server save error details:", errorData);
-        alert(lang === "ar" ? "فشل حفظ بيانات المركبة، تأكد من صحة المدخلات" : "Failed to save vehicle data");
+        console.error("Server validation/save error:", resultData);
+        alert(lang === "ar" ? `فشل حفظ بيانات المركبة: ${resultData.error || resultData.message || "تأكد من صحة المدخلات"}` : "Failed to save vehicle data");
       }
     } catch (err) {
       console.error("Save error exception:", err);
@@ -268,7 +281,7 @@ export default function VehiclesPage() {
           <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl text-white font-semibold transition-all hover:opacity-90 shadow-md" style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}>
             💾 {t.save || "حفظ"}
           </button>
-          <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold transition-all">
+          <button onClick={() => setModalOpen(false)} className="flex-1 py-2.5 rounded-xl border dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold transition-all">
             {t.cancel || "إلغاء"}
           </button>
         </div>
