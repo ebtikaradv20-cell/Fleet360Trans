@@ -26,9 +26,30 @@ export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const allVehicles = await db.select().from(vehicles);
-    return NextResponse.json(allVehicles);
+    
+    const rawVehicles = await db.select().from(vehicles);
+    
+    // تنسيق البيانات وضمان تطابقها تماماً مع ما تنتظره الواجهة الأمامية بغض النظر عن أسماء الأعمدة في القاعدة
+    const formattedVehicles = rawVehicles.map((v: any) => ({
+      id: v.id,
+      plateNumber: v.plateNumber || v.plate_number || "",
+      brand: v.brand || "غير محدد",
+      model: v.model || "",
+      year: v.year || null,
+      department: v.department || "",
+      driverName: v.driverName || v.driver_name || "",
+      status: v.status || "active",
+      currentKm: v.currentKm ?? v.current_km ?? 0,
+      licenseExpiry: v.licenseExpiry || v.license_expiry || null,
+      insuranceExpiry: v.insuranceExpiry || v.insurance_expiry || null,
+      color: v.color || null,
+      vin: v.vin || null,
+      notes: v.notes || null,
+    }));
+
+    return NextResponse.json(formattedVehicles);
   } catch (error: any) {
+    console.error("Database Fetch Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
