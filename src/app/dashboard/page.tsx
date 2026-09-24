@@ -1,8 +1,8 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { translations } from "@/lib/i18n";
+import Link from "next/link";
 
 interface DashboardData {
   totalVehicles: number;
@@ -30,22 +30,14 @@ function StatCard({ icon, label, value, sub, color, gradient, onClick, alert }: 
       className={`rounded-2xl p-5 shadow-lg card-hover text-white relative overflow-hidden ${onClick ? "cursor-pointer" : ""} ${alert ? "alert-pulse" : ""}`}
       style={{ background: gradient }}
     >
-      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-20 -translate-y-6 translate-x-6"
-        style={{ background: "white" }} />
+      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-20 -translate-y-6 translate-x-6" style={{ background: "white" }} />
       <div className="relative z-10">
-        <div className="flex items-start justify-between mb-3">
-          <div className="text-3xl">{icon}</div>
-          {alert && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">!</span>}
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-3xl">{icon}</span>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md font-medium">{sub || ""}</span>
         </div>
-        <div className="text-3xl font-black mb-1">{value}</div>
-        <div className="text-sm font-semibold opacity-90">{label}</div>
-        {sub && <div className="text-xs opacity-75 mt-1">{sub}</div>}
-        {onClick && (
-          <div className="text-xs opacity-75 mt-2 flex items-center gap-1">
-            <span>اضغط للعرض</span>
-            <span>←</span>
-          </div>
-        )}
+        <h4 className="text-sm font-medium opacity-90">{label}</h4>
+        <div className="text-3xl font-black mt-1 tracking-tight">{value}</div>
       </div>
     </div>
   );
@@ -53,173 +45,127 @@ function StatCard({ icon, label, value, sub, color, gradient, onClick, alert }: 
 
 export default function DashboardPage() {
   const { lang } = useApp();
-  const t = translations[lang];
-  const router = useRouter();
-  const [data, setData] = useState<DashboardData | null>(null);
+  const t = translations[lang] || translations["ar"];
+  const [data, setData] = useState<DashboardData>({
+    totalVehicles: 0,
+    activeVehicles: 0,
+    maintenanceVehicles: 0,
+    expiredVehicles: 0,
+    totalFuelCost: 0,
+    totalMaintenanceCost: 0,
+    openWorkOrders: 0,
+    lowStockParts: 0,
+    licenseAlerts: 0,
+    insuranceAlerts: 0,
+    oilAlerts: 0,
+    recentFuel: [],
+    recentWorkOrders: []
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then(r => r.json())
-      .then(d => {
-        setData(d);
+    async function fetchDashboardData() {
+      try {
+        const resVehicles = await fetch("/api/vehicles");
+        const vehiclesData = await resVehicles.json().catch(() => []);
+        const vehicles = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData.vehicles || vehiclesData.data || []);
+
+        const totalVehicles = vehicles.length;
+        const activeVehicles = vehicles.filter((v: any) => v.status === "active").length;
+        const maintenanceVehicles = vehicles.filter((v: any) => v.status === "maintenance").length;
+        
+        const now = Date.now();
+        const licenseAlerts = vehicles.filter((v: any) => {
+          if (!v.licenseExpiry) return false;
+          const diff = (new Date(v.licenseExpiry).getTime() - now) / (1000 * 60 * 60 * 24);
+          return diff <= 30;
+        }).length;
+
+        const insuranceAlerts = vehicles.filter((v: any) => {
+          if (!v.insuranceExpiry) return false;
+          const diff = (new Date(v.insuranceExpiry).getTime() - now) / (1000 * 60 * 60 * 24);
+          return diff <= 30;
+        }).length;
+
+        setData({
+          totalVehicles,
+          activeVehicles,
+          maintenanceVehicles,
+          expiredVehicles: vehicles.filter((v: any) => v.status === "expired").length,
+          totalFuelCost: 0,
+          totalMaintenanceCost: 0,
+          openWorkOrders: 0,
+          lowStockParts: 0,
+          licenseAlerts,
+          insuranceAlerts,
+          oilAlerts: 0,
+          recentFuel: [],
+          recentWorkOrders: []
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }
+    }
+
+    fetchDashboardData();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-spin">⚙️</div>
-          <div className="text-gray-500 dark:text-gray-400">{t.loading}</div>
-        </div>
-      </div>
-    );
-  }
-
-  // تنسيق عملة الوقود بالجنيه المصري
-  const formatFuelCurrency = (n: number) => `${(n || 0).toLocaleString()} ج.م`;
-  // تنسيق باقي العملات (مثل الصيانة) إذا أرَدت تغييرها أيضاً أو إبقاؤها
-  const formatCurrency = (n: number) => `${(n || 0).toLocaleString()} ر.س`;
-
   return (
-    <div className="fade-in">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-black text-gray-900 dark:text-white">
-          {t.dashboard}
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          {lang === "ar" ? "مرحباً بك في نظام إدارة الأسطول الشامل Fleet360" : "Welcome to Fleet360 - Comprehensive Fleet Management System"}
+    <div className="space-y-6 fade-in p-4 md:p-6">
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl shadow-md">
+        <h1 className="text-2xl font-bold mb-2">{t.dashboard || "لوحة التحكم"}</h1>
+        <p className="text-blue-100 text-sm">
+          {lang === "ar" ? "مرحباً بك في نظام إدارة الأسطول الشامل Fleet360" : "Welcome to Fleet360 Management System"}
         </p>
       </div>
 
-      {/* Alerts Banner */}
-      {data && ((data.licenseAlerts || 0) + (data.oilAlerts || 0) + (data.insuranceAlerts || 0)) > 0 && (
-        <div className="mb-6 p-4 rounded-2xl border-2 flex items-center gap-4" style={{ borderColor: "#F97316", background: "rgba(249,115,22,0.05)" }}>
-          <div className="text-3xl animate-bounce">⚠️</div>
-          <div>
-            <div className="font-bold text-orange-600 dark:text-orange-400">
-              {lang === "ar" ? "تنبيهات تحتاج اهتمامك!" : "Alerts require your attention!"}
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {data.licenseAlerts > 0 && <span className="me-4">📋 {data.licenseAlerts} {lang === "ar" ? "رخصة تنتهي قريباً" : "licenses expiring soon"}</span>}
-              {data.insuranceAlerts > 0 && <span className="me-4">🛡️ {data.insuranceAlerts} {lang === "ar" ? "تأمين ينتهي قريباً" : "insurance expiring soon"}</span>}
-              {data.oilAlerts > 0 && <span>🛢️ {data.oilAlerts} {lang === "ar" ? "تغيير زيوت مطلوب" : "oil changes due"}</span>}
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link href="/dashboard/vehicles">
+          <StatCard
+            icon="🚗"
+            label={t.totalVehicles || "إجمالي السيارات"}
+            value={loading ? "..." : data.totalVehicles}
+            sub={`${data.activeVehicles} ${t.active || "نشط"}`}
+            color="blue"
+            gradient="linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)"
+          />
+        </Link>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          icon="🚗" label={t.totalVehicles} value={data?.totalVehicles || 0}
-          sub={`${data?.activeVehicles || 0} ${t.activeVehicles}`}
-          color="#1E3A8A" gradient="linear-gradient(135deg, #1E3A8A, #1d4ed8)"
-          onClick={() => router.push("/dashboard/vehicles")}
-        />
-        <StatCard
-          icon="🔧" label={t.openWorkOrders} value={data?.openWorkOrders || 0}
-          sub={lang === "ar" ? "أوامر شغل مفتوحة" : "Open work orders"}
-          color="#F97316" gradient="linear-gradient(135deg, #F97316, #EA580C)"
-          onClick={() => router.push("/dashboard/work-orders")}
-        />
-        <StatCard
-          icon="⛽" label={t.totalFuelCost} value={formatFuelCurrency(data?.totalFuelCost || 0)}
-          sub={lang === "ar" ? "إجمالي تكاليف الوقود" : "Total fuel costs"}
-          color="#0284C7" gradient="linear-gradient(135deg, #0284C7, #0369a1)"
-          onClick={() => router.push("/dashboard/fuel")}
-        />
-        <StatCard
-          icon="📦" label={t.lowStockParts} value={data?.lowStockParts || 0}
-          sub={lang === "ar" ? "قطع منخفضة أو منتهية" : "Low or out of stock"}
-          color="#7C3AED" gradient="linear-gradient(135deg, #7C3AED, #6d28d9)"
-          onClick={() => router.push("/dashboard/spare-parts")}
-          alert={(data?.lowStockParts || 0) > 0}
-        />
-        <StatCard
-          icon="🛢️" label={t.oilChangeAlerts} value={data?.oilAlerts || 0}
-          sub={lang === "ar" ? "تغيير زيوت مطلوب" : "Oil changes needed"}
-          color="#D97706" gradient="linear-gradient(135deg, #D97706, #B45309)"
-          onClick={() => router.push("/dashboard/oil-changes")}
-          alert={(data?.oilAlerts || 0) > 0}
-        />
-        <StatCard
-          icon="📋" label={t.licenseAlerts} value={data?.licenseAlerts || 0}
-          sub={lang === "ar" ? "رخص تنتهي خلال 30 يوم" : "Licenses expiring in 30 days"}
-          color="#DC2626" gradient="linear-gradient(135deg, #DC2626, #B91C1C)"
-          onClick={() => router.push("/dashboard/vehicles?filter=expired")}
-          alert={(data?.licenseAlerts || 0) > 0}
-        />
-        <StatCard
-          icon="💰" label={t.totalMaintenanceCost} value={formatCurrency(data?.totalMaintenanceCost || 0)}
-          sub={lang === "ar" ? "إجمالي تكاليف الصيانة" : "Total maintenance costs"}
-          color="#059669" gradient="linear-gradient(135deg, #059669, #047857)"
-          onClick={() => router.push("/dashboard/work-orders")}
-        />
-        <StatCard
-          icon="🔍" label={t.vehicleInspection} value={lang === "ar" ? "فحص" : "Inspect"}
-          sub={lang === "ar" ? "فحص كامل للسيارات" : "Full vehicle inspection"}
-          color="#0891B2" gradient="linear-gradient(135deg, #0891B2, #0e7490)"
-          onClick={() => router.push("/dashboard/vehicle-inspection")}
-        />
-      </div>
+        <Link href="/dashboard/vehicles">
+          <StatCard
+            icon="🔧"
+            label={t.maintenance || "قيد الصيانة"}
+            value={loading ? "..." : data.maintenanceVehicles}
+            sub={lang === "ar" ? "مركبات" : "Vehicles"}
+            color="amber"
+            gradient="linear-gradient(135deg, #F59E0B 0%, #D97706 100%)"
+          />
+        </Link>
 
-      {/* Vehicle Status */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border dark:border-gray-700 p-6">
-          <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
-            🚗 {lang === "ar" ? "توزيع حالة الأسطول" : "Fleet Status Distribution"}
-          </h3>
-          <div className="space-y-3">
-            {[
-              { label: lang === "ar" ? "نشطة" : "Active", value: data?.activeVehicles || 0, color: "#22C55E", max: data?.totalVehicles || 1 },
-              { label: lang === "ar" ? "قيد الصيانة" : "In Maintenance", value: data?.maintenanceVehicles || 0, color: "#F97316", max: data?.totalVehicles || 1 },
-              { label: lang === "ar" ? "منتهية الرخصة" : "License Expired", value: data?.expiredVehicles || 0, color: "#EF4444", max: data?.totalVehicles || 1 },
-            ].map(item => (
-              <div key={item.label}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-600 dark:text-gray-400">{item.label}</span>
-                  <span className="font-bold text-gray-800 dark:text-white">{item.value}</span>
-                </div>
-                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${(item.value / item.max) * 100}%`, background: item.color }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Link href="/dashboard/vehicles">
+          <StatCard
+            icon="📄"
+            label={t.licenseAlerts || "تنبيهات الرخص"}
+            value={loading ? "..." : data.licenseAlerts}
+            sub={lang === "ar" ? "تنتهي قريباً" : "Expiring"}
+            color="red"
+            gradient="linear-gradient(135deg, #EF4444 0%, #DC2626 100%)"
+            alert={data.licenseAlerts > 0}
+          />
+        </Link>
 
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border dark:border-gray-700 p-6">
-          <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
-            ⚡ {lang === "ar" ? "الإجراءات السريعة" : "Quick Actions"}
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: lang === "ar" ? "إضافة سيارة" : "Add Vehicle", icon: "🚗", path: "/dashboard/vehicles", color: "#1E3A8A" },
-              { label: lang === "ar" ? "إضافة وقود" : "Add Fuel", icon: "⛽", path: "/dashboard/fuel", color: "#0284C7" },
-              { label: lang === "ar" ? "أمر شغل جديد" : "New Work Order", icon: "🔧", path: "/dashboard/work-orders", color: "#F97316" },
-              { label: lang === "ar" ? "تغيير زيوت" : "Oil Change", icon: "🛢️", path: "/dashboard/oil-changes", color: "#059669" },
-              { label: lang === "ar" ? "فحص سيارة" : "Inspect Vehicle", icon: "🔍", path: "/dashboard/vehicle-inspection", color: "#7C3AED" },
-              { label: lang === "ar" ? "المخزون" : "Inventory", icon: "📦", path: "/dashboard/spare-parts", color: "#DC2626" },
-            ].map(item => (
-              <button
-                key={item.label}
-                onClick={() => router.push(item.path)}
-                className="flex items-center gap-2 p-3 rounded-xl border dark:border-gray-700 hover:shadow-md transition-all card-hover text-start"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <Link href="/dashboard/fuel">
+          <StatCard
+            icon="⛽"
+            label={t.fuelCost || "تكلفة الوقود"}
+            value={`${data.totalFuelCost.toLocaleString()} ج.م`}
+            sub={t.currentMonth || "الشهر الحالي"}
+            color="emerald"
+            gradient="linear-gradient(135deg, #10B981 0%, #059669 100%)"
+          />
+        </Link>
       </div>
     </div>
   );
