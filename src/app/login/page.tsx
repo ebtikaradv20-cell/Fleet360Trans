@@ -38,16 +38,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700 p-4">
-      <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-2xl w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 p-4">
+      <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 dark:border-gray-800">
+        
+        {/* اللوجو الجديد والترويسة */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-2">⚙️</div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fleet360</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">تطبيق إدارة الأسطول الشامل</p>
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/logo.png" 
+              alt="Fleet360 Logo" 
+              className="h-16 w-auto object-contain drop-shadow-md" 
+            />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Fleet360</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">تطبيق إدارة الأسطول الشامل | Transcas / Taqa Arabia</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg text-center font-medium">
+          <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg text-center font-medium border border-red-100">
             {error}
           </div>
         )}
@@ -80,14 +88,15 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all duration-200 shadow-lg disabled:opacity-50"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all duration-200 shadow-lg shadow-blue-600/20 disabled:opacity-50"
           >
             {loading ? "جاري تسجيل الدخول..." : "دخول النظام"}
           </button>
         </form>
 
-        <div className="mt-8 text-center text-xs text-gray-400 border-t pt-4">
-          Architected & Developed by <span className="font-bold text-blue-600">Omar Abd Elhalim</span>
+        {/* التوقيع الهندسي */}
+        <div className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500 border-t border-slate-100 dark:border-gray-800 pt-4">
+          Architected & Developed by <span className="font-bold text-blue-600 dark:text-blue-400">Omar Abd Elhalim</span>
         </div>
       </div>
     </div>
