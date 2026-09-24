@@ -1,17 +1,22 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useApp } from "@/context/AppContext";
+import Fleet360Logo from "@/components/Fleet360Logo";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { setUser } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
-  // استرجاع البيانات المحفوظة مسبقاً (إن وجدت) عند فتح الصفحة
+  // Auto seed on first load & check remembered username
   useEffect(() => {
+    fetch("/api/seed", { method: "POST" }).catch(() => {});
+    
     const savedUsername = localStorage.getItem("fleet_remembered_username");
     if (savedUsername) {
       setUsername(savedUsername);
@@ -23,103 +28,143 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-
       const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+        
+        // معالجة تذكر البيانات
+        if (rememberMe) {
+          localStorage.setItem("fleet_remembered_username", username);
+        } else {
+          localStorage.removeItem("fleet_remembered_username");
+        }
 
-      if (!res.ok) {
-        throw new Error(data.error || "فشل تسجيل الدخول");
-      }
-
-      // معالجة خيار "تذكرني"
-      if (rememberMe) {
-        localStorage.setItem("fleet_remembered_username", username);
+        router.push("/dashboard");
       } else {
-        localStorage.removeItem("fleet_remembered_username");
+        setError(data.error || "بيانات الدخول غير صحيحة");
       }
-
-      router.push("/"); // التوجيه للوحة التحكم بعد النجاح
-    } catch (err: any) {
-      setError(err.message);
+    } catch {
+      setError("خطأ في الاتصال بالخادم");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
-    alert("لإعادة تعيين كلمة المرور، يرجى التواصل مع المسؤول الرئيسي (Admin) للنظام لإعادة ضبطها إلى القيمة الافتراضية (123).");
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault();
+    alert("لاسترجاع كلمة المرور، يرجى التواصل مع المسؤول الرئيسي (Admin) لإعادة ضبطها إلى القيمة الافتراضية.");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white p-4">
-      <div className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-        <h1 className="text-2xl font-bold text-center mb-6">تسجيل الدخول - Fleet360</h1>
-        
-        {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-300 p-3 rounded mb-4 text-sm text-center">
-            {error}
-          </div>
-        )}
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
+      {/* Background */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1d4ed8 50%, #0284C7 100%)" }} />
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute top-20 left-20 w-64 h-64 rounded-full" style={{ background: "#F97316", filter: "blur(80px)" }} />
+        <div className="absolute bottom-20 right-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm mb-1 text-gray-300">اسم المستخدم (Username)</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
-              placeholder="اكتب admin"
-            />
-          </div>
+      {/* Grid pattern */}
+      <div className="absolute inset-0 opacity-5" style={{
+        backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+        backgroundSize: "50px 50px"
+      }} />
 
-          <div>
-            <label className="block text-sm mb-1 text-gray-300">كلمة المرور (Password)</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full p-3 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:border-blue-500"
-              placeholder="اكتب 123"
-            />
+      <div className="relative z-10 w-full max-w-md px-6">
+        {/* Card */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <Fleet360Logo size={64} showText={false} />
+            </div>
+            <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
+            <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
+            <p className="text-blue-300 text-xs mt-1">TRANSCAS / TAQA ARABIA</p>
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-blue-200 text-sm mb-2 font-medium">اسم المستخدم</label>
               <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="أدخل اسم المستخدم"
+                className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
+                required
               />
-              <span className="text-gray-300">تذكر بياناتي</span>
-            </label>
+            </div>
+
+            <div>
+              <label className="block text-blue-200 text-sm mb-2 font-medium">كلمة المرور</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="أدخل كلمة المرور"
+                className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
+                required
+              />
+            </div>
+
+            {/* Remember me & Forgot password */}
+            <div className="flex items-center justify-between text-sm py-1">
+              <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                />
+                <span className="text-blue-200 font-medium">تذكر بياناتي</span>
+              </label>
+
+              <button
+                onClick={handleForgotPassword}
+                className="text-orange-300 hover:text-orange-400 transition text-xs font-semibold underline"
+              >
+                نسيت كلمة المرور؟
+              </button>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 text-red-200 text-sm text-center">
+                ⚠️ {error}
+              </div>
+            )}
 
             <button
-              type="button"
-              onClick={handleForgotPassword}
-              className="text-blue-400 hover:underline text-xs"
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-4 disabled:opacity-70 shadow-lg"
+              style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
             >
-              نسيت كلمة المرور؟
+              {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
             </button>
-          </div>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 transition rounded text-white font-bold disabled:opacity-50"
-          >
-            {loading ? "جاري الدخول..." : "دخول النظام"}
-          </button>
-        </form>
+          {/* Demo credentials */}
+          <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
+            <p className="text-blue-200 text-xs text-center mb-2 font-semibold">بيانات تجريبية:</p>
+            <div className="grid grid-cols-2 gap-2 text-xs text-blue-300">
+              <div className="text-center">
+                <div className="font-medium text-white">مدير النظام</div>
+                <div>admin / 123</div>
+              </div>
+              <div className="text-center">
+                <div className="font-medium text-white">مستخدم</div>
+                <div>user1 / user123</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
