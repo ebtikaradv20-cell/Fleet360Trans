@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import Fleet360Logo from "@/components/Fleet360Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -82,7 +81,15 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Fleet360Logo size={64} showText={false} />
+              <img 
+                src="/logo.png" 
+                alt="Fleet360 Logo" 
+                className="w-16 h-16 object-contain rounded-2xl shadow-md bg-white/20 p-1"
+                onError={(e) => {
+                  // Fallback if image path differs
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
             <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
             <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
@@ -149,21 +156,6 @@ export default function LoginPage() {
               {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-            <p className="text-blue-200 text-xs text-center mb-2 font-semibold">بيانات تجريبية:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-blue-300">
-              <div className="text-center">
-                <div className="font-medium text-white">مدير النظام</div>
-                <div>admin / 123</div>
-              </div>
-              <div className="text-center">
-                <div className="font-medium text-white">مستخدم</div>
-                <div>user1 / user123</div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
