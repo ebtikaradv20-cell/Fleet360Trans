@@ -3,9 +3,6 @@ import { db } from "@/db";
 import { vehicles } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
 
-/**
- * دالة آمنة لمعالجة وتحويل التواريخ لتتوافق مع قاعدة البيانات
- */
 function parseDate(dateValue: unknown): string | null {
   if (!dateValue) return null;
   try {
@@ -29,7 +26,7 @@ export async function GET(req: NextRequest) {
     
     const rawVehicles = await db.select().from(vehicles);
     
-    // تنسيق البيانات وضمان تطابقها تماماً مع ما تنتظره الواجهة الأمامية بغض النظر عن أسماء الأعمدة في القاعدة
+    // خريطة تحويل احترافية لتجنب أي اختلاف بين أسماء الحقول في القاعدة والتطبيق
     const formattedVehicles = rawVehicles.map((v: any) => ({
       id: v.id,
       plateNumber: v.plateNumber || v.plate_number || "",
@@ -61,7 +58,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // استقبال البيانات بغض النظر عن ما إذا كانت مرسلة camelCase أو snake_case
     const plateNumber = body.plate_number || body.plateNumber || "";
     const brand = body.brand || "";
     const model = body.model || "";
@@ -71,7 +67,6 @@ export async function POST(req: NextRequest) {
     const status = body.status === "نشطة" || body.status === "active" ? "active" : (body.status || "active");
     const currentKm = body.current_km !== undefined ? parseFloat(body.current_km) : (body.currentKm !== undefined ? parseFloat(body.currentKm) : 0);
     
-    // معالجة آمنة للتواريخ لتجنب أخطاء صيغة الإدخال
     const licenseExpiry = parseDate(body.license_expiry || body.licenseExpiry);
     const insuranceExpiry = parseDate(body.insurance_expiry || body.insuranceExpiry);
     
@@ -79,7 +74,6 @@ export async function POST(req: NextRequest) {
     const vin = body.vin || null;
     const notes = body.notes || null;
 
-    // الإدخال المباشر باستخدام Drizzle ORM (مضمون ومتطابق مع Schema)
     const newVehicle = await db.insert(vehicles).values({
       plateNumber,
       brand,
