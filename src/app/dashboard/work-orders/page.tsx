@@ -98,7 +98,7 @@ export default function WorkOrdersPage() {
     { key: "status", header: t.status, render: (r: WorkOrder) => <StatusBadge status={r.status} /> },
     { key: "workshop", header: t.workshop },
     { key: "description", header: lang === "ar" ? "الوصف" : "Description", render: (r: WorkOrder) => <span className="max-w-32 truncate block" title={r.description}>{r.description}</span> },
-    { key: "cost", header: t.cost, render: (r: WorkOrder) => <span className="font-bold text-green-600 dark:text-green-400">{(r.cost || 0).toLocaleString()} ر.س</span> },
+    { key: "cost", header: t.cost, render: (r: WorkOrder) => <span className="font-bold text-green-600 dark:text-green-400">{(r.cost || 0).toLocaleString()} ج.م</span> },
     { key: "startDate", header: t.startDate, render: (r: WorkOrder) => formatDate(r.startDate) },
     { key: "technicianName", header: t.technician },
     { key: "createdAt", header: t.createdAt, render: (r: WorkOrder) => formatDate(r.createdAt) },
@@ -114,7 +114,7 @@ export default function WorkOrdersPage() {
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-900 rounded-2xl border dark:border-gray-700 p-4 shadow-sm">
           <div className="text-sm text-gray-500 dark:text-gray-400">{lang === "ar" ? "إجمالي التكلفة" : "Total Cost"}</div>
-          <div className="text-2xl font-black text-green-600">{totalCost.toLocaleString()} ر.س</div>
+          <div className="text-2xl font-black text-green-600">{totalCost.toLocaleString()} ج.م</div>
         </div>
         <div className="bg-white dark:bg-gray-900 rounded-2xl border dark:border-gray-700 p-4 shadow-sm">
           <div className="text-sm text-gray-500 dark:text-gray-400">{lang === "ar" ? "أوامر مفتوحة" : "Open Orders"}</div>
