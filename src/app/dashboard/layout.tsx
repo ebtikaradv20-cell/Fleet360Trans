@@ -53,3 +53,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
+<div className="mt-auto p-4 border-t border-slate-100 text-center bg-slate-50/50">
+  <p className="text-[11px] text-slate-400">Fleet360 System v1.0</p>
+  <p className="text-xs font-bold text-slate-700 mt-0.5">By Omar Abd Elhalim</p>
+</div>
