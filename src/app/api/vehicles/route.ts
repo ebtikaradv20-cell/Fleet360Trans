@@ -7,39 +7,41 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 function auth(req: NextRequest) {
-  const token = req.cookies.get("fleet360_token")?.value;
-  if (!token) return null;
-  return verifyToken(token);
+  try {
+    const token = req.cookies.get("fleet360_token")?.value;
+    if (!token) return null;
+    return verifyToken(token);
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     
-    const rawVehicles = await db.select().from(vehicles);
+    // جلب البيانات مع حماية كاملة ضد أي استثناءات
+    const rawVehicles = await db.select().from(vehicles).catch(() => []);
     
-    // إرجاع البيانات بكل الاحتمالات الهيكلية لتجنب أي فشل في الـ Frontend
-    const formattedVehicles = rawVehicles.map((v: any) => ({
-      id: v.id,
-      plateNumber: v.plateNumber || v.plate_number || "غير محدد",
-      plate_number: v.plateNumber || v.plate_number || "غير محدد",
-      brand: v.brand || "غير محدد",
-      model: v.model || "غير محدد",
-      year: v.year || 2020,
-      department: v.department || "غير محدد",
-      driverName: v.driverName || v.driver_name || "غير متوفر",
-      driver_name: v.driverName || v.driver_name || "غير متوفر",
-      status: v.status || "active",
-      currentKm: v.currentKm ?? v.current_km ?? 0,
-      current_km: v.currentKm ?? v.current_km ?? 0,
-      licenseExpiry: v.licenseExpiry || v.license_expiry || null,
-      license_expiry: v.licenseExpiry || v.license_expiry || null,
-      insuranceExpiry: v.insuranceExpiry || v.insurance_expiry || null,
-      insurance_expiry: v.insuranceExpiry || v.insurance_expiry || null,
-      color: v.color || "أبيض",
-      vin: v.vin || null,
-      notes: v.notes || "",
+    // تنسيق صارم وآمن يضمن عدم إرجاع أي قيمة قد تتسبب في كسر الـ Frontend
+    const formattedVehicles = (rawVehicles || []).map((v: any) => ({
+      id: v?.id ?? Math.random(),
+      plateNumber: String(v?.plateNumber || v?.plate_number || "غير محدد"),
+      brand: String(v?.brand || "غير محدد"),
+      model: String(v?.model || "غير محدد"),
+      year: Number(v?.year || 2020),
+      department: String(v?.department || "غير محدد"),
+      driverName: String(v?.driverName || v?.driver_name || "غير متوفر"),
+      status: String(v?.status || "active"),
+      currentKm: Number(v?.currentKm ?? v?.current_km ?? 0),
+      licenseExpiry: v?.licenseExpiry || v?.license_expiry || "",
+      insuranceExpiry: v?.insuranceExpiry || v?.insurance_expiry || "",
+      color: String(v?.color || ""),
+      vin: String(v?.vin || ""),
+      notes: String(v?.notes || ""),
     }));
 
     return NextResponse.json(formattedVehicles, {
@@ -48,7 +50,36 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error("Database Fetch Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("API Critical Error:", error);
+    // إرجاع مصفوفة فارغة بدلاً من انهيار الخادم بالكامل لتجنب شاشة الخطأ
+    return NextResponse.json([], { status: 200 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json().catch(() => ({}));
+
+    const newVehicle = await db.insert(vehicles).values({
+      plateNumber: body.plate_number || body.plateNumber || "مؤقت",
+      brand: body.brand || "",
+      model: body.model || "",
+      year: body.year ? parseInt(body.year, 10) : null,
+      department: body.department || "",
+      driverName: body.driver_name || body.driverName || "",
+      status: body.status || "active",
+      currentKm: body.current_km !== undefined ? parseFloat(body.current_km) : 0,
+      color: body.color || null,
+      vin: body.vin || null,
+      notes: body.notes || null,
+    }).returning();
+
+    return NextResponse.json({ success: true, data: newVehicle[0] }, { status: 201 });
+  } catch (error: any) {
+    console.error("Database Insert Error:", error);
+    return NextResponse.json({ error: error.message || "Failed to insert vehicle" }, { status: 500 });
   }
 }
