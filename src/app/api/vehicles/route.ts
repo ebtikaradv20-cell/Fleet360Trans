@@ -3,19 +3,8 @@ import { db } from "@/db";
 import { vehicles } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
 
-// إيقاف التخزين المؤقت تماماً لضمان جلب البيانات الحية من القاعدة فوراً
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-function parseDate(dateValue: unknown): string | null {
-  if (!dateValue) return null;
-  try {
-    const parsed = new Date(dateValue as string);
-    return isNaN(parsed.getTime()) ? null : parsed.toISOString().split("T")[0];
-  } catch {
-    return null;
-  }
-}
 
 function auth(req: NextRequest) {
   const token = req.cookies.get("fleet360_token")?.value;
@@ -30,17 +19,17 @@ export async function GET(req: NextRequest) {
     
     const rawVehicles = await db.select().from(vehicles);
     
-    // توفير كلا الشكلين (camelCase و snake_case) لضمان توافقها مع أي مكون في الـ Frontend
+    // إرجاع البيانات بكل الاحتمالات الهيكلية لتجنب أي فشل في الـ Frontend
     const formattedVehicles = rawVehicles.map((v: any) => ({
       id: v.id,
-      plateNumber: v.plateNumber || v.plate_number || "",
-      plate_number: v.plateNumber || v.plate_number || "",
+      plateNumber: v.plateNumber || v.plate_number || "غير محدد",
+      plate_number: v.plateNumber || v.plate_number || "غير محدد",
       brand: v.brand || "غير محدد",
-      model: v.model || "",
-      year: v.year || null,
-      department: v.department || "",
-      driverName: v.driverName || v.driver_name || "",
-      driver_name: v.driverName || v.driver_name || "",
+      model: v.model || "غير محدد",
+      year: v.year || 2020,
+      department: v.department || "غير محدد",
+      driverName: v.driverName || v.driver_name || "غير متوفر",
+      driver_name: v.driverName || v.driver_name || "غير متوفر",
       status: v.status || "active",
       currentKm: v.currentKm ?? v.current_km ?? 0,
       current_km: v.currentKm ?? v.current_km ?? 0,
@@ -48,64 +37,18 @@ export async function GET(req: NextRequest) {
       license_expiry: v.licenseExpiry || v.license_expiry || null,
       insuranceExpiry: v.insuranceExpiry || v.insurance_expiry || null,
       insurance_expiry: v.insuranceExpiry || v.insurance_expiry || null,
-      color: v.color || null,
+      color: v.color || "أبيض",
       vin: v.vin || null,
-      notes: v.notes || null,
+      notes: v.notes || "",
     }));
 
     return NextResponse.json(formattedVehicles, {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
       },
     });
   } catch (error: any) {
     console.error("Database Fetch Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const user = auth(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const body = await req.json();
-
-    const plateNumber = body.plate_number || body.plateNumber || "";
-    const brand = body.brand || "";
-    const model = body.model || "";
-    const year = body.year ? parseInt(body.year, 10) : null;
-    const department = body.department || "";
-    const driverName = body.driver_name || body.driverName || "";
-    const status = body.status === "نشطة" || body.status === "active" ? "active" : (body.status || "active");
-    const currentKm = body.current_km !== undefined ? parseFloat(body.current_km) : (body.currentKm !== undefined ? parseFloat(body.currentKm) : 0);
-    
-    const licenseExpiry = parseDate(body.license_expiry || body.licenseExpiry);
-    const insuranceExpiry = parseDate(body.insurance_expiry || body.insuranceExpiry);
-    
-    const color = body.color || null;
-    const vin = body.vin || null;
-    const notes = body.notes || null;
-
-    const newVehicle = await db.insert(vehicles).values({
-      plateNumber,
-      brand,
-      model,
-      year,
-      department,
-      driverName,
-      status,
-      currentKm,
-      licenseExpiry,
-      insuranceExpiry,
-      color,
-      vin,
-      notes,
-    }).returning();
-
-    return NextResponse.json({ success: true, data: newVehicle[0] }, { status: 201 });
-  } catch (error: any) {
-    console.error("Database Insert Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to insert vehicle" }, { status: 500 });
   }
 }
