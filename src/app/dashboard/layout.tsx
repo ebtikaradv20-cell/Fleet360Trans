@@ -45,8 +45,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
       <Sidebar />
-      
-      {/* 💡 تم دمج توقيعك الهندسي هنا بداخل الـ Sidebar أو أسفل الهيكل الداخلي */}
       <div className={`flex-1 flex flex-col ${marginClass} transition-all duration-300`}>
         <Navbar />
         <main className="flex-1 p-6 fade-in">
