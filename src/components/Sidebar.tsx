@@ -24,56 +24,49 @@ export default function Sidebar() {
     { label: lang === "ar" ? "الفحص" : "Inspection", path: "/dashboard/vehicle-inspection", icon: "🔍" },
   ];
 
-  const handleNavigation = (path: string) => {
-    router.push(path);
-    setIsOpen(false); // إغلاق القائمة تلقائياً على الموبايل عند الضغط على أي قسم
-  };
-
   return (
     <>
-      {/* شريط العلوي للهواتف فقط للتحكم في فتح وإغلاق القائمة */}
-      <div className="lg:hidden flex items-center justify-between bg-white dark:bg-gray-900 p-4 border-b dark:border-gray-800 sticky top-0 z-40 shadow-sm">
-        <span className="font-black text-lg text-gray-800 dark:text-white">Fleet360</span>
+      {/* زر القائمة للشاشات الصغيرة فقط للحفاظ على نفس تصميمك الأصلي */}
+      <div className="lg:hidden flex items-center justify-between bg-white dark:bg-gray-900 p-4 border-b dark:border-gray-800 sticky top-0 z-40">
+        <span className="font-bold text-gray-800 dark:text-white">Fleet360</span>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none"
-          aria-label="Toggle Menu"
+          className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
         >
           {isOpen ? "✕" : "☰"}
         </button>
       </div>
 
-      {/* طبقة عتمة خلف القائمة عند فتحها على الهواتف */}
+      {/* طبقة عتمة خلف القائمة عند فتحها على الموبايل */}
       {isOpen && (
         <div
           onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
         />
       )}
 
-      {/* الشريط الجانبي الرئيسي */}
+      {/* الشريط الجانبي بنفس الشكل الأصلي تماماً مع إضافة خاصية الانزلاق للموبايل */}
       <aside
-        className={`fixed top-0 bottom-0 z-50 w-64 bg-white dark:bg-gray-900 border-x dark:border-gray-800 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 shadow-xl lg:shadow-none ${
+        className={`fixed top-0 bottom-0 z-50 w-64 bg-white dark:bg-gray-900 border-x dark:border-gray-800 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
           isRtl
             ? isOpen ? "right-0" : "-right-64 lg:right-auto"
             : isOpen ? "left-0" : "-left-64 lg:left-auto"
         }`}
       >
-        <div className="p-6 flex flex-col h-full">
-          {/* شعار النظام */}
-          <div className="mb-8 hidden lg:block">
+        <div className="p-6">
+          <div className="mb-8">
             <h1 className="text-2xl font-black text-blue-600">Fleet360</h1>
-            <p className="text-xs text-gray-400 mt-1">Fleet Management</p>
           </div>
-
-          {/* روابط القائمة */}
-          <nav className="space-y-2 flex-1">
+          <nav className="space-y-2">
             {menuItems.map((item) => {
               const isActive = pathname === item.path;
               return (
                 <button
                   key={item.path}
-                  onClick={() => handleNavigation(item.path)}
+                  onClick={() => {
+                    router.push(item.path);
+                    setIsOpen(false);
+                  }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all text-start ${
                     isActive
                       ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
