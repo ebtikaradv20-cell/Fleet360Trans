@@ -24,14 +24,14 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
   const { isRTL } = useApp();
 
   const menuItems = [
-    { name: "لوحة التحكم", href: "/dashboard", icon: <LayoutDashboard size={20} /> },
-    { name: "السيارات", href: "/dashboard/vehicles", icon: <Car size={20} /> },
-    { name: "الوقود", href: "/dashboard/fuel", icon: <Fuel size={20} /> },
-    { name: "أوامر الشغل", href: "/dashboard/work-orders", icon: <Wrench size={20} /> },
-    { name: "قطع الغيار", href: "/dashboard/spare-parts", icon: <Package size={20} /> },
-    { name: "تغيير الزيوت", href: "/dashboard/oil-changes", icon: <Droplet size={20} /> },
-    { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: <ClipboardCheck size={20} /> },
-    { name: "المستخدمون", href: "/dashboard/users", icon: <Users size={20} /> },
+    { name: "لوحة التحكم", href: "/dashboard", icon: <LayoutDashboard size={22} /> },
+    { name: "السيارات", href: "/dashboard/vehicles", icon: <Car size={22} /> },
+    { name: "الوقود", href: "/dashboard/fuel", icon: <Fuel size={22} /> },
+    { name: "أوامر الشغل", href: "/dashboard/work-orders", icon: <Wrench size={22} /> },
+    { name: "قطع الغيار", href: "/dashboard/spare-parts", icon: <Package size={22} /> },
+    { name: "تغيير الزيوت", href: "/dashboard/oil-changes", icon: <Droplet size={22} /> },
+    { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: <ClipboardCheck size={22} /> },
+    { name: "المستخدمون", href: "/dashboard/users", icon: <Users size={22} /> },
   ];
 
   return (
@@ -46,35 +46,36 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       `}
       dir={isRTL ? "rtl" : "ltr"}
     >
-      {/* رأس الشريط الجانبي واللوجو المحدث */}
-      <div className="p-4 border-b border-white/10 flex flex-col items-center justify-center text-center min-h-[5.5rem]">
-        {/* صورة اللوجو الحقيقية */}
+      {/* ── رأس الشريط الجانبي البارز واللوجو المكبر ── */}
+      <div className={`p-4 border-b border-white/15 flex flex-col items-center justify-center text-center transition-all duration-300 ${collapsed ? "py-4" : "py-6"}`}>
+        {/* صورة اللوجو بحجم كبير وبارز */}
         <img 
           src="/logo.png" 
           alt="Fleet360 Logo" 
-          className={`${collapsed ? "w-10 h-10" : "w-14 h-14"} object-contain drop-shadow-md transition-all duration-300`}
+          className={`${collapsed ? "w-11 h-11" : "w-24 h-24 sm:w-28 sm:h-28"} object-contain filter drop-shadow-xl transition-all duration-300 transform hover:scale-105`}
           onError={(e) => {
-            // في حالة عدم توفر الصورة يظهر المكون البديل تلقائياً
             (e.target as HTMLImageElement).style.display = 'none';
             const fallback = document.getElementById('sidebar-logo-fallback');
             if (fallback) fallback.style.display = 'flex';
           }}
         />
 
-        {/* كارت بديل بحرف F360 إذا لم تُحمل الصورة */}
+        {/* كارت بديل في حالة عدم تحميل الصورة */}
         <div 
           id="sidebar-logo-fallback" 
-          className="hidden w-10 h-10 rounded-xl bg-white text-orange-600 items-center justify-center font-black shadow-lg flex-shrink-0"
+          className="hidden w-12 h-12 rounded-xl bg-white text-orange-600 items-center justify-center font-black shadow-lg flex-shrink-0"
         >
-          <span className="text-base font-black">F360</span>
+          <span className="text-xl font-black">F360</span>
         </div>
 
         {!collapsed && (
-          <div className="mt-1.5 transition-all duration-300">
-            <h1 className="text-base font-bold text-white tracking-wider drop-shadow-md" dir="ltr">
-              FLEET<span className="text-orange-200">360</span>
+          <div className="mt-3 transition-all duration-300 flex flex-col items-center">
+            {/* عنوان FLEET 360 بحجم كبير وبارز جداً */}
+            <h1 className="text-2xl font-black text-white tracking-wide drop-shadow-lg leading-tight" dir="ltr">
+              FLEET <span className="text-orange-200">360</span>
             </h1>
-            <p className="text-[10px] text-gray-200 font-medium tracking-wide">
+            {/* اسم الشركة بخط عريض وواضح */}
+            <p className="text-xs text-orange-100 font-extrabold tracking-wider mt-1 drop-shadow-sm uppercase">
               Trans Gas / TAQA ARABIA
             </p>
           </div>
