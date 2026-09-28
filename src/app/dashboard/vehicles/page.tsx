@@ -13,6 +13,7 @@ interface Vehicle {
   status: string;
   current_km: number;
   license_expiry?: string;
+  fuel_type?: string;
   insurance_expiry?: string;
 }
 
@@ -21,10 +22,11 @@ export default function VehiclesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   
-  // فلتر ديناميكي متطابق مع البيانات
+  // الفلاتر
   const [selectedStatus, setSelectedStatus] = useState("الكل");
   const [selectedBrand, setSelectedBrand] = useState("الكل");
   const [selectedDept, setSelectedDept] = useState("الكل");
+  const [selectedFuel, setSelectedFuel] = useState("الكل"); // فلتر نوع الوقود الجديد
 
   // حالات نافذة الإضافة/التعديل
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,6 +40,8 @@ export default function VehiclesPage() {
     driver_name: "",
     status: "active",
     current_km: 0,
+    license_expiry: "", // موعد الترخيص الجديد
+    fuel_type: "بنزين", // نوع الوقود الجديد
   });
 
   const fetchVehicles = async () => {
@@ -60,12 +64,13 @@ export default function VehiclesPage() {
     fetchVehicles();
   }, []);
 
-  // استخراج الفلاتر ديناميكياً من البيانات الحقيقية للجدول
+  // استخراج الفلاتر ديناميكياً
   const uniqueStatuses = ["الكل", ...Array.from(new Set(vehicles.map(v => v.status || "active")))];
   const uniqueBrands = ["الكل", ...Array.from(new Set(vehicles.map(v => v.brand || "غير محدد")))];
   const uniqueDepts = ["الكل", ...Array.from(new Set(vehicles.map(v => v.department || "غير محدد")))];
+  const uniqueFuels = ["الكل", ...Array.from(new Set(vehicles.map(v => v.fuel_type || "بنزين")))];
 
-  // تصفية البيانات بناءً على البحث والفلاتر الديناميكية
+  // تصفية البيانات بناءً على البحث والفلاتر
   const filteredVehicles = vehicles.filter(v => {
     const matchesSearch = 
       (v.plate_number || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -75,11 +80,12 @@ export default function VehiclesPage() {
     const matchesStatus = selectedStatus === "الكل" || v.status === selectedStatus;
     const matchesBrand = selectedBrand === "الكل" || v.brand === selectedBrand;
     const matchesDept = selectedDept === "الكل" || v.department === selectedDept;
+    const matchesFuel = selectedFuel === "الكل" || (v.fuel_type || "بنزين") === selectedFuel;
 
-    return matchesSearch && matchesStatus && matchesBrand && matchesDept;
+    return matchesSearch && matchesStatus && matchesBrand && matchesDept && matchesFuel;
   });
 
-  // دالة الحذف (تعمل بـ ID الصحيح)
+  // دالة الحذف
   const handleDelete = async (id: number) => {
     if (!confirm("هل أنت متأكد من حذف هذه السيارة؟")) return;
     try {
@@ -119,6 +125,8 @@ export default function VehiclesPage() {
           driver_name: "",
           status: "active",
           current_km: 0,
+          license_expiry: "",
+          fuel_type: "بنزين",
         });
         fetchVehicles();
       } else {
@@ -141,6 +149,8 @@ export default function VehiclesPage() {
       driver_name: vehicle.driver_name || "",
       status: vehicle.status || "active",
       current_km: vehicle.current_km || 0,
+      license_expiry: vehicle.license_expiry || "",
+      fuel_type: vehicle.fuel_type || "بنزين",
     });
     setIsModalOpen(true);
   };
@@ -157,7 +167,18 @@ export default function VehiclesPage() {
           <button
             onClick={() => {
               setEditingId(null);
-              setFormData({ plate_number: "", brand: "", model: "", year: new Date().getFullYear(), department: "", driver_name: "", status: "active", current_km: 0 });
+              setFormData({ 
+                plate_number: "", 
+                brand: "", 
+                model: "", 
+                year: new Date().getFullYear(), 
+                department: "", 
+                driver_name: "", 
+                status: "active", 
+                current_km: 0,
+                license_expiry: "",
+                fuel_type: "بنزين"
+              });
               setIsModalOpen(true);
             }}
             className="px-4 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white rounded-lg font-medium text-sm transition-all shadow-sm"
@@ -167,9 +188,9 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      {/* شريط البحث والفلاتر الديناميكية المطابقة للبنود */}
+      {/* شريط البحث والفلاتر الديناميكية */}
       <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">بحث برقم اللوحة أو الماركة</label>
             <input
@@ -208,7 +229,7 @@ export default function VehiclesPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">فلتر القسم (الفرع)</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">فلتر الإدارة المختصة</label>
             <select
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
@@ -219,10 +240,23 @@ export default function VehiclesPage() {
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">فلتر نوع الوقود</label>
+            <select
+              value={selectedFuel}
+              onChange={(e) => setSelectedFuel(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {uniqueFuels.map((f, idx) => (
+                <option key={idx} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* جدول البيانات بتصميم مؤسسي رسمي (Corporate UI) */}
+      {/* جدول البيانات */}
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-gray-500">جاري تحميل البيانات...</div>
@@ -236,9 +270,10 @@ export default function VehiclesPage() {
                   <th className="p-3">رقم اللوحة</th>
                   <th className="p-3">الماركة والموديل</th>
                   <th className="p-3">السنة</th>
-                  <th className="p-3">القسم</th>
+                  <th className="p-3">الإدارة المختصة</th>
+                  <th className="p-3">نوع الوقود</th>
+                  <th className="p-3">موعد الترخيص</th>
                   <th className="p-3">اسم السائق</th>
-                  <th className="p-3">الكيلومتر الحالي</th>
                   <th className="p-3">الحالة</th>
                   <th className="p-3 text-center">الإجراءات</th>
                 </tr>
@@ -254,8 +289,9 @@ export default function VehiclesPage() {
                         {vehicle.department || "غير متوفر"}
                       </span>
                     </td>
+                    <td className="p-3 font-medium text-blue-500">{vehicle.fuel_type || "بنزين"}</td>
+                    <td className="p-3 text-gray-600 dark:text-gray-400">{vehicle.license_expiry || "غير محدد"}</td>
                     <td className="p-3">{vehicle.driver_name || "غير متوفر"}</td>
-                    <td className="p-3">{vehicle.current_km ? `${vehicle.current_km.toLocaleString()} كم` : "0 كم"}</td>
                     <td className="p-3">
                       <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                         {vehicle.status === "active" ? "نشطة" : vehicle.status}
@@ -337,13 +373,38 @@ export default function VehiclesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">القسم / الفرع</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">الإدارة المختصة</label>
                   <input
                     type="text"
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white text-right"
-                    placeholder="مثال: دسوق"
+                    placeholder="مثال: إدارة الحركة"
+                  />
+                </div>
+              </div>
+
+              {/* حقول نوع الوقود وموعد الترخيص الجديدة */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">نوع الوقود</label>
+                  <select
+                    value={formData.fuel_type}
+                    onChange={(e) => setFormData({ ...formData, fuel_type: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white text-right"
+                  >
+                    <option value="بنزين">بنزين</option>
+                    <option value="سولار">سولار</option>
+                    <option value="غاز">غاز</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">موعد الترخيص</label>
+                  <input
+                    type="date"
+                    value={formData.license_expiry}
+                    onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white text-right"
                   />
                 </div>
               </div>
