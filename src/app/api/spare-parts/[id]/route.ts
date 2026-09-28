@@ -1,49 +1,84 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { vehicleParts } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { spareParts } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 function auth(req: NextRequest) {
-  try { return verifyToken(req.cookies.get("fleet360_token")?.value || ""); } catch { return null; }
-}
-
-export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> | { id: string } }) {
   try {
-    const user = auth(req);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const params = await context.params;
-    const body = await req.json();
-
-    const payload = {
-      vehicleId: Number(body.vehicleId) || null,
-      plateNumber: body.plateNumber || "",
-      partName: body.partName || "",
-      partCategory: body.partCategory || "",
-      brand: body.brand || "",
-      condition: body.condition || "good",
-      kmAtInstall: Number(body.kmAtInstall) || 0,
-      cost: Number(body.cost) || 0,
-      installDate: body.installDate && body.installDate.trim() !== "" ? body.installDate : null,
-    };
-
-    const [row] = await db.update(vehicleParts).set(payload).where(eq(vehicleParts.id, Number(params.id))).returning();
-    return NextResponse.json({ success: true, data: row });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const token = req.cookies.get("fleet360_token")?.value;
+    if (!token) return null;
+    return verifyToken(token);
+  } catch {
+    return null;
   }
 }
 
-export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> | { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const params = await context.params;
-    await db.execute(sql`DELETE FROM vehicle_parts WHERE id = ${Number(params.id)}`);
+    const id = Number(params.id);
+    if (!id) return NextResponse.json({ error: "معرف غير صحيح" }, { status: 400 });
+
+    const body = await req.json().catch(() => ({}));
+
+    const updateData = {
+      partName: String(body.partName || body.part_name || "").trim(),
+      partNumber: String(body.partNumber || body.part_number || ""),
+      category: String(body.category || ""),
+      quantity: Number(body.quantity) || 0,
+      minimumQuantity: Number(body.minimumQuantity ?? body.minimum_quantity) || 0,
+      unitPrice: String(body.unitPrice ?? body.unit_price ?? 0),
+      supplier: String(body.supplier || ""),
+      location: String(body.location || ""),
+      status: String(body.status || "available"),
+    };
+
+    if (!updateData.partName) {
+      return NextResponse.json({ error: "اسم القطعة مطلوب" }, { status: 400 });
+    }
+
+    const [row] = await db
+      .update(spareParts)
+      .set(updateData as any)
+      .where(eq(spareParts.id, id))
+      .returning();
+
+    return NextResponse.json({ success: true, data: row });
+  } catch (error: any) {
+    console.error("PUT Spare Parts Error:", error);
+    return NextResponse.json(
+      { error: `فشل التعديل: ${error?.message || String(error)}` },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const params = await context.params;
+    const id = Number(params.id);
+
+    await db.delete(spareParts).where(eq(spareParts.id, id));
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || "فشل الحذف" },
+      { status: 500 }
+    );
   }
 }
