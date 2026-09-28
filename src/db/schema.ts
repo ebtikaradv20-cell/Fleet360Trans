@@ -1,22 +1,26 @@
 import { pgTable, serial, text, timestamp, integer, decimal, date } from "drizzle-orm/pg-core";
 
-// 1. جدول المركبات
+// 1. جدول المركبات (المحدث بكل الحقول المؤسسية)
 export const vehicles = pgTable("vehicles", {
   id: serial("id").primaryKey(),
   plateNumber: text("plate_number").notNull(),
+  company: text("company"),               // ✅ الشركة المالكة
   brand: text("brand").notNull(),
   model: text("model").notNull(),
   year: integer("year"),
+  governorate: text("governorate"),       // ✅ المحافظة
+  region: text("region"),                 // ✅ المنطقة
   department: text("department"),
   driverName: text("driver_name"),
   status: text("status").default("active"),
   currentKm: integer("current_km").default(0),
   licenseExpiry: date("license_expiry"),
   insuranceExpiry: date("insurance_expiry"),
+  fuelType: text("fuel_type").default("بنزين"), // ✅ نوع الوقود
   color: text("color"),
   vin: text("vin"),
   notes: text("notes"),
-  createdAt: timestamp("created_zone").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // 2. جدول المستخدمين
@@ -86,7 +90,7 @@ export const oilChanges = pgTable("oil_changes", {
   kmAtChange: integer("km_at_change"),
   oilType: text("oil_type"),
   oilBrand: text("oil_brand"),
-  filterChanged: integer("filter_changed"), // 0 أو 1
+  filterChanged: integer("filter_changed"),
   airFilterChanged: integer("air_filter_changed"),
   fuelFilterChanged: integer("fuel_filter_changed"),
   nextChangeKm: integer("next_change_km"),
@@ -112,6 +116,7 @@ export const vehicleParts = pgTable("vehicle_parts", {
   cost: decimal("cost"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
 // 8. جدول سجل أجزاء المركبة (History)
 export const vehiclePartsHistory = pgTable("vehicle_parts_history", {
   id: serial("id").primaryKey(),
