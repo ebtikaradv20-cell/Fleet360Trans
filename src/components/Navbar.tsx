@@ -34,7 +34,7 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 sticky top-0 z-30 transition-colors shadow-sm" dir="rtl">
-      {/* القسم الأيمن: زر طي القائمة + اسم المستخدم */}
+      {/* القسم الأيمن: زر التحكم بالـ Sidebar وا اسم المستخدم */}
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -51,9 +51,8 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
         </span>
       </div>
 
-      {/* القسم الأيسر: أزرار اللغة والثيم الفلات الثابتة */}
+      {/* القسم الأيسر: الأزرار الثابتة للغة والثيم */}
       <div className="flex items-center gap-3">
-        {/* زر اللغة */}
         <button
           type="button"
           onClick={toggleRTL}
@@ -62,7 +61,6 @@ export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
           {isRTL ? "English" : "العربية"}
         </button>
 
-        {/* زر الثيم (شمس/قمر) */}
         <button
           type="button"
           onClick={toggleTheme}
