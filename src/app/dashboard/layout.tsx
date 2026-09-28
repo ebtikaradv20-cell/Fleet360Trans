@@ -39,16 +39,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950" dir={isRTL ? "rtl" : "ltr"}>
-      {/* تمرير حالة التصغير والتوسيع للشريط الجانبي */}
+      {/* البار الجانبي مع دعم حالة التصغير/التوسيع */}
       <Sidebar collapsed={isSidebarCollapsed} />
-      
+
+      {/* منطقة المحتوى الرئيسية تأخذ المساحة المتبقية بالكامل بشكل متناسق */}
       <div className={`flex-1 flex flex-col transition-all duration-300 w-full overflow-x-hidden ${
         isSidebarCollapsed 
           ? (isRTL ? "md:mr-20" : "md:ml-20") 
           : (isRTL ? "md:mr-64" : "md:ml-64")
       }`}>
+        {/* البار العلوي الوحيد في أقصى الأعلى */}
         <Navbar onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
-        <main className="flex-1 p-4 md:p-6 fade-in">
+        
+        {/* المحتوى بمسافات مضبوطة بالكامل (بدون أي بارات متكررة في الأسفل) */}
+        <main className="flex-1 p-6 md:p-8 space-y-6 max-w-[1600px] mx-auto w-full">
           {children}
         </main>
       </div>
