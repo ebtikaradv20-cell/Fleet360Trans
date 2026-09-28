@@ -1,34 +1,16 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
+  const [stats] = useState({
     vehiclesCount: 24,
     fuelTotal: 1420,
     workOrdersCount: 5,
     oilChangesCount: 3,
   });
-  const [loading, setLoading] = useState(false);
 
   return (
-    <div className="space-y-6" dir="rtl">
-      {/* رأس لوحة التحكم */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-            لوحة التحكم الرئيسية
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            نظرة شاملة ومحدثة على أداء الأسطول وحركة العمل
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-            🟢 النظام يعمل بكفاءة
-          </span>
-        </div>
-      </div>
-
+    <div className="space-y-6">
       {/* بطاقات الإحصائيات (بتدرجات الأزرق وفلات آرت) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* إجمالي السيارات */}
@@ -36,16 +18,10 @@ export default function DashboardPage() {
           <div className="absolute -left-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <p className="text-xs font-medium text-blue-100">إجمالي السيارات</p>
-            <h3 className="text-3xl font-black tracking-tight mt-1">
-              {stats.vehiclesCount}
-            </h3>
-            <span className="inline-block mt-2 text-[11px] bg-blue-500/50 px-2 py-0.5 rounded-lg text-blue-50">
-              +2 هذا الشهر
-            </span>
+            <h3 className="text-3xl font-black tracking-tight mt-1">{stats.vehiclesCount}</h3>
+            <span className="inline-block mt-2 text-[11px] bg-blue-500/50 px-2 py-0.5 rounded-lg text-blue-50">+2 هذا الشهر</span>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">
-            🚗
-          </div>
+          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">🚗</div>
         </div>
 
         {/* استهلاك الوقود */}
@@ -53,16 +29,10 @@ export default function DashboardPage() {
           <div className="absolute -left-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <p className="text-xs font-medium text-sky-100">استهلاك الوقود</p>
-            <h3 className="text-3xl font-black tracking-tight mt-1">
-              {stats.fuelTotal} <span className="text-sm font-normal">لتر</span>
-            </h3>
-            <span className="inline-block mt-2 text-[11px] bg-sky-500/50 px-2 py-0.5 rounded-lg text-sky-50">
-              معدل استهلاك طبيعي
-            </span>
+            <h3 className="text-3xl font-black tracking-tight mt-1">{stats.fuelTotal} <span className="text-sm font-normal">لتر</span></h3>
+            <span className="inline-block mt-2 text-[11px] bg-sky-500/50 px-2 py-0.5 rounded-lg text-sky-50">معدل استهلاك طبيعي</span>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">
-            ⛽
-          </div>
+          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">⛽</div>
         </div>
 
         {/* أوامر الشغل */}
@@ -70,16 +40,10 @@ export default function DashboardPage() {
           <div className="absolute -left-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <p className="text-xs font-medium text-indigo-100">أوامر الشغل المفتوحة</p>
-            <h3 className="text-3xl font-black tracking-tight mt-1">
-              {stats.workOrdersCount}
-            </h3>
-            <span className="inline-block mt-2 text-[11px] bg-indigo-500/50 px-2 py-0.5 rounded-lg text-indigo-50">
-              قيد التنفيذ
-            </span>
+            <h3 className="text-3xl font-black tracking-tight mt-1">{stats.workOrdersCount}</h3>
+            <span className="inline-block mt-2 text-[11px] bg-indigo-500/50 px-2 py-0.5 rounded-lg text-indigo-50">قيد التنفيذ</span>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">
-            🔧
-          </div>
+          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">🔧</div>
         </div>
 
         {/* غيارات الزيت */}
@@ -87,16 +51,10 @@ export default function DashboardPage() {
           <div className="absolute -left-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <p className="text-xs font-medium text-cyan-100">غيارات الزيت المستحقة</p>
-            <h3 className="text-3xl font-black tracking-tight mt-1">
-              {stats.oilChangesCount}
-            </h3>
-            <span className="inline-block mt-2 text-[11px] bg-cyan-500/50 px-2 py-0.5 rounded-lg text-cyan-50">
-              تتطلب صيانة قريباً
-            </span>
+            <h3 className="text-3xl font-black tracking-tight mt-1">{stats.oilChangesCount}</h3>
+            <span className="inline-block mt-2 text-[11px] bg-cyan-500/50 px-2 py-0.5 rounded-lg text-cyan-50">تتطلب صيانة قريباً</span>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">
-            🛢️
-          </div>
+          <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner">🛢️</div>
         </div>
       </div>
 
@@ -104,15 +62,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-              تحليل حركة الأسطول والنشاط الأسبوعي
-            </h3>
-            <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-950/50 px-3 py-1 rounded-lg">
-              تحديث مباشر
-            </span>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white">تحليل حركة الأسطول والنشاط الأسبوعي</h3>
+            <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-950/50 px-3 py-1 rounded-lg">تحديث مباشر</span>
           </div>
           
-          {/* محاكاة رسم بياني احترافي بالأعمدة وتدرجات الأزرق */}
           <div className="h-64 flex items-end justify-between gap-3 pt-8 px-4 border-b border-gray-100 dark:border-gray-800">
             {[
               { day: "السبت", val: 65, label: "18 سيارة" },
@@ -124,16 +77,9 @@ export default function DashboardPage() {
               { day: "الجمعة", val: 40, label: "10 سيارات" },
             ].map((item, idx) => (
               <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                <div className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold">
-                  {item.label}
-                </div>
-                <div 
-                  style={{ height: `${item.val}%` }}
-                  className="w-full bg-gradient-to-t from-blue-600 to-sky-400 rounded-t-xl transition-all duration-500 group-hover:from-blue-700 group-hover:to-sky-300 shadow-sm"
-                ></div>
-                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-1">
-                  {item.day}
-                </span>
+                <div className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold">{item.label}</div>
+                <div style={{ height: `${item.val}%` }} className="w-full bg-gradient-to-t from-blue-600 to-sky-400 rounded-t-xl transition-all duration-500 group-hover:from-blue-700 group-hover:to-sky-300 shadow-sm"></div>
+                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-1">{item.day}</span>
               </div>
             ))}
           </div>
@@ -141,10 +87,7 @@ export default function DashboardPage() {
 
         {/* توزيع حالات السيارات */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-5">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            حالة سيارات الأسطول
-          </h3>
-          
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">حالة سيارات الأسطول</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">
@@ -155,7 +98,6 @@ export default function DashboardPage() {
                 <div className="bg-blue-600 h-full rounded-full w-3/4"></div>
               </div>
             </div>
-
             <div>
               <div className="flex justify-between text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">
                 <span>تحت الصيانة والإصلاح</span>
@@ -165,7 +107,6 @@ export default function DashboardPage() {
                 <div className="bg-orange-500 h-full rounded-full w-1/5"></div>
               </div>
             </div>
-
             <div>
               <div className="flex justify-between text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">
                 <span>متوقفة / احتياطية</span>
@@ -176,57 +117,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-
           <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-            💡 **ملاحظة إدارية:** معظم السيارات تعمل بكفاءة عالية في قطاع إدارة الحركة، مع وجود جدول صيانة دورية منتظم خلال الأسبوع الحالي.
+            💡 **ملاحظة إدارية:** معظم السيارات تعمل بكفاءة عالية، مع جدول صيانة دورية منتظم.
           </div>
-        </div>
-      </div>
-
-      {/* جدول الأنشطة الحديثة */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            آخر الأنشطة والسيارات المسجلة
-          </h3>
-          <span className="text-xs text-gray-500">عرض الكل</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 text-xs font-bold uppercase">
-                <th className="py-3.5 px-6">كود السيارة</th>
-                <th className="py-3.5 px-6">نوع المركبة</th>
-                <th className="py-3.5 px-6">السائق المسؤول</th>
-                <th className="py-3.5 px-6">الحالة التشغيلية</th>
-                <th className="py-3.5 px-6">موعد آخر صيانة</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-              <tr className="hover:bg-blue-50/30 dark:hover:bg-gray-800/30 transition-colors">
-                <td className="py-4 px-6 font-bold text-blue-600 dark:text-blue-400">TR-101</td>
-                <td className="py-4 px-6 text-gray-800 dark:text-gray-200 font-medium">تويوتا هايلكس</td>
-                <td className="py-4 px-6 text-gray-600 dark:text-gray-300">أحمد محمد</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400">
-                    نشطة
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-gray-500 dark:text-gray-400">2026-06-15</td>
-              </tr>
-              <tr className="hover:bg-blue-50/30 dark:hover:bg-gray-800/30 transition-colors">
-                <td className="py-4 px-6 font-bold text-blue-600 dark:text-blue-400">TR-102</td>
-                <td className="py-4 px-6 text-gray-800 dark:text-gray-200 font-medium">إيسوزو نقل</td>
-                <td className="py-4 px-6 text-gray-600 dark:text-gray-300">محمود علي</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
-                    تحت الصيانة
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-gray-500 dark:text-gray-400">2026-06-20</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
