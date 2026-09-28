@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { sql } from "drizzle-orm";
+import { fuelRecords } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ function auth(req: NextRequest) {
   }
 }
 
+// ── PUT: تعديل سجل وقود آمن ──
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -25,41 +27,58 @@ export async function PUT(
 
     const params = await context.params;
     const id = Number(params.id);
-    const body = await req.json();
+    if (!id) return NextResponse.json({ error: "معرف السجل غير صحيح" }, { status: 400 });
 
-    const payload = {
-      vehicleId: Number(body.vehicleId) || null,
-      plateNumber: body.plateNumber || "",
-      driverName: body.driverName || "",
-      liters: Number(body.liters) || 0,
-      costPerLiter: Number(body.costPerLiter) || 0,
-      totalCost: Number(body.totalCost) || 0,
-      odometer: Number(body.odometer) || 0,
-      station: body.station || "",
-      fuelDate: body.fuelDate && body.fuelDate.trim() !== "" ? body.fuelDate : null,
-    };
+    const body = await req.json().catch(() => ({}));
 
-    await db.execute(sql`
-      UPDATE fuel_records 
-      SET 
-        vehicle_id = ${payload.vehicleId}, plate_number = ${payload.plateNumber}, driver_name = ${payload.driverName}, 
-        liters = ${payload.liters}, cost_per_liter = ${payload.costPerLiter}, total_cost = ${payload.totalCost}, 
-        odometer = ${payload.odometer}, station = ${payload.station}, fuel_date = ${payload.fuelDate}
-      WHERE id = ${id}
-    `);
-
-    if (payload.vehicleId && payload.odometer > 0) {
-      try {
-        await db.execute(sql`UPDATE vehicles SET current_km = GREATEST(COALESCE(current_km, 0), ${payload.odometer}) WHERE id = ${payload.vehicleId}`);
-      } catch (e) {}
+    let formattedDate: string | null = null;
+    if (body.fuelDate || body.fuel_date) {
+      const rawDate = String(body.fuelDate || body.fuel_date).trim();
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          formattedDate = d.toISOString().slice(0, 10);
+        }
+      }
     }
 
-    return NextResponse.json({ success: true });
+    const updateData = {
+      vehicleId: body.vehicleId ? Number(body.vehicleId) : null,
+      plateNumber: String(body.plateNumber || body.plate_number || ""),
+      driverName: String(body.driverName || body.driver_name || ""),
+      liters: String(body.liters ?? 0),
+      costPerLiter: String(body.costPerLiter ?? body.cost_per_liter ?? 0),
+      totalCost: String(body.totalCost ?? body.total_cost ?? 0),
+      odometer: body.odometer ? Number(body.odometer) : 0,
+      station: String(body.station || ""),
+      fuelDate: formattedDate,
+    };
+
+    const [updatedRow] = await db.update(fuelRecords)
+      .set(updateData)
+      .where(eq(fuelRecords.id, id))
+      .returning();
+
+    if (updateData.vehicleId && updateData.odometer > 0) {
+      try {
+        await db.execute(sql`
+          UPDATE vehicles 
+          SET current_km = GREATEST(COALESCE(current_km, 0), ${updateData.odometer})
+          WHERE id = ${updateData.vehicleId}
+        `);
+      } catch (syncErr) {
+        console.error("Auto-sync Vehicle Km Error on PUT:", syncErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, data: updatedRow });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("PUT Fuel Error:", error);
+    return NextResponse.json({ error: `فشل التعديل: ${error?.message || String(error)}` }, { status: 500 });
   }
 }
 
+// ── DELETE: حذف سجل وقود ──
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -67,10 +86,14 @@ export async function DELETE(
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const params = await context.params;
-    await db.execute(sql`DELETE FROM fuel_records WHERE id = ${Number(params.id)}`);
-    return NextResponse.json({ success: true });
+    const id = Number(params.id);
+
+    await db.delete(fuelRecords).where(eq(fuelRecords.id, id));
+    return NextResponse.json({ success: true, message: "تم حذف سجل الوقود بنجاح" });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("DELETE Fuel Error:", error);
+    return NextResponse.json({ error: error?.message || "فشل في حذف سجل الوقود" }, { status: 500 });
   }
 }
