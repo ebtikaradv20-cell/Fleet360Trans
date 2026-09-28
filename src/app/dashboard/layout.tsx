@@ -15,7 +15,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [loading, setLoading] = useState(!user);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // 1. استعادة حالة القائمة الجانبية المحفوظة في المتصفح
   useEffect(() => {
     const savedState = localStorage.getItem("sidebar_collapsed");
     if (savedState !== null) {
@@ -23,7 +22,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, []);
 
-  // 2. التحقق من جلسة التسجيل بدون تسريب للذاكرة (Memory Leaks)
   useEffect(() => {
     if (user) {
       setLoading(false);
@@ -60,7 +58,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => controller.abort();
   }, [user, setUser, router]);
 
-  // 3. دالة فتح وإغلاق القائمة الجانبية
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed((prev) => {
       const nextState = !prev;
@@ -69,31 +66,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     });
   }, []);
 
-  // 4. شاشة التحميل الاحترافية
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white" dir="rtl">
-        <div className="relative flex items-center justify-center">
-          <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
-        </div>
+        <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
         <div className="mt-4 text-xl font-bold tracking-wider">Fleet360</div>
         <div className="text-slate-400 text-sm mt-1">تطبيق إدارة الأسطول الشامل</div>
       </div>
     );
   }
 
-  // 5. الواجهة المعدلة بالكامل لتأخذ العرض الكامل بشكل ممتاز
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex w-full overflow-x-hidden" dir={isRTL ? "rtl" : "ltr"}>
-      {/* القائمة الجانبية */}
+      {/* القائمة الجانبية ممرر لها حالة الطي */}
       <Sidebar collapsed={isSidebarCollapsed} />
 
-      {/* الحاوية الرئيسية (شريط التنقل + محتوى الصفحات) */}
-      <div className="flex-1 flex flex-col min-w-0 w-full min-h-screen transition-all duration-300 ease-in-out">
-        {/* شريط التنقل العلوي الموحد */}
+      {/* الحاوية الرئيسية مع دفع محتذى وديناميكي تماماً حسب اتجاه اللغة وحالة القائمة */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 w-full min-h-screen transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed
+            ? isRTL ? "mr-20" : "ml-20"
+            : isRTL ? "mr-64" : "ml-64"
+        }`}
+      >
         <Navbar onToggleSidebar={handleToggleSidebar} />
 
-        {/* محتوى الصفحة يستغل العرض بالكامل */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-[1700px] mx-auto space-y-6">
           {children}
         </main>
