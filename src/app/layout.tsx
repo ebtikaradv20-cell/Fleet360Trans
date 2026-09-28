@@ -15,11 +15,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
-        {/*
-          Inline script runs BEFORE React hydrates → zero flash on reload.
-          Reads the saved pref from localStorage and adds .dark / sets dir
-          on <html> immediately.
-        */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -42,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="min-h-screen w-full">{children}</main>
           ) : (
             <div className="min-h-screen flex" dir="rtl">
-              {/* القائمة الجانبية القابلة للطي */}
+              {/* القائمة الجانبية */}
               <div
                 className={`${
                   sidebarOpen ? "w-64" : "w-0"
@@ -51,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Sidebar />
               </div>
 
-              {/* حاوية الناف بار ومحتوى البيانات بالكامل */}
+              {/* المحتوى الرئيسي والناف بار الموحد */}
               <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
                 <Navbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
                 <main className="p-6 flex-1 bg-gray-50 dark:bg-gray-950">
