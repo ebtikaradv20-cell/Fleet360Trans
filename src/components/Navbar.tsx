@@ -12,16 +12,16 @@ interface NavbarProps {
 export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
   const { lang, setLang, darkMode, toggleDarkMode, user } = useApp();
   const t = translations[lang] || translations["ar"];
-  const [search, setSearch]       = useState("");
+  const [search, setSearch] = useState("");
   const [notifCount, setNotifCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/dashboard")
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         if (d && !d.error) {
           setNotifCount(
-            (d.licenseAlerts || 0) + (d.oilAlerts || 0) + (d.insuranceAlerts || 0),
+            (d.licenseAlerts || 0) + (d.oilAlerts || 0) + (d.insuranceAlerts || 0)
           );
         }
       })
@@ -34,8 +34,8 @@ export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
   };
 
   return (
-    <header className="h-16 flex items-center gap-4 px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm sticky top-0 z-30 transition-colors duration-300">
-
+    <header className="h-16 flex items-center gap-4 px-4 sm:px-6 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm sticky top-0 z-30 transition-colors duration-300">
+      
       {/* ── زر طي / توسيع القائمة الجانبية (Sidebar Toggle) ── */}
       {onToggleSidebar && (
         <button
@@ -49,7 +49,7 @@ export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
         </button>
       )}
 
-      {/* ── Search ── */}
+      {/* ── البحث الشامل ── */}
       <div className="flex-1 max-w-lg">
         <div className="relative">
           <span className="absolute top-1/2 -translate-y-1/2 text-gray-400 text-sm px-3 pointer-events-none">🔍</span>
@@ -64,15 +64,15 @@ export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 ms-auto">
-
-        {/* ── Language switcher ── */}
+      <div className="flex items-center gap-2 sm:gap-3 ms-auto">
+        
+        {/* ── محول اللغة ── */}
         <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          {(["ar", "en"] as Language[]).map(l => (
+          {(["ar", "en"] as Language[]).map((l) => (
             <button
               key={l}
               onClick={() => setLang(l)}
-              className={`px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+              className={`px-2.5 py-1 text-xs font-bold transition-all duration-200 ${
                 lang === l
                   ? "text-white"
                   : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -84,36 +84,23 @@ export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
           ))}
         </div>
 
-        {/* ── Dark / Light toggle ── */}
+        {/* ── زر الدارك مود واللايت مود (أيقونة تتغير مباشرة بدون سحب) ── */}
         <button
           onClick={toggleDarkMode}
           title={darkMode ? t.lightMode : t.darkMode}
-          className={`
-            relative w-14 h-7 rounded-full transition-all duration-300 flex-shrink-0
-            ${darkMode ? "bg-blue-600" : "bg-gray-300"}
-          `}
+          className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-base transition-all duration-200 flex-shrink-0 border border-gray-200 dark:border-gray-700"
         >
-          {/* sliding knob */}
-          <span
-            className={`
-              absolute top-0.5 w-6 h-6 rounded-full shadow-md flex items-center justify-center text-sm
-              transition-all duration-300
-              ${darkMode ? "bg-gray-900 translate-x-7" : "bg-white translate-x-0.5"}
-            `}
-            style={{ lineHeight: 1 }}
-          >
-            {darkMode ? "🌙" : "☀️"}
-          </span>
+          {darkMode ? "☀️" : "🌙"}
         </button>
 
-        {/* ── Notifications ── */}
+        {/* ── الإشعارات ── */}
         <div className="relative">
-          <button className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-base">
+          <button className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-base border border-gray-200 dark:border-gray-700">
             🔔
           </button>
           {notifCount > 0 && (
             <span
-              className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold"
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm"
               style={{ background: "#F97316" }}
             >
               {notifCount > 9 ? "9+" : notifCount}
@@ -121,8 +108,8 @@ export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
           )}
         </div>
 
-        {/* ── User avatar ── */}
-        <div className="flex items-center gap-2">
+        {/* ── بيانات المستخدم ── */}
+        <div className="flex items-center gap-2 border-s border-gray-200 dark:border-gray-800 ps-2">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm"
             style={{ background: "#F97316" }}
@@ -131,6 +118,7 @@ export default function Navbar({ onSearch, onToggleSidebar }: NavbarProps) {
           </div>
           <span className="text-sm font-medium dark:text-white hidden md:block">{user?.name || "مدير النظام"}</span>
         </div>
+
       </div>
     </header>
   );
