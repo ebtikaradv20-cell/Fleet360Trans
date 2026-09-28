@@ -6,7 +6,7 @@ export default function Navbar() {
   const { user, theme, setTheme, isRTL, setIsRTL } = useApp();
 
   return (
-    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 sticky top-0 z-30 transition-colors shadow-sm">
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 sticky top-0 z-30 transition-colors shadow-sm" dir="rtl">
       {/* القسم الأيمن: اسم المستخدم */}
       <div className="flex items-center gap-4">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
