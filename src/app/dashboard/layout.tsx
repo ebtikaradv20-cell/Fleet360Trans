@@ -12,10 +12,10 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, setUser, isRTL } = useApp();
   const router = useRouter();
-  const [loading, setLoading] = useState(!user); // لو المستخدم موجود مسبقاً، لا تظهر شاشة التحميل
+  const [loading, setLoading] = useState(!user);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // 1. استعادة حالة القائمة الجانبية المحفوظة
+  // 1. استعادة حالة القائمة الجانبية المحفوظة في المتصفح
   useEffect(() => {
     const savedState = localStorage.getItem("sidebar_collapsed");
     if (savedState !== null) {
@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, []);
 
-  // 2. فحص حالة الدخول مع دعم AbortController لمنع الـ Memory Leaks
+  // 2. التحقق من جلسة التسجيل بدون تسريب للذاكرة (Memory Leaks)
   useEffect(() => {
     if (user) {
       setLoading(false);
@@ -57,10 +57,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     verifyAuth();
 
-    return () => controller.abort(); // تنظيف الطلب عند مغادرة الصفحة
+    return () => controller.abort();
   }, [user, setUser, router]);
 
-  // 3. دالة تبديل القائمة الجانبية مع حفظ الحالة
+  // 3. دالة فتح وإغلاق القائمة الجانبية
   const handleToggleSidebar = useCallback(() => {
     setIsSidebarCollapsed((prev) => {
       const nextState = !prev;
@@ -69,7 +69,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     });
   }, []);
 
-  // 4. شاشة تحميل احترافية وسلسة
+  // 4. شاشة التحميل الاحترافية
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white" dir="rtl">
@@ -82,25 +82,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  // 5. بناء واجهة متجاوبة بالكامل لجميع مقاسات الشاشات
+  // 5. الواجهة المعدلة بالكامل لتأخذ العرض الكامل بشكل ممتاز
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex overflow-x-hidden" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex w-full overflow-x-hidden" dir={isRTL ? "rtl" : "ltr"}>
       {/* القائمة الجانبية */}
       <Sidebar collapsed={isSidebarCollapsed} />
 
-      {/* الحاوية الرئيسية (Navbar + Page Content) */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed
-            ? isRTL ? "md:mr-20" : "md:ml-20"
-            : isRTL ? "md:mr-64" : "md:ml-64"
-        }`}
-      >
-        {/* شريط التنقل العلوي */}
+      {/* الحاوية الرئيسية (شريط التنقل + محتوى الصفحات) */}
+      <div className="flex-1 flex flex-col min-w-0 w-full min-h-screen transition-all duration-300 ease-in-out">
+        {/* شريط التنقل العلوي الموحد */}
         <Navbar onToggleSidebar={handleToggleSidebar} />
 
-        {/* محتوى الصفحات */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto space-y-6">
+        {/* محتوى الصفحة يستغل العرض بالكامل */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-[1700px] mx-auto space-y-6">
           {children}
         </main>
       </div>
