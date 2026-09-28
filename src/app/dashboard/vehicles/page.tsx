@@ -1,22 +1,21 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { 
-  Plus, Search, Pencil, Trash2, Car, Filter, X, 
-  FileSpreadsheet, AlertCircle, Loader2, Download
+  Plus, Search, Pencil, Trash2, Car, X, 
+  FileSpreadsheet, Loader2, Download
 } from "lucide-react";
-import ExportExcelButton from "@/components/ExportExcelButton";
 import { exportToExcel } from "@/lib/excel";
 
 interface Vehicle {
   id: number;
   plate_number: string;
-  company: string;       // الشركة المالكة
+  company: string;
   brand: string;
   model: string;
   year: number;
-  governorate: string;   // المحافظة
-  region: string;        // المنطقة
-  department: string;    // الإدارة
+  governorate: string;
+  region: string;
+  department: string;
   driver_name: string;
   status: string;
   current_km: number;
@@ -30,20 +29,17 @@ export default function VehiclesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   
-  // ── الفلاتر ──
   const [selectedStatus, setSelectedStatus] = useState("الكل");
   const [selectedCompany, setSelectedCompany] = useState("الكل");
   const [selectedGovernorate, setSelectedGovernorate] = useState("الكل");
   const [selectedFuel, setSelectedFuel] = useState("الكل");
   const [selectedDept, setSelectedDept] = useState("الكل");
 
-  // ── حالات النوافذ (Modals) ──
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // إعدادات تصدير الإكسيل
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
 
@@ -68,20 +64,19 @@ export default function VehiclesPage() {
 
   useEffect(() => { fetchVehicles(); }, []);
 
-  // ── استخراج الفلاتر ديناميكياً ──
   const uniqueStatuses = ["الكل", ...Array.from(new Set(vehicles.map(v => v.status || "active")))];
   const uniqueCompanies = ["الكل", ...Array.from(new Set(vehicles.map(v => v.company || "غير محدد")))];
   const uniqueGovs = ["الكل", ...Array.from(new Set(vehicles.map(v => v.governorate || "غير محدد")))];
   const uniqueFuels = ["الكل", ...Array.from(new Set(vehicles.map(v => v.fuel_type || "بنزين")))];
   const uniqueDepts = ["الكل", ...Array.from(new Set(vehicles.map(v => v.department || "غير محدد")))];
 
-  // ── التصفية الحية للجدول ──
   const filteredVehicles = vehicles.filter(v => {
     const matchesSearch = 
       (v.plate_number || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.driver_name || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.model || "").toLowerCase().includes(search.toLowerCase()) ||
-      (v.brand || "").toLowerCase().includes(search.toLowerCase());
+      (v.brand || "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.company || "").toLowerCase().includes(search.toLowerCase());
 
     return matchesSearch &&
       (selectedStatus === "الكل" || v.status === selectedStatus) &&
@@ -91,7 +86,6 @@ export default function VehiclesPage() {
       (selectedFuel === "الكل" || (v.fuel_type || "بنزين") === selectedFuel);
   });
 
-  // ── فتح نافذة الإضافة ──
   const openAddModal = () => {
     setEditingId(null);
     setFormData({ 
@@ -102,7 +96,6 @@ export default function VehiclesPage() {
     setIsModalOpen(true);
   };
 
-  // ── تنفيذ تصدير الإكسيل المخصص ──
   const handleExportExcel = () => {
     const finalExportData = filteredVehicles.filter(v => {
       if (!exportStartDate && !exportEndDate) return true;
@@ -129,58 +122,66 @@ export default function VehiclesPage() {
     setIsExportModalOpen(false);
   };
 
-  // ── دالة الحذف المعالجة هيدروليكياً وبأمان ──
   const handleDelete = async (id: number) => {
     if (!confirm("⚠️ تنبيه: هل أنت متأكد من حذف هذه السيارة نهائياً؟")) return;
 
-    // 1. تحديث فوري فائق السرعة للواجهة (Optimistic UI)
     const previousVehicles = [...vehicles];
     setVehicles(prev => prev.filter(v => v.id !== id));
 
     try {
-      // 2. تجربة مساري الحذف في الخادم لضمان التوافق
       let res = await fetch(`/api/vehicles/${id}`, { method: "DELETE" });
       if (res.status === 404 || res.status === 405) {
         res = await fetch(`/api/vehicles?id=${id}`, { method: "DELETE" });
       }
 
       if (res.ok) {
-        // تم الحذف بنجاح في الخادم
         fetchVehicles();
       } else {
-        // إلغاء الحذف وإعادة السيارة للشاشة في حالة وجود ارتباطات
         setVehicles(previousVehicles);
-        let errorMsg = "❌ تعذر حذف السيارة لأنها مرتبطة بسجلات أخرى (وقود / صيانة / أوامر شغل). يرجى حذف السجلات المرتبطة بها أولاً.";
+        let errorMsg = "❌ تعذر حذف السيارة لأنها مرتبطة بسجلات أخرى (وقود / صيانة / أوامر شغل).";
         try {
           const errData = await res.json();
           if (errData && errData.error) errorMsg = errData.error;
-        } catch {
-          // الرد ليس JSON
-        }
+        } catch {}
         alert(errorMsg);
       }
     } catch (err) {
       setVehicles(previousVehicles);
       console.error("Delete Exception:", err);
-      alert("❌ تعذر الاتصال بالخادم لحذف السيارة. يرجى التأكد من الاتصال بالإنترنت.");
+      alert("❌ تعذر الاتصال بالخادم لحذف السيارة.");
     }
   };
 
+  // ✅ دالة الحفظ المحدثة: تظهر سبب الخطأ الحقيقي من السيرفر
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      // تنظيف التواريخ الفارغة قبل الإرسال
+      const payload = {
+        ...formData,
+        license_expiry: formData.license_expiry && formData.license_expiry.trim() !== "" 
+          ? formData.license_expiry 
+          : null,
+        year: Number(formData.year) || null,
+        current_km: Number(formData.current_km) || 0,
+      };
+
       const res = await fetch(editingId ? `/api/vehicles/${editingId}` : "/api/vehicles", {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-      if (res.ok) {
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success !== false) {
         setIsModalOpen(false);
         setEditingId(null);
         fetchVehicles();
       } else {
-        alert("حدث خطأ أثناء حفظ بيانات السيارة");
+        // ✅ إظهار رسالة الخطأ الحقيقية من السيرفر
+        alert(data.error || data.message || "حدث خطأ أثناء حفظ بيانات السيارة");
       }
     } catch (err) {
       console.error(err);
@@ -193,11 +194,19 @@ export default function VehiclesPage() {
   const openEditModal = (vehicle: Vehicle) => {
     setEditingId(vehicle.id);
     setFormData({
-      plate_number: vehicle.plate_number || "", company: vehicle.company || "",
-      brand: vehicle.brand || "", model: vehicle.model || "", year: vehicle.year || new Date().getFullYear(),
-      governorate: vehicle.governorate || "", region: vehicle.region || "", department: vehicle.department || "",
-      driver_name: vehicle.driver_name || "", status: vehicle.status || "active",
-      current_km: vehicle.current_km || 0, license_expiry: vehicle.license_expiry || "", fuel_type: vehicle.fuel_type || "بنزين",
+      plate_number: vehicle.plate_number || "",
+      company: vehicle.company || "",
+      brand: vehicle.brand || "",
+      model: vehicle.model || "",
+      year: vehicle.year || new Date().getFullYear(),
+      governorate: vehicle.governorate || "",
+      region: vehicle.region || "",
+      department: vehicle.department || "",
+      driver_name: vehicle.driver_name || "",
+      status: vehicle.status || "active",
+      current_km: vehicle.current_km || 0,
+      license_expiry: vehicle.license_expiry || "",
+      fuel_type: vehicle.fuel_type || "بنزين",
     });
     setIsModalOpen(true);
   };
@@ -205,7 +214,7 @@ export default function VehiclesPage() {
   return (
     <div className="space-y-6" dir="rtl">
       
-      {/* ── رأس الصفحة المؤسسي ── */}
+      {/* رأس الصفحة */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl">
@@ -213,7 +222,9 @@ export default function VehiclesPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-gray-900 dark:text-white">إدارة الأسطول والسيارات</h1>
-            <p className="text-sm text-gray-500 mt-0.5">إجمالي <span className="font-bold text-gray-900 dark:text-white">{vehicles.length}</span> سيارة مسجلة بالأسطول</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              إجمالي <span className="font-bold text-gray-900 dark:text-white">{vehicles.length}</span> سيارة مسجلة بالأسطول
+            </p>
           </div>
         </div>
 
@@ -238,7 +249,7 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      {/* ── شريط البحث والفلاتر الشاملة ── */}
+      {/* الفلاتر */}
       <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="lg:col-span-2">
@@ -249,7 +260,7 @@ export default function VehiclesPage() {
                 type="text" 
                 value={search} 
                 onChange={e => setSearch(e.target.value)} 
-                placeholder="ابحث باللوحة، السائق، الموديل..." 
+                placeholder="ابحث باللوحة، السائق، الموديل، الشركة..." 
                 className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl ps-9 pe-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" 
               />
             </div>
@@ -285,7 +296,7 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      {/* ── الجدول المؤسسي (أزرق مدرج & Zebra Pattern) ── */}
+      {/* الجدول */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
         {loading ? (
           <div className="p-12 flex justify-center items-center gap-3 text-blue-800 dark:text-blue-400 font-bold">
@@ -308,7 +319,6 @@ export default function VehiclesPage() {
                   <th className="p-4 font-bold text-center">الإجراءات</th>
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {filteredVehicles.map((v, index) => (
                   <tr key={v.id} className={`transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-950/20 ${index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/60 dark:bg-gray-800/40"}`}>
@@ -339,7 +349,7 @@ export default function VehiclesPage() {
         )}
       </div>
 
-      {/* ── نافذة خيارات تصدير الإكسيل (Excel Export Modal) ── */}
+      {/* نافذة تصدير Excel */}
       {isExportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-6 border border-gray-200 dark:border-gray-800">
@@ -350,7 +360,6 @@ export default function VehiclesPage() {
               </h2>
               <button onClick={() => setIsExportModalOpen(false)} className="text-gray-400 hover:text-gray-800 dark:hover:text-white"><X size={20}/></button>
             </div>
-            
             <div className="space-y-4 mb-6">
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 سيتم تصدير البيانات المفلترة حالياً فقط. يمكنك تحديد نطاق زمني اختيارياً:
@@ -364,7 +373,6 @@ export default function VehiclesPage() {
                 <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white outline-none focus:border-emerald-500" />
               </div>
             </div>
-
             <button onClick={handleExportExcel} className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-md cursor-pointer">
               <Download size={18} />
               <span>تحميل شيت الإكسيل</span>
@@ -373,7 +381,7 @@ export default function VehiclesPage() {
         </div>
       )}
 
-      {/* ── نافذة إضافة / تعديل سيارة (Form Modal) ── */}
+      {/* نافذة إضافة / تعديل */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800">
@@ -393,15 +401,15 @@ export default function VehiclesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الشركة المالكة</label>
-                  <input type="text" value={formData.company} onChange={e=>setFormData({...formData, company: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: طاقة عربية" />
+                  <input type="text" value={formData.company} onChange={e=>setFormData({...formData, company: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: ترانس جاس" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الماركة</label>
-                  <input type="text" value={formData.brand} onChange={e=>setFormData({...formData, brand: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: نيسان" />
+                  <input type="text" value={formData.brand} onChange={e=>setFormData({...formData, brand: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: تويوتا" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الموديل</label>
-                  <input type="text" value={formData.model} onChange={e=>setFormData({...formData, model: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: صني" />
+                  <input type="text" value={formData.model} onChange={e=>setFormData({...formData, model: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: دويبل كابينة" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">سنة الصنع</label>
@@ -415,20 +423,18 @@ export default function VehiclesPage() {
                     <option value="غاز">غاز</option>
                   </select>
                 </div>
-                
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">المحافظة</label>
-                  <input type="text" value={formData.governorate} onChange={e=>setFormData({...formData, governorate: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: القاهرة" />
+                  <input type="text" value={formData.governorate} onChange={e=>setFormData({...formData, governorate: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: كفر الشيخ" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">المنطقة</label>
-                  <input type="text" value={formData.region} onChange={e=>setFormData({...formData, region: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: مدينة نصر" />
+                  <input type="text" value={formData.region} onChange={e=>setFormData({...formData, region: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: دسوق" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الإدارة المختصة</label>
-                  <input type="text" value={formData.department} onChange={e=>setFormData({...formData, department: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: إدارة الحركة" />
+                  <input type="text" value={formData.department} onChange={e=>setFormData({...formData, department: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: الصيانة" />
                 </div>
-                
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">اسم السائق</label>
                   <input type="text" value={formData.driver_name} onChange={e=>setFormData({...formData, driver_name: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" />
