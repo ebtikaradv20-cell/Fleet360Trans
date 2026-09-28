@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import { useApp } from "@/context/AppContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { setUser, user, isRTL } = useApp();
+  const { setUser, isRTL } = useApp();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1d4ed8 100%)" }}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-spin">⚙️</div>
           <div className="text-white text-xl font-bold">Fleet360</div>
@@ -38,21 +38,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950" dir={isRTL ? "rtl" : "ltr"}>
-      {/* البار الجانبي مع تمرير حالة التصغير والتوسيع */}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex" dir={isRTL ? "rtl" : "ltr"}>
+      {/* القائمة الجانبية */}
       <Sidebar collapsed={isSidebarCollapsed} />
 
-      {/* الحاوية الرئيسية تتكيف بنعومة مع عرض البار الجانبي */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 w-full overflow-x-hidden ${
+      {/* الحاوية الرئيسية (Navbar + Page Content) */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
         isSidebarCollapsed 
           ? (isRTL ? "md:mr-20" : "md:ml-20") 
           : (isRTL ? "md:mr-64" : "md:ml-64")
       }`}>
-        {/* البار العلوي الوحيد الذي يتحكم في فتح/إغلاق القائمة */}
+        {/* شريط التنقل العلوي الموحد */}
         <Navbar onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
 
-        {/* محتوى الصفحات بمسافات مضبوطة ومتناسقة تملأ الشاشة */}
-        <main className="flex-1 p-6 md:p-8 space-y-6 max-w-[1600px] mx-auto w-full">
+        {/* محتوى الصفحة الرئيسية يملأ العرض بالكامل */}
+        <main className="flex-1 p-6 md:p-8 w-full max-w-7xl mx-auto space-y-6">
           {children}
         </main>
       </div>
