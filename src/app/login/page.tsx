@@ -2,6 +2,17 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { 
+  User, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  LogIn, 
+  Loader2, 
+  AlertCircle, 
+  ShieldCheck,
+  Code2
+} from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,6 +35,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError("");
     try {
@@ -42,10 +54,10 @@ export default function LoginPage() {
         }
         router.push("/dashboard");
       } else {
-        setError(data.error || "بيانات الدخول غير صحيحة");
+        setError(data.error || "بيانات الدخول غير صحيحة، يرجى المحاولة مرة أخرى.");
       }
     } catch {
-      setError("خطأ في الاتصال بالخادم");
+      setError("خطأ في الاتصال بالخادم، يرجى التأكد من الشبكة.");
     } finally {
       setLoading(false);
     }
@@ -57,123 +69,77 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
-      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0284C7 0%, #1d4ed8 50%, #1E3A8A 100%)" }} />
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-20 right-20 w-64 h-64 rounded-full" style={{ background: "#F97316", filter: "blur(80px)" }} />
-        <div className="absolute bottom-20 left-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-slate-900" dir="rtl">
+      
+      {/* ── الخلفية المؤسسية والتأثيرات ── */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900" />
+      
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[45%] h-[55%] rounded-full bg-orange-600 blur-[130px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[45%] h-[55%] rounded-full bg-blue-600 blur-[130px]" />
       </div>
 
-      <div className="absolute inset-0 opacity-5" style={{
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
-        backgroundSize: "50px 50px"
-      }} />
+      <div 
+        className="absolute inset-0 opacity-10 pointer-events-none" 
+        style={{
+          backgroundImage: "linear-gradient(rgba(255,255,255,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.2) 1px, transparent 1px)",
+          backgroundSize: "40px 40px"
+        }} 
+      />
 
-      <div className="relative z-10 w-full max-w-md px-6">
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20 flex flex-col justify-between min-h-[580px]">
+      <div className="relative z-10 w-full max-w-md px-6 my-8">
+        
+        {/* ── كارت تسجيل الدخول الزجاجي المؤسسي ── */}
+        <div className="bg-slate-900/70 backdrop-blur-2xl rounded-3xl shadow-2xl p-8 border border-white/10 flex flex-col justify-between min-h-[580px]">
           <div>
-            <div className="text-center mb-6">
-              <div className="flex justify-center mb-3">
-                <img src="/logo.png" alt="Fleet360 Logo" className="w-32 h-32 object-contain filter drop-shadow-md" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+            
+            {/* اللوجو والعنوان */}
+            <div className="text-center mb-8">
+              <div className="flex justify-center mb-4">
+                <img 
+                  src="/logo.png" 
+                  alt="Fleet360 Logo" 
+                  className="w-28 h-28 object-contain filter drop-shadow-lg" 
+                  onError={(e) => { 
+                    // في حالة عدم وجود صورة اللوجو يظهر الأيقونة المؤسسية البديلة
+                    (e.target as HTMLElement).style.display = 'none'; 
+                    const fallback = document.getElementById('logo-fallback');
+                    if (fallback) fallback.style.display = 'flex';
+                  }} 
+                />
+                <div id="logo-fallback" className="hidden w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-white shadow-lg shadow-orange-500/30">
+                  <ShieldCheck size={36} />
+                </div>
               </div>
-              <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
-              <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
-              <p className="text-blue-300 text-xs mt-1 font-semibold">TRANSCAS / TAQA ARABIA</p>
+
+              <h1 className="text-3xl font-black text-white tracking-wider flex items-center justify-center gap-1">
+                FLEET<span className="text-orange-500">360</span>
+              </h1>
+              <p className="text-blue-200/90 text-sm mt-1.5 font-medium">تطبيق إدارة الأسطول الشامل</p>
+              <p className="text-orange-400 text-xs mt-1 font-bold tracking-wide">TRANSCAS / TAQA ARABIA</p>
             </div>
 
+            {/* نموذج تسجيل الدخول */}
             <form onSubmit={handleLogin} className="space-y-4">
+              
+              {/* اسم المستخدم */}
               <div>
-                <label className="block text-blue-200 text-sm mb-2 font-medium">اسم المستخدم</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="أدخل اسم المستخدم"
-                  className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-blue-200 text-sm mb-2 font-medium">كلمة المرور</label>
-                <div className="relative">
+                <label className="block text-gray-300 text-xs font-bold mb-2">اسم المستخدم</label>
+                <div className="relative flex items-center">
+                  <span className="absolute inset-y-0 start-0 flex items-center ps-3.5 text-gray-400">
+                    <User size={18} />
+                  </span>
                   <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور"
-                    className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 pl-12 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
+                    type="text"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="أدخل اسم المستخدم"
+                    className="w-full bg-black/30 border border-white/10 rounded-xl py-3 ps-10 pe-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all font-medium"
                     required
                   />
-                  {/* زر أيقونة العين فلات آرت الحديثة */}
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 focus:outline-none p-1 cursor-pointer transition-colors"
-                    title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
-                  >
-                    {showPassword ? (
-                      // أيقونة عين مغلقة (Flat Art SVG)
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                        <line x1="2" x2="22" y1="2" y2="22" />
-                      </svg>
-                    ) : (
-                      // أيقونة عين مفتوحة (Flat Art SVG)
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-sm py-1">
-                <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={e => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
-                  />
-                  <span className="text-blue-200 font-medium">تذكر بياناتي</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-orange-300 hover:text-orange-400 transition text-xs font-semibold underline"
-                >
-                  نسيت كلمة المرور؟
-                </button>
-              </div>
-
-              {error && (
-                <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3 text-red-200 text-sm text-center">
-                  ⚠️ {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-4 disabled:opacity-70 shadow-lg cursor-pointer"
-                style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
-              >
-                {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
-              </button>
-            </form>
-          </div>
-
-          <div className="text-center mt-6 pt-3 border-t border-white/10">
-            <p className="text-white text-xs font-medium tracking-wider opacity-90">
-              Developed by Eng. Omar Abd Elhalim
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+              {/* كلمة المرور */}
+              <div>
+                <label className="block text-gray-300 
