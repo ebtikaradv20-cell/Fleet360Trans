@@ -90,7 +90,17 @@ export default function LoginPage() {
           <div>
             <div className="text-center mb-8">
               <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+                <img 
+                  src="/logo.png" 
+                  alt="Fleet360 Logo" 
+                  className="w-28 h-28 object-contain filter drop-shadow-lg" 
+                  onError={(e) => { 
+                    (e.target as HTMLElement).style.display = 'none'; 
+                    const fallback = document.getElementById('logo-fallback');
+                    if (fallback) fallback.style.display = 'flex';
+                  }} 
+                />
+                <div id="logo-fallback" className="hidden w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-700 items-center justify-center text-white shadow-lg shadow-orange-500/30">
                   <ShieldCheck size={36} />
                 </div>
               </div>
@@ -99,7 +109,8 @@ export default function LoginPage() {
                 FLEET<span className="text-orange-500">360</span>
               </h1>
               <p className="text-blue-200/90 text-sm mt-1.5 font-medium">تطبيق إدارة الأسطول الشامل</p>
-              <p className="text-orange-400 text-xs mt-1 font-bold tracking-wide">TRANSCAS / TAQA ARABIA</p>
+              {/* ✅ تم تصحيح الاسم هنا */}
+              <p className="text-orange-400 text-xs mt-1 font-bold tracking-wide">Trans Gas / TAQA ARABIA</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -191,6 +202,7 @@ export default function LoginPage() {
             </form>
           </div>
 
+          {/* توقيع المطور */}
           <div className="text-center mt-8 pt-4 border-t border-white/10">
             <p className="text-gray-400 text-xs font-semibold flex items-center justify-center gap-1.5 tracking-wide">
               <Code2 size={14} className="text-orange-500" />
