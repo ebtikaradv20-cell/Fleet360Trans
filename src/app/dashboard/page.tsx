@@ -1,329 +1,192 @@
 "use client";
-import React from "react";
-import Link from "next/link";
+import React, { useEffect, useState, useCallback } from "react";
+import { useApp } from "@/context/AppContext";
+import { translations } from "@/lib/i18n";
+import DataTable from "@/components/ui/DataTable";
+import StatusBadge from "@/components/ui/StatusBadge";
+import Modal from "@/components/ui/Modal";
+import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
+import ExportExcelButton from "@/components/ExportExcelButton";
 import { 
-  Car, 
-  Wrench, 
-  Droplet, 
-  Package, 
-  AlertTriangle, 
-  ShieldAlert, 
-  Disc,
-  Plus,
-  FileText,
-  Filter,
-  ArrowUpRight,
-  CheckCircle2,
-  Clock,
-  AlertCircle
+  Wrench, Search, Plus, Save, X, Loader2, DollarSign, Clock, CheckCircle2 
 } from "lucide-react";
-import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
-// بيانات المخططات البيانية المصغرة داخل الكروت
-const sparklineData = [
-  { value: 12 }, { value: 28 }, { value: 18 }, { value: 45 }, 
-  { value: 32 }, { value: 55 }, { value: 48 }
+interface WorkOrder {
+  id: number;
+  orderNumber: string;
+  vehicleId: number;
+  plateNumber: string;
+  maintenanceType: string;
+  status: string;
+  workshop: string;
+  description: string;
+  cost: number;
+  startDate: string;
+  endDate: string;
+  technicianName: string;
+  notes: string;
+  createdAt: string;
+}
+
+interface Vehicle { id: number; plateNumber: string; }
+
+// قائمة أسماء الصيانة الجديدة المعتمدة
+const MAINTENANCE_TYPES = [
+  "تغيير زيت وفلاتر",
+  "صيانة عفشة",
+  "صيانة كاوتش",
+  "كارتة",
+  "صيانة ميكانيكا",
+  "صيانة كهرباء"
 ];
 
-export default function DashboardPage() {
-  return (
-    <div className="w-full space-y-8">
+const emptyWO: Partial<WorkOrder> = {
+  orderNumber: `WO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`,
+  plateNumber: "", 
+  maintenanceType: "صيانة ميكانيكا", // القيمة الافتراضية
+  status: "pending",
+  workshop: "", 
+  description: "", 
+  cost: 0, 
+  startDate: new Date().toISOString().slice(0, 10),
+  endDate: "", 
+  technicianName: "", 
+  notes: ""
+};
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div>
+    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>
+    {children}
+  </div>
+);
+
+const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all";
+
+export default function WorkOrdersPage() {
+  const { lang, user } = useApp();
+  const t = translations[lang];
+  const [data, setData] = useState<WorkOrder[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Partial<WorkOrder>>(emptyWO);
+  const [isEdit, setIsEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const canWrite = user?.role === "admin" || user?.permissions?.includes("maintenance:write");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (typeFilter) params.set("maintenanceType", typeFilter);
+      if (statusFilter) params.set("status", statusFilter);
+      const res = await fetch(`/api/work-orders?${params}`);
+      const d = await res.json();
+      setData(Array.isArray(d) ? d : []);
+    } catch (error) {
+      console.error("Failed to load work orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, typeFilter, statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/vehicles").then(r => r.json()).then(d => setVehicles(Array.isArray(d) ? d : []));
+  }, []);
+
+  // ✅ دالة الحفظ المحدثة لمعالجة التواريخ الفارغة ومنع الأخطاء
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    try {
+      setSaving(true);
+      const method = isEdit ? "PUT" : "POST";
+      const url = isEdit ? `/api/work-orders/${editing.id}` : "/api/work-orders";
       
-      {/* ── رأس الصفحة ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-5">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 dark:text-white">لوحة التحكم والأداء التشغيلي</h1>
-          <p className="text-gray-500 text-sm mt-1">مرحباً بك في نظام إدارة الأسطول الشامل Fleet360 - TAQA Arabia</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>النظام متصل بالخادم المباشر</span>
-        </div>
-      </div>
+      const payload = {
+        ...editing,
+        vehicleId: Number(editing.vehicleId) || null,
+        cost: Number(editing.cost) || 0,
+        // معالجة التواريخ لمنع خطأ قاعدة البيانات
+        startDate: editing.startDate && editing.startDate.trim() !== "" ? editing.startDate : null,
+        endDate: editing.endDate && editing.endDate.trim() !== "" ? editing.endDate : null,
+      };
 
-      {/* ── الكروت التفاعلية (أزرق مدرج + رسوم بيانية + تنقل فوري) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* كارت 1: السيارات */}
-        <Link 
-          href="/dashboard/vehicles" 
-          className="group bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-800/40"
-        >
-          <div className="flex justify-between items-start relative z-10">
-            <div>
-              <div className="text-blue-200 text-xs font-bold mb-1">إجمالي السيارات</div>
-              <span className="text-3xl font-black">124</span>
-              <span className="text-[11px] text-emerald-400 font-semibold ms-2 inline-flex items-center">
-                ↑ 12% هذا الشهر
-              </span>
-            </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-orange-500 transition-colors">
-              <Car size={22} className="text-white" />
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#60A5FA" fill="#3B82F6" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Link>
+      const res = await fetch(url, { 
+        method, 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
 
-        {/* كارت 2: أوامر الشغل */}
-        <Link 
-          href="/dashboard/work-orders" 
-          className="group bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-700/40"
-        >
-          <div className="flex justify-between items-start relative z-10">
-            <div>
-              <div className="text-blue-100 text-xs font-bold mb-1">أوامر شغل مفتوحة</div>
-              <span className="text-3xl font-black">18</span>
-              <span className="text-[11px] text-orange-300 font-semibold ms-2 inline-flex items-center">
-                قيد التنفيذ
-              </span>
-            </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-orange-500 transition-colors">
-              <Wrench size={22} className="text-white" />
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#93C5FD" fill="#60A5FA" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Link>
+      const resData = await res.json().catch(() => ({}));
 
-        {/* كارت 3: الوقود */}
-        <Link 
-          href="/dashboard/fuel" 
-          className="group bg-gradient-to-br from-blue-800 via-blue-700 to-sky-600 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-600/40"
-        >
-          <div className="flex justify-between items-start relative z-10">
-            <div>
-              <div className="text-sky-100 text-xs font-bold mb-1">تكلفة الوقود (الشهر الحالي)</div>
-              <span className="text-3xl font-black">42,850 <span className="text-xs font-normal">ج.م</span></span>
-            </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-orange-500 transition-colors">
-              <Droplet size={22} className="text-white" />
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#BAE6FD" fill="#93C5FD" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Link>
+      if (res.ok && resData.success !== false) { 
+        setModalOpen(false); 
+        load(); 
+      } else {
+        alert(resData.error || resData.message || "حدث خطأ أثناء حفظ أمر الشغل");
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-        {/* كارت 4: قطع الغيار */}
-        <Link 
-          href="/dashboard/spare-parts" 
-          className="group bg-gradient-to-br from-blue-700 via-sky-600 to-sky-500 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-sky-500/40"
-        >
-          <div className="flex justify-between items-start relative z-10">
-            <div>
-              <div className="text-cyan-100 text-xs font-bold mb-1">نواقص قطع الغيار</div>
-              <span className="text-3xl font-black">5</span>
-              <span className="text-[11px] text-amber-200 font-semibold ms-2">تحتاج إعادة طلب</span>
-            </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-orange-500 transition-colors">
-              <Package size={22} className="text-white" />
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#E0F2FE" fill="#BAE6FD" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Link>
+  const handleDelete = async (row: WorkOrder) => {
+    if (!confirm("هل أنت متأكد من حذف أمر الشغل هذا نهائياً؟")) return;
+    try {
+      await fetch(`/api/work-orders/${row.id}`, { method: "DELETE" });
+      load();
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
+  };
 
-      </div>
+  const openAdd = () => { 
+    setEditing({
+      ...emptyWO, 
+      orderNumber: `WO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`
+    }); 
+    setIsEdit(false); 
+    setModalOpen(true); 
+  };
 
-      {/* ── لوحة التنبيهات الخطرة ── */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-xl">
-              <AlertTriangle size={22} />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-gray-900 dark:text-white">التنبيهات العاجلة للأسطول</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">تتطلب اتخاذ إجراء فوري للحفاظ على سلامة التشغيل</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          
-          {/* تنبيه الزيوت */}
-          <Link 
-            href="/dashboard/oil-changes" 
-            className="flex items-center justify-between p-4 rounded-xl border border-amber-200/80 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-900/40 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 transition-all group"
-          >
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-amber-500 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform">
-                <Droplet size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 font-bold">تغيير زيوت متأخر</p>
-                <p className="text-lg font-black text-amber-600 dark:text-amber-400 mt-0.5">3 سيارات</p>
-              </div>
-            </div>
-            <ArrowUpRight size={18} className="text-amber-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-          </Link>
+  const openEdit = (row: WorkOrder) => { setEditing(row); setIsEdit(true); setModalOpen(true); };
+  const formatDate = (d: string) => d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB") : "-";
 
-          {/* تنبيه الكاوتش / الفحص */}
-          <Link 
-            href="/dashboard/vehicle-inspection" 
-            className="flex items-center justify-between p-4 rounded-xl border border-red-200/80 bg-red-50/40 dark:bg-red-950/20 dark:border-red-900/40 hover:bg-red-100/60 dark:hover:bg-red-900/30 transition-all group"
-          >
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-red-500 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform">
-                <Disc size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 font-bold">فحص الكاوتش (الإطارات)</p>
-                <p className="text-lg font-black text-red-600 dark:text-red-400 mt-0.5">2 سيارة</p>
-              </div>
-            </div>
-            <ArrowUpRight size={18} className="text-red-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-          </Link>
+  const totalCost = data.reduce((s, r) => s + (r.cost || 0), 0);
+  const openOrdersCount = data.filter(r => r.status !== "completed").length;
+  const completedOrdersCount = data.filter(r => r.status === "completed").length;
 
-          {/* تنبيه التراخيص */}
-          <Link 
-            href="/dashboard/vehicles" 
-            className="flex items-center justify-between p-4 rounded-xl border border-purple-200/80 bg-purple-50/40 dark:bg-purple-950/20 dark:border-purple-900/40 hover:bg-purple-100/60 dark:hover:bg-purple-900/30 transition-all group"
-          >
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-purple-600 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform">
-                <ShieldAlert size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 font-bold">تراخيص قابلة للانتهاء</p>
-                <p className="text-lg font-black text-purple-600 dark:text-purple-400 mt-0.5">1 سيارة</p>
-              </div>
-            </div>
-            <ArrowUpRight size={18} className="text-purple-500 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-          </Link>
+  const excelData = data.map((r) => ({
+    "رقم أمر الشغل": r.orderNumber || "",
+    "رقم اللوحة": r.plateNumber || "",
+    "اسم الصيانة": r.maintenanceType || "",
+    "الحالة": r.status === "completed" ? "مكتمل" : r.status === "in_progress" ? "قيد التنفيذ" : "معلق",
+    "الورشة / المركز": r.workshop || "غير محدد",
+    "وصف العطل": r.description || "",
+    "التكلفة (ج.م)": r.cost || 0,
+    "تاريخ البدء": r.startDate || "",
+    "تاريخ الانتهاء": r.endDate || "",
+    "الفني / المهندس": r.technicianName || "",
+  }));
 
-        </div>
-      </div>
-
-      {/* ── باقي عناصر اللوحة (توزيع حالة الأسطول + الإجراءات السريعة) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* حالة الأسطول */}
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Car size={18} className="text-blue-600 dark:text-blue-400" />
-              <span>توزيع حالة الأسطول التشغيلي</span>
-            </h2>
-            <span className="text-xs text-gray-400">إجمالي 124 سيارة</span>
-          </div>
-
-          <div className="space-y-4">
-            {/* نشطة */}
-            <div>
-              <div className="flex justify-between text-sm font-semibold mb-1.5">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                  <CheckCircle2 size={16} className="text-emerald-500" />
-                  <span>نشطة وفي الخدمة</span>
-                </span>
-                <span className="text-gray-900 dark:text-white font-bold">110 سيارة (88%)</span>
-              </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: "88%" }}></div>
-              </div>
-            </div>
-
-            {/* قيد الصيانة */}
-            <div>
-              <div className="flex justify-between text-sm font-semibold mb-1.5">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                  <Clock size={16} className="text-amber-500" />
-                  <span>قيد الصيانة والتأهيل</span>
-                </span>
-                <span className="text-gray-900 dark:text-white font-bold">10 سيارات (10%)</span>
-              </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-amber-500 h-2.5 rounded-full" style={{ width: "10%" }}></div>
-              </div>
-            </div>
-
-            {/* متوقفة / تراخيص */}
-            <div>
-              <div className="flex justify-between text-sm font-semibold mb-1.5">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                  <AlertCircle size={16} className="text-red-500" />
-                  <span>متوقفة / تراخيص منتهية</span>
-                </span>
-                <span className="text-gray-900 dark:text-white font-bold">4 سيارات (2%)</span>
-              </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
-                <div className="bg-red-500 h-2.5 rounded-full" style={{ width: "2%" }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* الإجراءات السريعة (تصميم مؤسسي بدون إيموجي) */}
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
-          <div>
-            <h2 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <FileText size={18} className="text-orange-500" />
-              <span>الإجراءات السريعة للنظام</span>
-            </h2>
-            
-            <div className="grid grid-cols-2 gap-3.5">
-              <Link 
-                href="/dashboard/vehicles" 
-                className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group"
-              >
-                <span className="group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">إضافة سيارة</span>
-                <Car size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
-              </Link>
-
-              <Link 
-                href="/dashboard/fuel" 
-                className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group"
-              >
-                <span className="group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">تسجيل وقود</span>
-                <Droplet size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
-              </Link>
-
-              <Link 
-                href="/dashboard/work-orders" 
-                className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group"
-              >
-                <span className="group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">أمر شغل جديد</span>
-                <Wrench size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
-              </Link>
-
-              <Link 
-                href="/dashboard/oil-changes" 
-                className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group"
-              >
-                <span className="group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">جدولة تغيير زيت</span>
-                <Filter size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center text-xs text-gray-400">
-            <span>نظام إدارة أسطول TAQA Arabia v2.4</span>
-            <span className="font-semibold text-orange-500">Enterprise Edition</span>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
+  const columns = [
+    { key: "orderNumber", header: "رقم الأمر", render: (r: WorkOrder) => <span className="font-bold text-blue-900 dark:text-blue-400">{r.orderNumber}</span> },
+    { key: "plateNumber", header: "اللوحة" },
+    { key: "maintenanceType", header: "اسم الصيانة", render: (r: WorkOrder) => <span className="px-2.5 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg text-xs font-bold">{r.maintenanceType}</span> },
+    { key: "status", header: "الحالة", render: (r: WorkOrder) => <StatusBadge status={r.status} /> },
+    { key: "workshop", header: "الورشة" },
+    { key: "description", header: "الوصف", render: (r: WorkOrder) => <span className="max-w-[120px] truncate block font-medium" title={r.description}>{r.description || "-"}</span> },
+    { key: "cost", header: "التكلفة", render: (r: WorkOrder) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{(r.cost || 0).toLocaleString()} ج.م</span> },
+    { key: "startDate", header: "تاريخ البدء", render: (r: WorkOrder) => 
