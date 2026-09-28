@@ -3,72 +3,45 @@ import React from "react";
 import { useApp } from "@/context/AppContext";
 
 interface NavbarProps {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
+  onToggleSidebar?: () => void;
 }
 
-export default function Navbar({ sidebarOpen, setSidebarOpen }: NavbarProps) {
-  const { user, theme, setTheme, isRTL, setIsRTL } = useApp();
-
-  const toggleTheme = () => {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("fleet_theme", nextTheme);
-      if (nextTheme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    }
-  };
-
-  const toggleRTL = () => {
-    const nextRTL = !isRTL;
-    setIsRTL(nextRTL);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("fleet_rtl", String(nextRTL));
-      document.documentElement.setAttribute("dir", nextRTL ? "rtl" : "ltr");
-    }
-  };
+export default function Navbar({ onToggleSidebar }: NavbarProps) {
+  const { user, isRTL, setLanguage } = useApp();
 
   return (
-    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 sticky top-0 z-30 transition-colors shadow-sm" dir="rtl">
-      {/* القسم الأيمن: زر التحكم بالـ Sidebar وا اسم المستخدم */}
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 flex items-center justify-between sticky top-0 z-30 shadow-sm">
       <div className="flex items-center gap-4">
+        {/* زر إخفاء/إظهار القائمة الجانبية من اللوجو والبار العلوي */}
         <button
-          type="button"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-          title="إخفاء/إظهار القائمة الجانبية"
+          onClick={onToggleSidebar}
+          className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 transition-colors"
+          title="تصغير / توسيع القائمة"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-          مرحباً، {user?.name || user?.username || "مسؤول النظام"}
-        </span>
+
+        <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 hidden sm:block">
+          نظام إدارة الأسطول الشامل (Fleet360)
+        </h2>
       </div>
 
-      {/* القسم الأيسر: الأزرار الثابتة للغة والثيم */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={toggleRTL}
-          className="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-bold transition-all cursor-pointer select-none shadow-sm flex items-center justify-center min-w-[75px]"
-        >
-          {isRTL ? "English" : "العربية"}
-        </button>
+      <div className="flex items-center gap-4">
+        {/* معلومات المستخدم */}
+        <div className="text-left hidden sm:block">
+          <div className="text-xs font-bold text-gray-900 dark:text-white">
+            {user?.name || "مدير النظام"}
+          </div>
+          <div className="text-[10px] text-gray-500 dark:text-gray-400">
+            {user?.email || "admin@fleet360.com"}
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-base transition-all cursor-pointer select-none shadow-sm"
-          title={theme === "dark" ? "الوضع المضيء" : "الوضع المظلم"}
-        >
-          {theme === "dark" ? "☀️" : "🌙"}
-        </button>
+        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center shadow-md shadow-blue-500/20">
+          {user?.name ? user.name.charAt(0).toUpperCase() : "A"}
+        </div>
       </div>
     </header>
   );
