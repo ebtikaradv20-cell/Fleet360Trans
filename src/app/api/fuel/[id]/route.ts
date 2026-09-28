@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { fuelRecords } from "@/db/schema";
+import { fuelRecords, vehicles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
@@ -16,7 +16,14 @@ function auth(req: NextRequest) {
   }
 }
 
-// ── PUT: تعديل سجل وقود آمن ──
+function cleanDate(val: any): string | null {
+  if (!val || String(val).trim() === "" || String(val).includes("mm/dd")) return null;
+  const d = new Date(String(val).trim());
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+// ── PUT: تعديل سجل وقود ──
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -31,31 +38,35 @@ export async function PUT(
 
     const body = await req.json().catch(() => ({}));
 
-    let formattedDate: string | null = null;
-    if (body.fuelDate || body.fuel_date) {
-      const rawDate = String(body.fuelDate || body.fuel_date).trim();
-      if (rawDate) {
-        const d = new Date(rawDate);
-        if (!isNaN(d.getTime())) {
-          formattedDate = d.toISOString().slice(0, 10);
-        }
-      }
+    let plateNumber = String(body.plateNumber || body.plate_number || "").trim();
+    let vehicleId: number | null = body.vehicleId ? Number(body.vehicleId) : null;
+
+    if ((!vehicleId || isNaN(vehicleId)) && plateNumber) {
+      try {
+        const found = await db.select().from(vehicles).where(eq(vehicles.plateNumber, plateNumber)).limit(1);
+        if (found[0]?.id) vehicleId = found[0].id;
+      } catch {}
     }
 
+    const litersNum = Number(body.liters) || 0;
+    const costPerLiterNum = Number(body.costPerLiter ?? body.cost_per_liter) || 0;
+    const totalCostNum = Number(body.totalCost ?? body.total_cost) || (litersNum * costPerLiterNum);
+    const odometerNum = Number(body.odometer) || 0;
+
     const updateData = {
-      vehicleId: body.vehicleId ? Number(body.vehicleId) : null,
-      plateNumber: String(body.plateNumber || body.plate_number || ""),
+      vehicleId: vehicleId && !isNaN(vehicleId) ? vehicleId : null,
+      plateNumber,
       driverName: String(body.driverName || body.driver_name || ""),
-      liters: String(body.liters ?? 0),
-      costPerLiter: String(body.costPerLiter ?? body.cost_per_liter ?? 0),
-      totalCost: String(body.totalCost ?? body.total_cost ?? 0),
-      odometer: body.odometer ? Number(body.odometer) : 0,
+      liters: String(litersNum),
+      costPerLiter: String(costPerLiterNum),
+      totalCost: String(totalCostNum),
+      odometer: odometerNum,
       station: String(body.station || ""),
-      fuelDate: formattedDate,
+      fuelDate: cleanDate(body.fuelDate || body.fuel_date),
     };
 
     const [updatedRow] = await db.update(fuelRecords)
-      .set(updateData)
+      .set(updateData as any)
       .where(eq(fuelRecords.id, id))
       .returning();
 
