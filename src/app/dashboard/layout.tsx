@@ -9,6 +9,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { setUser, user, isRTL } = useApp();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -38,9 +39,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950" dir={isRTL ? "rtl" : "ltr"}>
-      <Sidebar />
-      <div className={`flex-1 flex flex-col md:${isRTL ? "mr-64" : "ml-64"} transition-all duration-300 w-full overflow-x-hidden`}>
-        <Navbar />
+      {/* تمرير حالة التصغير والتوسيع للشريط الجانبي */}
+      <Sidebar collapsed={isSidebarCollapsed} />
+      
+      <div className={`flex-1 flex flex-col transition-all duration-300 w-full overflow-x-hidden ${
+        isSidebarCollapsed 
+          ? (isRTL ? "md:mr-20" : "md:ml-20") 
+          : (isRTL ? "md:mr-64" : "md:ml-64")
+      }`}>
+        <Navbar onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} />
         <main className="flex-1 p-4 md:p-6 fade-in">
           {children}
         </main>
