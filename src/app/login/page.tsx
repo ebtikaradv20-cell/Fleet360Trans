@@ -8,6 +8,7 @@ export default function LoginPage() {
   const { setUser } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // حالة لإظهار/إخفاء كلمة المرور
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,6 @@ export default function LoginPage() {
   // Auto seed on first load & check remembered username
   useEffect(() => {
     fetch("/api/seed", { method: "POST" }).catch(() => {});
-    
     const savedUsername = localStorage.getItem("fleet_remembered_username");
     if (savedUsername) {
       setUsername(savedUsername);
@@ -36,14 +36,12 @@ export default function LoginPage() {
       const data = await res.json();
       if (data.success) {
         setUser(data.user);
-        
         // معالجة تذكر البيانات
         if (rememberMe) {
           localStorage.setItem("fleet_remembered_username", username);
         } else {
           localStorage.removeItem("fleet_remembered_username");
         }
-
         router.push("/dashboard");
       } else {
         setError(data.error || "بيانات الدخول غير صحيحة");
@@ -82,14 +80,7 @@ export default function LoginPage() {
             {/* Logo & Branding */}
             <div className="text-center mb-6">
               <div className="flex justify-center mb-3">
-                <img 
-                  src="/logo.png" 
-                  alt="Fleet360 Logo" 
-                  className="w-32 h-32 object-contain filter drop-shadow-md"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
+                <img src="/logo.png" alt="Fleet360 Logo" className="w-32 h-32 object-contain filter drop-shadow-md" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
               </div>
               <h1 className="text-4xl font-black text-white tracking-wider">FLEET<span style={{ color: "#F97316" }}>360</span></h1>
               <p className="text-blue-200 text-sm mt-1">تطبيق إدارة الأسطول الشامل</p>
@@ -111,14 +102,24 @@ export default function LoginPage() {
 
               <div>
                 <label className="block text-blue-200 text-sm mb-2 font-medium">كلمة المرور</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور"
-                  className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="أدخل كلمة المرور"
+                    className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 pl-12 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
+                    required
+                  />
+                  {/* زر إظهار وإخفاء كلمة المرور */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none text-sm font-bold"
+                  >
+                    {showPassword ? "🙈 مخفي" : "👁️ إظهار"}
+                  </button>
+                </div>
               </div>
 
               {/* Remember me & Forgot password */}
@@ -132,8 +133,8 @@ export default function LoginPage() {
                   />
                   <span className="text-blue-200 font-medium">تذكر بياناتي</span>
                 </label>
-
                 <button
+                  type="button" // تم تحديد type="button" لمنع إرسال النموذج أو الخروج عند الضغط عليه بالخطأ
                   onClick={handleForgotPassword}
                   className="text-orange-300 hover:text-orange-400 transition text-xs font-semibold underline"
                 >
