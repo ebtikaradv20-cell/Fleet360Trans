@@ -1,29 +1,134 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { oilChanges } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { pgTable, serial, text, timestamp, integer, decimal, date } from "drizzle-orm/pg-core";
 
-function auth(req: NextRequest) {
-  const token = req.cookies.get("fleet360_token")?.value;
-  if (!token) return null;
-  return verifyToken(token);
-}
+// 1. جدول المركبات (المحدث بكل الحقول المؤسسية)
+export const vehicles = pgTable("vehicles", {
+  id: serial("id").primaryKey(),
+  plateNumber: text("plate_number").notNull(),
+  company: text("company"),               // ✅ الشركة المالكة
+  brand: text("brand").notNull(),
+  model: text("model").notNull(),
+  year: integer("year"),
+  governorate: text("governorate"),       // ✅ المحافظة
+  region: text("region"),                 // ✅ المنطقة
+  department: text("department"),
+  driverName: text("driver_name"),
+  status: text("status").default("active"),
+  currentKm: integer("current_km").default(0),
+  licenseExpiry: date("license_expiry"),
+  insuranceExpiry: date("insurance_expiry"),
+  fuelType: text("fuel_type").default("بنزين"), // ✅ نوع الوقود
+  color: text("color"),
+  vin: text("vin"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
-  const body = await req.json();
-  const [row] = await db.update(oilChanges).set({ ...body, updatedAt: new Date() }).where(eq(oilChanges.id, parseInt(id))).returning();
-  return NextResponse.json(row);
-}
+// 2. جدول المستخدمين
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  role: text("role").default("user"),
+  permissions: text("permissions"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { id } = await params;
-  await db.delete(oilChanges).where(eq(oilChanges.id, parseInt(id)));
-  return NextResponse.json({ success: true });
-}
+// 3. جدول سجلات الوقود
+export const fuelRecords = pgTable("fuel_records", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id"),
+  plateNumber: text("plate_number"),
+  driverName: text("driver_name"),
+  liters: decimal("liters"),
+  costPerLiter: decimal("cost_per_liter"),
+  totalCost: decimal("total_cost"),
+  odometer: integer("odometer"),
+  station: text("station"),
+  fuelDate: date("fuel_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 4. جدول أوامر العمل والصيانة
+export const workOrders = pgTable("work_orders", {
+  id: serial("id").primaryKey(),
+  orderNumber: text("order_number").notNull(),
+  vehicleId: integer("vehicle_id"),
+  plateNumber: text("plate_number"),
+  maintenanceType: text("maintenance_type"),
+  status: text("status").default("pending"),
+  workshop: text("workshop"),
+  description: text("description"),
+  cost: decimal("cost"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  technicianName: text("technician_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 5. جدول قطع الغيار والمخزون
+export const spareParts = pgTable("spare_parts", {
+  id: serial("id").primaryKey(),
+  partName: text("part_name").notNull(),
+  partNumber: text("part_number"),
+  category: text("category"),
+  quantity: integer("quantity").default(0),
+  minimumQuantity: integer("minimum_quantity").default(0),
+  unitPrice: decimal("unit_price"),
+  supplier: text("supplier"),
+  location: text("location"),
+  status: text("status").default("available"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 6. جدول تغييرات الزيوت
+export const oilChanges = pgTable("oil_changes", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id"),
+  plateNumber: text("plate_number"),
+  changeDate: date("change_date"),
+  kmAtChange: integer("km_at_change"),
+  oilType: text("oil_type"),
+  oilBrand: text("oil_brand"),
+  filterChanged: integer("filter_changed"),
+  airFilterChanged: integer("air_filter_changed"),
+  fuelFilterChanged: integer("fuel_filter_changed"),
+  nextChangeKm: integer("next_change_km"),
+  nextChangeDate: date("next_change_date"),
+  alertKmBefore: integer("alert_km_before"),
+  alertDaysBefore: integer("alert_days_before"),
+  cost: decimal("cost"),
+  technician: text("technician"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 7. جدول أجزاء المركبة
+export const vehicleParts = pgTable("vehicle_parts", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id"),
+  plateNumber: text("plate_number"),
+  partName: text("part_name"),
+  partCategory: text("part_category"),
+  installDate: date("install_date"),
+  brand: text("brand"),
+  condition: text("condition"),
+  kmAtInstall: integer("km_at_install"),
+  cost: decimal("cost"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 8. جدول سجل أجزاء المركبة (History)
+export const vehiclePartsHistory = pgTable("vehicle_parts_history", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id"),
+  vehiclePartId: integer("vehicle_part_id"),
+  plateNumber: text("plate_number"),
+  partName: text("part_name"),
+  partCategory: text("part_category"),
+  installDate: date("install_date"),
+  brand: text("brand"),
+  condition: text("condition"),
+  kmAtInstall: integer("km_at_install"),
+  cost: decimal("cost"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
