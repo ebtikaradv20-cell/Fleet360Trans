@@ -8,12 +8,11 @@ export default function LoginPage() {
   const { setUser } = useApp();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // حالة لإظهار/إخفاء كلمة المرور
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Auto seed on first load & check remembered username
   useEffect(() => {
     fetch("/api/seed", { method: "POST" }).catch(() => {});
     const savedUsername = localStorage.getItem("fleet_remembered_username");
@@ -36,7 +35,6 @@ export default function LoginPage() {
       const data = await res.json();
       if (data.success) {
         setUser(data.user);
-        // معالجة تذكر البيانات
         if (rememberMe) {
           localStorage.setItem("fleet_remembered_username", username);
         } else {
@@ -55,29 +53,25 @@ export default function LoginPage() {
 
   const handleForgotPassword = (e: React.MouseEvent) => {
     e.preventDefault();
-    alert("لاسترجاع كلمة المرور، يرجى التواصل مع المسؤول الرئيسي (Admin) لإعادة ضبطها إلى القيمة الافتراضية.");
+    alert("لاسترجاع كلمة المرور، يرجى التواصل مع المسؤول الرئيسي (Admin) لإعادة ضبطها.");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" dir="rtl">
-      {/* Background with inverted gradient */}
       <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0284C7 0%, #1d4ed8 50%, #1E3A8A 100%)" }} />
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-20 right-20 w-64 h-64 rounded-full" style={{ background: "#F97316", filter: "blur(80px)" }} />
         <div className="absolute bottom-20 left-20 w-48 h-48 rounded-full" style={{ background: "#F97316", filter: "blur(60px)" }} />
       </div>
 
-      {/* Grid pattern */}
       <div className="absolute inset-0 opacity-5" style={{
         backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
         backgroundSize: "50px 50px"
       }} />
 
       <div className="relative z-10 w-full max-w-md px-6">
-        {/* Card */}
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20 flex flex-col justify-between min-h-[580px]">
           <div>
-            {/* Logo & Branding */}
             <div className="text-center mb-6">
               <div className="flex justify-center mb-3">
                 <img src="/logo.png" alt="Fleet360 Logo" className="w-32 h-32 object-contain filter drop-shadow-md" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
@@ -111,18 +105,18 @@ export default function LoginPage() {
                     className="w-full bg-white text-gray-900 border border-gray-300 rounded-xl px-4 py-3 pl-12 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm font-medium"
                     required
                   />
-                  {/* زر إظهار وإخفاء كلمة المرور */}
+                  {/* أيقونة العين فقط بدون نصوص */}
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none text-sm font-bold"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 focus:outline-none text-lg p-1"
+                    title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
                   >
-                    {showPassword ? "🙈 مخفي" : "👁️ إظهار"}
+                    {showPassword ? "🙈" : "👁️"}
                   </button>
                 </div>
               </div>
 
-              {/* Remember me & Forgot password */}
               <div className="flex items-center justify-between text-sm py-1">
                 <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                   <input
@@ -134,7 +128,7 @@ export default function LoginPage() {
                   <span className="text-blue-200 font-medium">تذكر بياناتي</span>
                 </label>
                 <button
-                  type="button" // تم تحديد type="button" لمنع إرسال النموذج أو الخروج عند الضغط عليه بالخطأ
+                  type="button"
                   onClick={handleForgotPassword}
                   className="text-orange-300 hover:text-orange-400 transition text-xs font-semibold underline"
                 >
@@ -151,7 +145,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-4 disabled:opacity-70 shadow-lg"
+                className="w-full py-3 rounded-xl font-bold text-white transition-all hover:opacity-90 mt-4 disabled:opacity-70 shadow-lg cursor-pointer"
                 style={{ background: "linear-gradient(90deg, #F97316, #EA580C)" }}
               >
                 {loading ? "جاري الدخول..." : "🚀 تسجيل الدخول"}
@@ -159,7 +153,6 @@ export default function LoginPage() {
             </form>
           </div>
 
-          {/* الإمضاء في أسفل الكارت بلون أبيض ناصع بدون خلفية */}
           <div className="text-center mt-6 pt-3 border-t border-white/10">
             <p className="text-white text-xs font-medium tracking-wider opacity-90">
               Developed by Eng. Omar Abd Elhalim
