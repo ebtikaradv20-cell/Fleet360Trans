@@ -6,6 +6,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
+        {/* ── عنوان وأيقونة اللوجو لتاب المتصفح ── */}
+        <title>Fleet360 - Trans Gas / TAQA ARABIA</title>
+        <link rel="icon" href="/logo.png" type="image/png" />
+        <link rel="shortcut icon" href="/logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+
+        {/* ── سكريبت الدارك مود واللغة المفضلة ── */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
