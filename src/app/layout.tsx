@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AppProvider } from "@/context/AppContext";
 import Sidebar from "@/components/Sidebar";
@@ -14,7 +14,7 @@ export default function RootLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
   
-  // التحقق الحاسم: هل نحن في صفحة تسجيل الدخول؟
+  // فحص ما إذا كانت الصفحة الحالية هي صفحة تسجيل الدخول
   const isLoginPage = pathname === "/login";
 
   return (
@@ -22,10 +22,10 @@ export default function RootLayout({
       <body className="bg-gray-50 dark:bg-gray-950 font-sans antialiased">
         <AppProvider>
           {isLoginPage ? (
-            // صفحة تسجيل الدخول فقط (بدون أي قوائم أو أعمدة جانبية)
-            <main className="min-h-screen w-full">{children}</main>
+            // صفحة تسجيل الدخول مستقلة بالكامل وبدون تداخل
+            <main className="min-h-screen w-full bg-slate-900">{children}</main>
           ) : (
-            // هيكل لوحة التحكم الداخلية فقط
+            // لوحة التحكم بنظام الهيكل المنسق والأزرق المتناسق
             <div className="min-h-screen flex flex-row">
               <div
                 className={`${
