@@ -14,7 +14,7 @@ export default function Navbar() {
         </span>
       </div>
 
-      {/* القسم الأيسر: الأزرار الثابتة بوضوح تام */}
+      {/* القسم الأيسر: الأزرار الفلات الثابتة في مكانها بدقة تامة */}
       <div className="flex items-center gap-3">
         {/* زر تبديل اللغة */}
         <button
@@ -25,7 +25,7 @@ export default function Navbar() {
           {isRTL ? "English" : "العربية"}
         </button>
 
-        {/* زر تبديل الثيم (شمس/قمر) */}
+        {/* زر تبديل الثيم (شمس/قمر ثابت بدون حركة) */}
         <button
           type="button"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
