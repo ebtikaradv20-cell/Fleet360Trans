@@ -1,43 +1,78 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { vehicles } from "@/db/schema";
+import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
-export async function POST(req: NextRequest) {
+export const dynamic = "force-dynamic";
+
+function auth(req: NextRequest) {
   try {
     const token = req.cookies.get("fleet360_token")?.value;
-    const user = token ? verifyToken(token) : null;
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!token) return null;
+    return verifyToken(token);
+  } catch {
+    return null;
+  }
+}
 
-    const body = await req.json();
+export async function GET(req: NextRequest) {
+  try {
+    const user = auth(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // معالجة آمنة للتواريخ لمنع أخطاء التوافق مع قاعدة البيانات
-    const licenseExpiryInput = body.license_expiry || body.licenseExpiry;
-    const insuranceExpiryInput = body.insurance_expiry || body.insuranceExpiry;
+    // إحصائيات سريعة من قاعدة البيانات
+    const vehiclesCount = await db.execute(sql`SELECT COUNT(*) as count FROM vehicles`);
+    const openOrders = await db.execute(
+      sql`SELECT COUNT(*) as count FROM work_orders WHERE status != 'completed'`
+    );
+    const fuelCost = await db.execute(
+      sql`SELECT COALESCE(SUM(total_cost::numeric), 0) as total FROM fuel_records`
+    );
+    const lowStock = await db.execute(
+      sql`SELECT COUNT(*) as count FROM spare_parts WHERE quantity <= minimum_quantity`
+    );
 
-    const licenseExpiry = licenseExpiryInput ? new Date(licenseExpiryInput) : null;
-    const insuranceExpiry = insuranceExpiryInput ? new Date(insuranceExpiryInput) : null;
+    // تنبيهات
+    const licenseAlerts = await db.execute(sql`
+      SELECT COUNT(*) as count FROM vehicles 
+      WHERE license_expiry IS NOT NULL 
+      AND license_expiry <= (CURRENT_DATE + INTERVAL '30 days')
+    `);
 
-    // إدخال البيانات باستخدام Drizzle ORM مباشرة وبأعلى معايير الأمان
-    const newVehicle = await db.insert(vehicles).values({
-      plateNumber: body.plate_number || body.plateNumber || "",
-      brand: body.brand || "",
-      model: body.model || "",
-      year: body.year ? Number(body.year) : null,
-      department: body.department || "",
-      driverName: body.driver_name || body.driverName || "",
-      status: body.status || "active",
-      currentKm: body.current_km !== undefined ? Number(body.current_km) : 0,
-      licenseExpiry,
-      insuranceExpiry,
-      color: body.color || null,
-      vin: body.vin || null,
-      notes: body.notes || null,
-    }).returning();
+    const oilAlerts = await db.execute(sql`
+      SELECT COUNT(*) as count FROM oil_changes 
+      WHERE next_change_date IS NOT NULL 
+      AND next_change_date <= (CURRENT_DATE + INTERVAL '7 days')
+    `);
 
-    return NextResponse.json({ success: true, vehicle: newVehicle[0] }, { status: 201 });
+    const vRows = (vehiclesCount as any).rows || vehiclesCount;
+    const oRows = (openOrders as any).rows || openOrders;
+    const fRows = (fuelCost as any).rows || fuelCost;
+    const sRows = (lowStock as any).rows || lowStock;
+    const lRows = (licenseAlerts as any).rows || licenseAlerts;
+    const oilRows = (oilAlerts as any).rows || oilAlerts;
+
+    return NextResponse.json({
+      totalVehicles: Number(vRows?.[0]?.count || 0),
+      openWorkOrders: Number(oRows?.[0]?.count || 0),
+      totalFuelCost: Number(fRows?.[0]?.total || 0),
+      lowStockParts: Number(sRows?.[0]?.count || 0),
+      licenseAlerts: Number(lRows?.[0]?.count || 0),
+      oilAlerts: Number(oilRows?.[0]?.count || 0),
+      insuranceAlerts: 0,
+    });
   } catch (error: any) {
-    console.error("Error adding vehicle:", error);
-    return NextResponse.json({ error: "Failed to add vehicle", details: error.message || String(error) }, { status: 500 });
+    console.error("Dashboard API Error:", error);
+    return NextResponse.json({
+      totalVehicles: 0,
+      openWorkOrders: 0,
+      totalFuelCost: 0,
+      lowStockParts: 0,
+      licenseAlerts: 0,
+      oilAlerts: 0,
+      insuranceAlerts: 0,
+    });
   }
 }
