@@ -243,4 +243,29 @@ export default function DashboardPage() {
                 <Car size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
               </Link>
 
-              <Link href="/dashboard/fuel" className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 
+              <Link href="/dashboard/fuel" className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group">
+                <span className="group-hover:text-orange-600 transition-colors">تسجيل وقود</span>
+                <Droplet size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
+              </Link>
+
+              <Link href="/dashboard/work-orders" className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group">
+                <span className="group-hover:text-orange-600 transition-colors">أمر شغل جديد</span>
+                <Wrench size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
+              </Link>
+
+              <Link href="/dashboard/oil-changes" className="p-3.5 border border-gray-200 dark:border-gray-800 rounded-xl hover:border-orange-500/50 hover:bg-orange-50/30 dark:hover:bg-orange-950/20 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 transition-all group">
+                <span className="group-hover:text-orange-600 transition-colors">جدولة تغيير زيت</span>
+                <Filter size={18} className="text-gray-400 group-hover:text-orange-500 transition-colors" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center text-xs text-gray-400">
+            <span>نظام إدارة أسطول Trans Gas / TAQA Arabia</span>
+            <span className="font-semibold text-orange-500">Enterprise Edition</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
