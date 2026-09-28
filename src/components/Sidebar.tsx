@@ -46,9 +46,8 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       `}
       dir={isRTL ? "rtl" : "ltr"}
     >
-      {/* ── رأس الشريط الجانبي البارز واللوجو المكبر ── */}
+      {/* ── رأس الشريط الجانبي واللوجو البارز ── */}
       <div className={`p-4 border-b border-white/15 flex flex-col items-center justify-center text-center transition-all duration-300 ${collapsed ? "py-4" : "py-6"}`}>
-        {/* صورة اللوجو بحجم كبير وبارز */}
         <img 
           src="/logo.png" 
           alt="Fleet360 Logo" 
@@ -60,7 +59,6 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
           }}
         />
 
-        {/* كارت بديل في حالة عدم تحميل الصورة */}
         <div 
           id="sidebar-logo-fallback" 
           className="hidden w-12 h-12 rounded-xl bg-white text-orange-600 items-center justify-center font-black shadow-lg flex-shrink-0"
@@ -70,11 +68,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
 
         {!collapsed && (
           <div className="mt-3 transition-all duration-300 flex flex-col items-center">
-            {/* عنوان FLEET 360 بحجم كبير وبارز جداً */}
             <h1 className="text-2xl font-black text-white tracking-wide drop-shadow-lg leading-tight" dir="ltr">
               FLEET <span className="text-orange-200">360</span>
             </h1>
-            {/* اسم الشركة بخط عريض وواضح */}
             <p className="text-xs text-orange-100 font-extrabold tracking-wider mt-1 drop-shadow-sm uppercase">
               Trans Gas / TAQA ARABIA
             </p>
@@ -82,7 +78,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         )}
       </div>
 
-      {/* قائمة التنقل */}
+      {/* ── قائمة التنقل بتصميم صلب وأنيق ── */}
       <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
@@ -96,8 +92,8 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                 ${collapsed ? "justify-center" : "justify-start"}
                 ${
                   isActive
-                    ? "bg-white/20 text-white shadow-inner border-s-4 border-white backdrop-blur-sm"
-                    : "text-gray-100 hover:bg-white/10 hover:text-white"
+                    ? "bg-[#1E3A8A] text-white shadow-lg border-s-4 border-orange-400" // أزرق كحلي صلب ومميز بدلاً من الأبيض الباهت
+                    : "text-gray-100 hover:bg-white/10 hover:text-white font-medium"
                 }
               `}
             >
