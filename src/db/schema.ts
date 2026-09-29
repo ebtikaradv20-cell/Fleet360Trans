@@ -1,31 +1,9 @@
-import { pgTable, serial, text, timestamp, integer, decimal, date } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, decimal, date, jsonb } from "drizzle-orm/pg-core";
 
-// 1. جدول المركبات (المحدث بكل الحقول المؤسسية)
-export const vehicles = pgTable("vehicles", {
-  id: serial("id").primaryKey(),
-  plateNumber: text("plate_number").notNull(),
-  company: text("company"),               // ✅ الشركة المالكة
-  brand: text("brand").notNull(),
-  model: text("model").notNull(),
-  year: integer("year"),
-  governorate: text("governorate"),       // ✅ المحافظة
-  region: text("region"),                 // ✅ المنطقة
-  department: text("department"),
-  driverName: text("driver_name"),
-  status: text("status").default("active"),
-  currentKm: integer("current_km").default(0),
-  licenseExpiry: date("license_expiry"),
-  insuranceExpiry: date("insurance_expiry"),
-  fuelType: text("fuel_type").default("بنزين"), // ✅ نوع الوقود
-  color: text("color"),
-  vin: text("vin"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// 2. جدول المستخدمين
+// ── 1. جدول المستخدمين (تم إضافة tenant_id)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"), // 👈 يحدد مساحة العمل الخاصة بالأدمن
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
@@ -34,9 +12,34 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 3. جدول سجلات الوقود
+// ── 2. جدول السيارات 
+export const vehicles = pgTable("vehicles", {
+  id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
+  plateNumber: text("plate_number").notNull(),
+  company: text("company"),
+  brand: text("brand").notNull(),
+  model: text("model").notNull(),
+  year: integer("year"),
+  governorate: text("governorate"),
+  region: text("region"),
+  department: text("department"),
+  driverName: text("driver_name"),
+  status: text("status").default("active"),
+  currentKm: integer("current_km").default(0),
+  licenseExpiry: date("license_expiry"),
+  insuranceExpiry: date("insurance_expiry"),
+  fuelType: text("fuel_type").default("بنزين"),
+  color: text("color"),
+  vin: text("vin"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── 3. جدول الوقود 
 export const fuelRecords = pgTable("fuel_records", {
   id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
   vehicleId: integer("vehicle_id"),
   plateNumber: text("plate_number"),
   driverName: text("driver_name"),
@@ -46,12 +49,14 @@ export const fuelRecords = pgTable("fuel_records", {
   odometer: integer("odometer"),
   station: text("station"),
   fuelDate: date("fuel_date"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 4. جدول أوامر العمل والصيانة
+// ── 4. جدول أوامر الشغل 
 export const workOrders = pgTable("work_orders", {
   id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
   orderNumber: text("order_number").notNull(),
   vehicleId: integer("vehicle_id"),
   plateNumber: text("plate_number"),
@@ -63,12 +68,14 @@ export const workOrders = pgTable("work_orders", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   technicianName: text("technician_name"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 5. جدول قطع الغيار والمخزون
+// ── 5. جدول قطع الغيار 
 export const spareParts = pgTable("spare_parts", {
   id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
   partName: text("part_name").notNull(),
   partNumber: text("part_number"),
   category: text("category"),
@@ -78,12 +85,14 @@ export const spareParts = pgTable("spare_parts", {
   supplier: text("supplier"),
   location: text("location"),
   status: text("status").default("available"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 6. جدول تغييرات الزيوت
+// ── 6. جدول الزيوت 
 export const oilChanges = pgTable("oil_changes", {
   id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
   vehicleId: integer("vehicle_id"),
   plateNumber: text("plate_number"),
   changeDate: date("change_date"),
@@ -99,36 +108,37 @@ export const oilChanges = pgTable("oil_changes", {
   alertDaysBefore: integer("alert_days_before"),
   cost: decimal("cost"),
   technician: text("technician"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 7. جدول أجزاء المركبة
-export const vehicleParts = pgTable("vehicle_parts", {
+// ── 7. جدول استمارات فحص السيارات الشاملة
+export const vehicleInspections = pgTable("vehicle_inspections", {
   id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
   vehicleId: integer("vehicle_id"),
-  plateNumber: text("plate_number"),
-  partName: text("part_name"),
-  partCategory: text("part_category"),
-  installDate: date("install_date"),
-  brand: text("brand"),
-  condition: text("condition"),
-  kmAtInstall: integer("km_at_install"),
-  cost: decimal("cost"),
+  plateNumber: text("plate_number").notNull(),
+  vin: text("vin"),
+  inspectionDate: date("inspection_date"),
+  odometer: integer("odometer").default(0),
+  branchName: text("branch_name"),
+  driverName: text("driver_name"),
+  inspectorName: text("inspector_name"),
+  checklist: jsonb("checklist").default('{}'),
+  exteriorNotes: text("exterior_notes"),
+  generalNotes: text("general_notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 8. جدول سجل أجزاء المركبة (History)
-export const vehiclePartsHistory = pgTable("vehicle_parts_history", {
+// ── 8. الجدول الجديد: السجل التاريخي الشامل (Audit History) ──
+export const historyLogs = pgTable("history_logs", {
   id: serial("id").primaryKey(),
-  vehicleId: integer("vehicle_id"),
-  vehiclePartId: integer("vehicle_part_id"),
+  tenantId: text("tenant_id").default("master"),
   plateNumber: text("plate_number"),
-  partName: text("part_name"),
-  partCategory: text("part_category"),
-  installDate: date("install_date"),
-  brand: text("brand"),
-  condition: text("condition"),
-  kmAtInstall: integer("km_at_install"),
-  cost: decimal("cost"),
+  moduleName: text("module_name"),
+  actionType: text("action_type"),
+  oldData: jsonb("old_data"),
+  newData: jsonb("new_data"),
+  userName: text("user_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
