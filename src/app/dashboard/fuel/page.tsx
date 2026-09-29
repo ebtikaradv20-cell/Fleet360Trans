@@ -2,20 +2,21 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
 import { translations } from "@/lib/i18n";
-import PageHeader from "@/components/ui/PageHeader";
 import DataTable from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
 import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ImportExcelButton from "@/components/ImportExcelButton";
 import { 
   Fuel, 
   DollarSign, 
   Droplets, 
   Search, 
-  Save, 
+  Plus, 
+  Pencil, 
+  Trash2, 
   X, 
-  Loader2,
-  Plus
+  Loader2 
 } from "lucide-react";
 
 interface FuelRecord {
@@ -23,9 +24,9 @@ interface FuelRecord {
   vehicleId: number;
   plateNumber: string;
   driverName: string;
-  liters: number;
-  costPerLiter: number;
-  totalCost: number;
+  liters: number | string;
+  costPerLiter: number | string;
+  totalCost: number | string;
   odometer: number;
   station: string;
   fuelDate: string;
@@ -43,12 +44,20 @@ const emptyRecord: Partial<FuelRecord> = {
   plateNumber: "", 
   driverName: "", 
   liters: 0, 
-  costPerLiter: 2.5, 
+  costPerLiter: 0, 
   totalCost: 0,
   odometer: 0, 
   station: "", 
   fuelDate: new Date().toISOString().slice(0, 10), 
   notes: ""
+};
+
+// 🔴 دالة الأمان الحاسبة: تحول أي نص إلى رقم صريح 100% لمنع الدمج النصي
+const safeNum = (val: any): number => {
+  if (val === null || val === undefined) return 0;
+  const cleaned = String(val).replace(/[^0-9.-]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
 };
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -62,7 +71,7 @@ const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-x
 
 export default function FuelPage() {
   const { lang, user } = useApp();
-  const t = translations[lang];
+  const t = translations[lang] || translations["ar"];
   const [data, setData] = useState<FuelRecord[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,21 +83,13 @@ export default function FuelPage() {
   const [search, setSearch] = useState("");
   const [driverFilter, setDriverFilter] = useState("");
   const [stationFilter, setStationFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
 
   const canWrite = user?.role === "admin" || user?.permissions?.includes("fuel:write");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (driverFilter) params.set("driver", driverFilter);
-      if (stationFilter) params.set("station", stationFilter);
-      if (dateFrom) params.set("from", dateFrom);
-      if (dateTo) params.set("to", dateTo);
-      const res = await fetch(`/api/fuel?${params}`);
+      const res = await fetch("/api/fuel");
       const d = await res.json();
       setData(Array.isArray(d) ? d : []);
     } catch (error) {
@@ -96,7 +97,7 @@ export default function FuelPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, driverFilter, stationFilter, dateFrom, dateTo]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -105,6 +106,22 @@ export default function FuelPage() {
       .then((r) => r.json())
       .then((d) => setVehicles(Array.isArray(d) ? d : []));
   }, []);
+
+  const filteredData = data.filter(r => {
+    const matchesSearch = 
+      (r.plateNumber || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.driverName || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.station || "").toLowerCase().includes(search.toLowerCase());
+      
+    const matchesDriver = !driverFilter || r.driverName === driverFilter;
+    const matchesStation = !stationFilter || r.station === stationFilter;
+
+    return matchesSearch && matchesDriver && matchesStation;
+  });
+
+  // ✅ الجمع الرياضي الصارم
+  const totalCost = filteredData.reduce((acc, row) => acc + safeNum(row.totalCost), 0);
+  const totalLiters = filteredData.reduce((acc, row) => acc + safeNum(row.liters), 0);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,11 +134,11 @@ export default function FuelPage() {
       const payload = {
         ...editing,
         vehicleId: Number(editing.vehicleId) || null,
-        liters: Number(editing.liters) || 0,
-        costPerLiter: Number(editing.costPerLiter) || 0,
-        totalCost: Number(editing.totalCost) || 0,
+        liters: safeNum(editing.liters),
+        costPerLiter: safeNum(editing.costPerLiter),
+        totalCost: safeNum(editing.totalCost),
         odometer: Number(editing.odometer) || 0,
-        fuelDate: editing.fuelDate && editing.fuelDate.trim() !== "" ? editing.fuelDate : null,
+        fuelDate: editing.fuelDate && String(editing.fuelDate).trim() !== "" ? editing.fuelDate : null,
       };
 
       const res = await fetch(url, {
@@ -132,7 +149,7 @@ export default function FuelPage() {
 
       const resData = await res.json().catch(() => ({}));
 
-      if (res.ok && resData.success !== false) {
+      if (res.ok && resData.error === undefined) {
         setModalOpen(false);
         load();
       } else {
@@ -140,7 +157,7 @@ export default function FuelPage() {
       }
     } catch (error) {
       console.error("Save error:", error);
-      alert("تعذر الاتصال بالخادم، تأكد من سلامة الاتصال.");
+      alert("تعذر الاتصال بالخادم.");
     } finally {
       setSaving(false);
     }
@@ -160,16 +177,13 @@ export default function FuelPage() {
   const openEdit = (row: FuelRecord) => { setEditing({ ...row }); setIsEdit(true); setModalOpen(true); };
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB") : "-";
 
-  const totalCost = data.reduce((s, r) => s + (r.totalCost || 0), 0);
-  const totalLiters = data.reduce((s, r) => s + (r.liters || 0), 0);
-
-  const excelData = data.map((r) => ({
+  const excelData = filteredData.map((r) => ({
     "رقم اللوحة": r.plateNumber || "",
     "اسم السائق": r.driverName || "",
-    "اللترات": r.liters || 0,
-    "سعر اللتر": r.costPerLiter || 0,
-    "التكلفة الإجمالية (ج.م)": r.totalCost || 0,
-    "العداد (كم)": r.odometer || 0,
+    "اللترات": safeNum(r.liters),
+    "سعر اللتر": safeNum(r.costPerLiter),
+    "التكلفة الإجمالية (ج.م)": safeNum(r.totalCost),
+    "العداد (كم)": safeNum(r.odometer),
     "المحطة": r.station || "",
     "تاريخ التزود": r.fuelDate || "",
     "ملاحظات": r.notes || "",
@@ -178,10 +192,10 @@ export default function FuelPage() {
   const columns = [
     { key: "plateNumber", header: "رقم اللوحة", render: (r: FuelRecord) => <span className="font-bold text-blue-900 dark:text-blue-400">{r.plateNumber}</span> },
     { key: "driverName", header: "اسم السائق" },
-    { key: "liters", header: "اللترات", render: (r: FuelRecord) => <span className="font-bold text-sky-600 dark:text-sky-400">{r.liters} L</span> },
-    { key: "costPerLiter", header: "سعر اللتر", render: (r: FuelRecord) => `${r.costPerLiter} ج.م` },
-    { key: "totalCost", header: "التكلفة الإجمالية", render: (r: FuelRecord) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{(r.totalCost || 0).toLocaleString()} ج.م</span> },
-    { key: "odometer", header: "العداد الحالي", render: (r: FuelRecord) => `${(r.odometer || 0).toLocaleString()} كم` },
+    { key: "liters", header: "اللترات", render: (r: FuelRecord) => <span className="font-bold text-sky-600 dark:text-sky-400">{safeNum(r.liters).toLocaleString()} L</span> },
+    { key: "costPerLiter", header: "سعر اللتر", render: (r: FuelRecord) => `${safeNum(r.costPerLiter).toLocaleString()} ج.م` },
+    { key: "totalCost", header: "التكلفة الإجمالية", render: (r: FuelRecord) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{safeNum(r.totalCost).toLocaleString()} ج.م</span> },
+    { key: "odometer", header: "العداد الحالي", render: (r: FuelRecord) => `${safeNum(r.odometer).toLocaleString()} كم` },
     { key: "station", header: "المحطة" },
     { key: "fuelDate", header: "تاريخ التزود", render: (r: FuelRecord) => formatDate(r.fuelDate) },
   ];
@@ -190,7 +204,7 @@ export default function FuelPage() {
   const stations = [...new Set(data.map((r) => r.station).filter(Boolean))];
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6" dir="rtl">
       
       {/* الكروت الإحصائية */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -215,13 +229,13 @@ export default function FuelPage() {
         </div>
       </div>
 
-      {/* رأس الصفحة والمكونات */}
+      {/* رأس الصفحة */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-orange-500/10 text-orange-500 rounded-xl"><Fuel size={24} /></div>
           <div>
             <h1 className="text-xl font-black text-gray-900 dark:text-white">سجلات الوقود</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{data.length} سجل مسجل</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{filteredData.length} سجل مسجل</p>
           </div>
         </div>
 
@@ -252,14 +266,14 @@ export default function FuelPage() {
       </div>
 
       {/* الفلاتر */}
-      <FilterBar dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} showDateRange>
+      <FilterBar>
         <FilterSelect label="السائق" value={driverFilter} onChange={setDriverFilter} options={drivers.map((d) => ({ value: d, label: d }))} />
         <FilterSelect label="المحطة" value={stationFilter} onChange={setStationFilter} options={stations.map((s) => ({ value: s, label: s }))} />
       </FilterBar>
 
       {/* الجدول */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-        <DataTable columns={columns} data={data} loading={loading} onEdit={canWrite ? openEdit : undefined} onDelete={user?.role === "admin" ? handleDelete : undefined} />
+        <DataTable columns={columns} data={filteredData} loading={loading} onEdit={canWrite ? openEdit : undefined} onDelete={user?.role === "admin" ? handleDelete : undefined} />
       </div>
 
       {/* المودال */}
@@ -295,15 +309,17 @@ export default function FuelPage() {
             <Field label="اللترات *">
               <input
                 type="number"
+                step="0.01"
                 required
                 className={inputClass}
                 value={editing.liters || ""}
                 onChange={(e) => {
-                  const liters = parseFloat(e.target.value) || 0;
+                  const liters = safeNum(e.target.value);
+                  const cpl = safeNum(editing.costPerLiter);
                   setEditing({
                     ...editing,
                     liters,
-                    totalCost: liters * (editing.costPerLiter || 0),
+                    totalCost: liters * cpl,
                   });
                 }}
               />
@@ -316,17 +332,18 @@ export default function FuelPage() {
                 className={inputClass}
                 value={editing.costPerLiter || ""}
                 onChange={(e) => {
-                  const cpl = parseFloat(e.target.value) || 0;
+                  const cpl = safeNum(e.target.value);
+                  const liters = safeNum(editing.liters);
                   setEditing({
                     ...editing,
                     costPerLiter: cpl,
-                    totalCost: (editing.liters || 0) * cpl,
+                    totalCost: liters * cpl,
                   });
                 }}
               />
             </Field>
 
-            <Field label="التكلفة الإجمالية (ج.م)"><input type="number" className={`${inputClass} bg-gray-100 cursor-not-allowed`} value={editing.totalCost || ""} readOnly /></Field>
+            <Field label="التكلفة الإجمالية (ج.م)"><input type="number" className={`${inputClass} bg-gray-100 dark:bg-gray-800 cursor-not-allowed font-bold text-emerald-600`} value={editing.totalCost || ""} readOnly /></Field>
             
             <Field label="قراءة العداد الحالية (كم) *">
               <input
@@ -334,7 +351,7 @@ export default function FuelPage() {
                 required
                 className={inputClass}
                 value={editing.odometer || ""}
-                onChange={(e) => setEditing({ ...editing, odometer: parseInt(e.target.value) || 0 })}
+                onChange={(e) => setEditing({ ...editing, odometer: safeNum(e.target.value) })}
                 placeholder="أدخل الكيلومتر الحالي لتحديث عداد السيارة تلقائياً"
               />
             </Field>
