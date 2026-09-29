@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "اسم المستخدم وكلمة المرور مطلوبان" }, { status: 400 });
     }
 
-    // 1. البحث عن المستخدم
     const foundUsers = await db.select().from(users).where(eq(users.username, username)).limit(1);
     const user = foundUsers[0];
 
@@ -25,42 +24,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" }, { status: 401 });
     }
 
-    // 2. الفحص الذكي لكلمة المرور (يدعم المشفر وغير المشفر)
     let isPasswordValid = false;
+    try { isPasswordValid = await bcrypt.compare(password, user.password); } catch { isPasswordValid = false; }
 
-    // أ) تجربة المقارنة بالتشفير
-    try {
-      isPasswordValid = await bcrypt.compare(password, user.password);
-    } catch {
-      isPasswordValid = false;
-    }
-
-    // ب) تجربة النص المباشر (لو الكلمة محفوظة كـ Plain Text مثل 123)
     if (!isPasswordValid && (user.password === password || user.password === String(password))) {
       isPasswordValid = true;
-      // تشفير كلمة السر تلقائياً في قاعدة البيانات لتأمينها مستقبلاً
       try {
         const hashed = await bcrypt.hash(password, 10);
         await db.update(users).set({ password: hashed }).where(eq(users.id, user.id));
-      } catch (err) {
-        console.error("Auto hash update error:", err);
-      }
+      } catch (err) {}
     }
 
     if (!isPasswordValid) {
       return NextResponse.json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" }, { status: 401 });
     }
 
-    // 3. تجهيز الجلسة والتوكن
     let perms: string[] = [];
     try { perms = JSON.parse(user.permissions || "[]"); } catch {}
 
+    // ✅ إضافة الـ tenantId للتوكن لفصل بيانات هذا اليوزر عن غيره
     const token = signToken({
       userId: user.id,
       username: user.username,
       name: user.name,
       role: user.role || "user",
       permissions: perms,
+      tenantId: user.tenantId || "master", // 👈 السر هنا
     });
 
     const response = NextResponse.json({
@@ -71,20 +60,16 @@ export async function POST(req: NextRequest) {
         name: user.name,
         role: user.role,
         permissions: perms,
+        tenantId: user.tenantId || "master",
       },
     });
 
     response.cookies.set("fleet360_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 أيام
-      path: "/",
+      httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 60 * 60 * 24 * 7, path: "/",
     });
 
     return response;
   } catch (error: any) {
-    console.error("Login Error:", error);
     return NextResponse.json({ error: "حدث خطأ أثناء تسجيل الدخول" }, { status: 500 });
   }
 }
