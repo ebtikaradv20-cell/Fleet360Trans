@@ -6,73 +6,55 @@ import { verifyToken } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 function auth(req: NextRequest) {
-  try {
-    const token = req.cookies.get("fleet360_token")?.value;
-    if (!token) return null;
-    return verifyToken(token);
-  } catch {
-    return null;
-  }
+  try { return verifyToken(req.cookies.get("fleet360_token")?.value || ""); } catch { return null; }
 }
 
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // إحصائيات سريعة من قاعدة البيانات
-    const vehiclesCount = await db.execute(sql`SELECT COUNT(*) as count FROM vehicles`);
-    const openOrders = await db.execute(
-      sql`SELECT COUNT(*) as count FROM work_orders WHERE status != 'completed'`
-    );
-    const fuelCost = await db.execute(
-      sql`SELECT COALESCE(SUM(total_cost::numeric), 0) as total FROM fuel_records`
-    );
-    const lowStock = await db.execute(
-      sql`SELECT COUNT(*) as count FROM spare_parts WHERE quantity <= minimum_quantity`
-    );
-
-    // تنبيهات
-    const licenseAlerts = await db.execute(sql`
-      SELECT COUNT(*) as count FROM vehicles 
+    // 1. جلب إشعارات التراخيص المفصلة (تنتهي خلال 30 يوم أو انتهت)
+    const licenseAlertsRaw = await db.execute(sql`
+      SELECT id, plate_number, license_expiry 
+      FROM vehicles 
       WHERE license_expiry IS NOT NULL 
       AND license_expiry <= (CURRENT_DATE + INTERVAL '30 days')
+      ORDER BY license_expiry ASC
     `);
+    const licenseList = ((licenseAlertsRaw as any).rows || licenseAlertsRaw || []).map((v: any) => ({
+      id: v.id,
+      type: "license",
+      title: "تنبيه ترخيص",
+      message: `السيارة (${v.plate_number}) رخصتها منتهية أو تقارب على الانتهاء.`,
+      link: "/dashboard/vehicles"
+    }));
 
-    const oilAlerts = await db.execute(sql`
-      SELECT COUNT(*) as count FROM oil_changes 
+    // 2. جلب إشعارات الزيوت المفصلة (متأخرة أو متبقي 7 أيام)
+    const oilAlertsRaw = await db.execute(sql`
+      SELECT id, plate_number, next_change_date 
+      FROM oil_changes 
       WHERE next_change_date IS NOT NULL 
       AND next_change_date <= (CURRENT_DATE + INTERVAL '7 days')
+      ORDER BY next_change_date ASC
     `);
+    const oilList = ((oilAlertsRaw as any).rows || oilAlertsRaw || []).map((o: any) => ({
+      id: o.id,
+      type: "oil",
+      title: "تغيير زيت",
+      message: `السيارة (${o.plate_number}) تجاوزت أو اقتربت من موعد تغيير الزيت.`,
+      link: "/dashboard/oil-changes"
+    }));
 
-    const vRows = (vehiclesCount as any).rows || vehiclesCount;
-    const oRows = (openOrders as any).rows || openOrders;
-    const fRows = (fuelCost as any).rows || fuelCost;
-    const sRows = (lowStock as any).rows || lowStock;
-    const lRows = (licenseAlerts as any).rows || licenseAlerts;
-    const oilRows = (oilAlerts as any).rows || oilAlerts;
+    // دمج الإشعارات
+    const detailedAlerts = [...licenseList, ...oilList];
 
     return NextResponse.json({
-      totalVehicles: Number(vRows?.[0]?.count || 0),
-      openWorkOrders: Number(oRows?.[0]?.count || 0),
-      totalFuelCost: Number(fRows?.[0]?.total || 0),
-      lowStockParts: Number(sRows?.[0]?.count || 0),
-      licenseAlerts: Number(lRows?.[0]?.count || 0),
-      oilAlerts: Number(oilRows?.[0]?.count || 0),
-      insuranceAlerts: 0,
+      totalAlerts: detailedAlerts.length,
+      detailedAlerts: detailedAlerts,
     });
   } catch (error: any) {
     console.error("Dashboard API Error:", error);
-    return NextResponse.json({
-      totalVehicles: 0,
-      openWorkOrders: 0,
-      totalFuelCost: 0,
-      lowStockParts: 0,
-      licenseAlerts: 0,
-      oilAlerts: 0,
-      insuranceAlerts: 0,
-    });
+    return NextResponse.json({ totalAlerts: 0, detailedAlerts: [] });
   }
 }
