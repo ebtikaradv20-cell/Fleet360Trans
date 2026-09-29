@@ -18,10 +18,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     { name: "لوحة التحكم", href: "/dashboard", icon: <LayoutDashboard size={22} /> },
     { name: "السيارات", href: "/dashboard/vehicles", icon: <Car size={22} /> },
     { name: "الوقود", href: "/dashboard/fuel", icon: <Fuel size={22} /> },
-    { name: "أوامر الشغل", href: "/dashboard/work-orders", icon: <Wrench size={22} /> },
+    { name: "الصيانات", href: "/dashboard/work-orders", icon: <Wrench size={22} /> },
     { name: "الزيوت وقطع الغيار", href: "/dashboard/oil-changes", icon: <Droplet size={22} /> },
     { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: <ClipboardCheck size={22} /> },
-    // 🌟 القائمة الجديدة قبل المستخدمين
     { name: "داتا الأسطول الشاملة", href: "/dashboard/fleet-data", icon: <Database size={22} /> },
     { name: "المستخدمون", href: "/dashboard/users", icon: <Users size={22} /> },
   ];
@@ -36,18 +35,19 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       `}
       dir={isRTL ? "rtl" : "ltr"}
     >
-      <div className={`p-4 border-b border-white/15 flex flex-col items-center justify-center text-center transition-all duration-300 ${collapsed ? "py-4" : "py-6"}`}>
+      {/* ✅ رأس القائمة (اللوجو ملتصق تماماً بالنص للأعلى) */}
+      <div className="pt-4 pb-3 px-2 border-b border-white/15 flex flex-col items-center justify-center text-center transition-all duration-300">
         <img 
           src="/logo.png" alt="Fleet360 Logo" 
-          className={`${collapsed ? "w-11 h-11" : "w-24 h-24 sm:w-28 sm:h-28"} object-contain filter drop-shadow-xl transition-all duration-300 transform hover:scale-105 brightness-0 invert`}
+          className={`${collapsed ? "w-11 h-11" : "w-24 h-24"} object-contain filter drop-shadow-xl transition-all duration-300 -mb-1 brightness-0 invert`}
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         {!collapsed && (
-          <div className="mt-3 transition-all duration-300 flex flex-col items-center">
-            <h1 className="text-2xl font-black text-white tracking-wide drop-shadow-lg leading-tight" dir="ltr">
+          <div className="transition-all duration-300 flex flex-col items-center leading-none">
+            <h1 className="text-xl font-black text-white tracking-wide drop-shadow-lg" dir="ltr">
               FLEET <span className="text-orange-200">360</span>
             </h1>
-            <p className="text-xs text-orange-100 font-extrabold tracking-wider mt-1 drop-shadow-sm uppercase">Trans Gas / TAQA ARABIA</p>
+            <p className="text-[10px] text-orange-100 font-extrabold tracking-wider mt-0.5 drop-shadow-sm uppercase">Trans Gas / TAQA ARABIA</p>
           </div>
         )}
       </div>
