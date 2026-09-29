@@ -2,88 +2,89 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { signToken } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic';
 
-function auth(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get("fleet360_token")?.value;
-    if (!token) return null;
-    return verifyToken(token);
-  } catch {
-    return null;
-  }
-}
-
-// ── PUT: تعديل بيانات المستخدم مع تشفير كلمة السر لو تم تغييرها ──
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
-  try {
-    const currentUser = auth(req);
-    if (!currentUser || currentUser.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const params = await context.params;
-    const userId = Number(params.id);
     const body = await req.json().catch(() => ({}));
+    const username = String(body.username || "").trim().toLowerCase();
+    const password = String(body.password || "").trim();
 
-    const updateData: any = {
-      name: String(body.name || "").trim(),
-      username: String(body.username || "").trim().toLowerCase(),
-      role: String(body.role || "user"),
-      permissions: typeof body.permissions === "string" ? body.permissions : JSON.stringify(body.permissions || []),
-    };
-
-    // تشفير كلمة السر فقط في حالة إدخال كلمة سر جديدة
-    if (body.password && String(body.password).trim() !== "") {
-      updateData.password = await bcrypt.hash(String(body.password).trim(), 10);
+    if (!username || !password) {
+      return NextResponse.json({ error: "اسم المستخدم وكلمة المرور مطلوبان" }, { status: 400 });
     }
 
-    const [updatedUser] = await db.update(users)
-      .set(updateData)
-      .where(eq(users.id, userId))
-      .returning({
-        id: users.id,
-        username: users.username,
-        name: users.name,
-        role: users.role,
-        permissions: users.permissions,
-      });
+    // 1. البحث عن المستخدم
+    const foundUsers = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    const user = foundUsers[0];
 
-    return NextResponse.json({ success: true, user: updatedUser });
+    if (!user) {
+      return NextResponse.json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" }, { status: 401 });
+    }
+
+    // 2. الفحص الذكي لكلمة المرور (يدعم المشفر وغير المشفر)
+    let isPasswordValid = false;
+
+    // أ) تجربة المقارنة بالتشفير
+    try {
+      isPasswordValid = await bcrypt.compare(password, user.password);
+    } catch {
+      isPasswordValid = false;
+    }
+
+    // ب) تجربة النص المباشر (لو الكلمة محفوظة كـ Plain Text مثل 123)
+    if (!isPasswordValid && (user.password === password || user.password === String(password))) {
+      isPasswordValid = true;
+      // تشفير كلمة السر تلقائياً في قاعدة البيانات لتأمينها مستقبلاً
+      try {
+        const hashed = await bcrypt.hash(password, 10);
+        await db.update(users).set({ password: hashed }).where(eq(users.id, user.id));
+      } catch (err) {
+        console.error("Auto hash update error:", err);
+      }
+    }
+
+    if (!isPasswordValid) {
+      return NextResponse.json({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" }, { status: 401 });
+    }
+
+    // 3. تجهيز الجلسة والتوكن
+    let perms: string[] = [];
+    try { perms = JSON.parse(user.permissions || "[]"); } catch {}
+
+    const token = signToken({
+      userId: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role || "user",
+      permissions: perms,
+    });
+
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        permissions: perms,
+      },
+    });
+
+    response.cookies.set("fleet360_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 أيام
+      path: "/",
+    });
+
+    return response;
   } catch (error: any) {
-    console.error("PUT User Error:", error);
-    return NextResponse.json({ error: error?.message || "فشل في تعديل المستخدم" }, { status: 500 });
-  }
-}
-
-// ── DELETE: حذف مستخدم ──
-export async function DELETE(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
-  try {
-    const currentUser = auth(req);
-    if (!currentUser || currentUser.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const params = await context.params;
-    const userId = Number(params.id);
-
-    if (userId === currentUser.userId) {
-      return NextResponse.json({ error: "لا يمكنك حذف حسابك الخاص" }, { status: 400 });
-    }
-
-    await db.delete(users).where(eq(users.id, userId));
-    return NextResponse.json({ success: true, message: "تم حذف المستخدم بنجاح" });
-  } catch (error: any) {
-    console.error("DELETE User Error:", error);
-    return NextResponse.json({ error: error?.message || "فشل في حذف المستخدم" }, { status: 500 });
+    console.error("Login Error:", error);
+    return NextResponse.json({ error: "حدث خطأ أثناء تسجيل الدخول" }, { status: 500 });
   }
 }
