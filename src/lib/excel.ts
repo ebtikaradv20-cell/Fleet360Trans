@@ -1,61 +1,103 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx"; // سنحتفظ به للقراءة فقط لأنها أسرع
 
-/** تصدير احترافي: هيدر ملون + عرض أعمدة + تجميد الصف الأول + RTL */
-export const exportToExcel = (data: any[], fileName: string) => {
+// ── 1. دالة تصدير الإكسيل (منسقة وملونة) ──
+export const exportToExcel = async (data: any[], fileName: string) => {
   if (!data || data.length === 0) {
     alert("لا توجد بيانات لتصديرها");
     return;
   }
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  (worksheet as any)["!dir"] = "rtl";
-
-  // عرض الأعمدة تلقائياً تقريباً
-  const keys = Object.keys(data[0] || {});
-  worksheet["!cols"] = keys.map((key) => {
-    const maxLen = Math.max(
-      key.length,
-      ...data.map((row) => String(row[key] ?? "").length)
-    );
-    return { wch: Math.min(Math.max(maxLen + 2, 12), 40) };
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("البيانات", {
+    views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }], // RTL وتجميد الهيدر
   });
 
-  // تجميد صف الهيدر
-  worksheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  // استخراج أسماء الأعمدة من أول صف
+  const columns = Object.keys(data[0]);
+  worksheet.columns = columns.map(col => ({
+    header: col,
+    key: col,
+    width: Math.max(col.length + 10, 20), // عرض تلقائي للعمود
+  }));
 
-  // تلوين الهيدر (A1 ... ) — عبر cell styles إن دعمتها البيئة
-  const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
-  for (let C = range.s.c; C <= range.e.c; ++C) {
-    const addr = XLSX.utils.encode_cell({ r: 0, c: C });
-    if (!worksheet[addr]) continue;
-    worksheet[addr].s = {
-      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
-      fill: { fgColor: { rgb: "1E3A8A" } }, // أزرق مؤسسي
-      alignment: { horizontal: "center", vertical: "center", wrapText: true },
-      border: {
-        top: { style: "thin", color: { rgb: "0F172A" } },
-        bottom: { style: "thin", color: { rgb: "0F172A" } },
-        left: { style: "thin", color: { rgb: "0F172A" } },
-        right: { style: "thin", color: { rgb: "0F172A" } },
-      },
+  // إضافة البيانات
+  worksheet.addRows(data);
+
+  // ── التنسيق (Styling) ──
+  worksheet.columns.forEach((column, colIndex) => {
+    // 1. تلوين الهيدر (أزرق مؤسسي)
+    const headerCell = worksheet.getCell(1, colIndex + 1);
+    headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A8A" } };
+    headerCell.font = { color: { argb: "FFFFFFFF" }, bold: true, size: 12, name: "Arial" };
+    headerCell.alignment = { horizontal: "center", vertical: "middle" };
+    headerCell.border = {
+      top: { style: "thin", color: { argb: "FFCBD5E1" } },
+      bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+      left: { style: "thin", color: { argb: "FFCBD5E1" } },
+      right: { style: "thin", color: { argb: "FFCBD5E1" } },
     };
-  }
 
-  // ارتفاع صف الهيدر
-  worksheet["!rows"] = [{ hpt: 28 }];
+    // 2. تلوين الأعمدة (تبادل ألوان - Zebra Columns)
+    const isEven = colIndex % 2 === 0;
+    column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+      if (rowNumber > 1) { // تخطي الهيدر
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: isEven ? "FFFFFFFF" : "FFF1F5F9" }, // أبيض ورصاصي فاتح
+        };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE2E8F0" } },
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          left: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+      }
+    });
+  });
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "البيانات");
-
-  // ملاحظة: أنماط الخلايا الكاملة تحتاج xlsx-js-style في بعض البيئات.
-  // المكتبة xlsx الأساسية تحفظ البيانات + الأعمدة + التجميد بشكل موثوق.
-  XLSX.writeFile(
-    workbook,
-    `${fileName}_${new Date().toLocaleDateString("en-GB").replace(/\//g, "-")}.xlsx`
-  );
+  // حفظ وتحميل الملف
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), `${fileName}_${new Date().toLocaleDateString("en-GB").replace(/\//g, "-")}.xlsx`);
 };
 
-/** قراءة ملف إكسيل إلى مصفوفة JSON */
+// ── 2. دالة تحميل قالب الإكسيل (للاستيراد) بنفس التنسيق ──
+export const downloadExcelTemplate = async (columns: string[], fileName: string, sampleRow?: Record<string, any>) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("قالب إدخال البيانات", {
+    views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }],
+  });
+
+  worksheet.columns = columns.map(col => ({ header: col, key: col, width: 25 }));
+  
+  if (sampleRow) {
+    worksheet.addRow(sampleRow);
+  }
+
+  // تلوين الهيدر والأعمدة للقالب
+  worksheet.columns.forEach((column, colIndex) => {
+    const headerCell = worksheet.getCell(1, colIndex + 1);
+    headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } }; // أخضر مؤسسي للقالب
+    headerCell.font = { color: { argb: "FFFFFFFF" }, bold: true, size: 12 };
+    headerCell.alignment = { horizontal: "center", vertical: "middle" };
+
+    const isEven = colIndex % 2 === 0;
+    column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+      if (rowNumber > 1) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFFFFFFF" : "FFF1F5F9" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      }
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([buffer]), `قالب_${fileName}.xlsx`);
+};
+
+// ── 3. قراءة الإكسيل (تعتمد على مكتبة xlsx لسرعتها في المتصفح) ──
 export const readExcelFile = (file: File): Promise<any[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -66,33 +108,9 @@ export const readExcelFile = (file: File): Promise<any[]> => {
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
         resolve(json as any[]);
-      } catch (err) {
-        reject(err);
-      }
+      } catch (err) { reject(err); }
     };
     reader.onerror = () => reject(new Error("فشل قراءة الملف"));
     reader.readAsBinaryString(file);
   });
-};
-
-/** تحميل قالب فارغ (صف هيدر فقط + صف مثال اختياري) */
-export const downloadExcelTemplate = (
-  columns: string[],
-  fileName: string,
-  sampleRow?: Record<string, any>
-) => {
-  const rows = sampleRow ? [sampleRow] : [];
-  const worksheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{}], {
-    header: columns,
-  });
-  // إن لم توجد بيانات، نضع الهيدر يدوياً
-  if (!rows.length) {
-    XLSX.utils.sheet_add_aoa(worksheet, [columns], { origin: "A1" });
-  }
-  (worksheet as any)["!dir"] = "rtl";
-  worksheet["!cols"] = columns.map((c) => ({ wch: Math.max(c.length + 4, 14) }));
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "القالب");
-  XLSX.writeFile(workbook, `قالب_${fileName}.xlsx`);
 };
