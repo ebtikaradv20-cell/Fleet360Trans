@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/seed", { method: "POST" }).catch(() => {});
+    // ✅ تم إيقاف الـ Seed التلقائي لضمان استقرار بياناتك الحقيقية في Neon DB
     const savedUsername = localStorage.getItem("fleet_remembered_username");
     if (savedUsername) {
       setUsername(savedUsername);
@@ -71,9 +71,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-[#0B1121]" dir="rtl">
       
-      {/* ── خلفية مؤسسية رسمية (Formal Corporate Background) ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* إضاءة خلفية هادئة جداً لكسر حدة الظلام */}
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[60%] rounded-full bg-orange-600/10 blur-[120px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[60%] rounded-full bg-blue-600/10 blur-[120px]" />
         <div 
@@ -86,14 +84,10 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-[420px] px-5 my-8">
-        
-        {/* ── كارت الدخول الاحترافي ── */}
         <div className="bg-[#111827] rounded-2xl shadow-2xl p-8 sm:p-10 border border-gray-800 relative overflow-hidden">
           
-          {/* خط برتقالي أنيق أعلى الكارت */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-600 to-orange-400" />
 
-          {/* ── اللوجو والهوية (تصحيح المسافات والاتجاه) ── */}
           <div className="flex flex-col items-center justify-center mb-8">
             <img 
               src="/logo.png" 
@@ -109,7 +103,6 @@ export default function LoginPage() {
               <ShieldCheck size={40} />
             </div>
 
-            {/* إجبار الكلمة على القراءة من اليسار لليمين LTR لتبقى FLEET 360 */}
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none" dir="ltr">
               FLEET <span className="text-orange-500">360</span>
             </h1>
@@ -117,10 +110,7 @@ export default function LoginPage() {
             <p className="text-orange-500/90 text-[11px] mt-1 font-bold tracking-widest uppercase">Trans Gas / TAQA ARABIA</p>
           </div>
 
-          {/* ── نموذج تسجيل الدخول ── */}
           <form onSubmit={handleLogin} className="space-y-5">
-            
-            {/* الحقول بتصميم حاد واحترافي */}
             <div>
               <label className="block text-gray-400 text-xs font-bold mb-1.5">اسم المستخدم</label>
               <div className="relative flex items-center">
@@ -163,7 +153,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* خيارات إضافية */}
             <div className="flex items-center justify-between py-1">
               <label className="flex items-center gap-2 cursor-pointer select-none group">
                 <input
@@ -183,7 +172,6 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* رسالة الخطأ */}
             {error && (
               <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-xs font-semibold">
                 <AlertCircle size={16} className="shrink-0" />
@@ -191,7 +179,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* زر الدخول الصلب */}
             <button
               type="submit"
               disabled={loading}
@@ -211,7 +198,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* ── توقيع المطور ── */}
           <div className="text-center mt-8 pt-5 border-t border-gray-800">
             <p className="text-gray-500 text-[10px] sm:text-xs font-semibold flex items-center justify-center gap-1.5 tracking-wide uppercase">
               <Code2 size={14} className="text-orange-600" />
