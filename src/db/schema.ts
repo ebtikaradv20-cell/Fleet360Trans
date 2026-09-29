@@ -1,9 +1,9 @@
 import { pgTable, serial, text, timestamp, integer, decimal, date, jsonb } from "drizzle-orm/pg-core";
 
-// ── 1. جدول المستخدمين (تم إضافة tenant_id)
+// ── 1. جدول المستخدمين
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  tenantId: text("tenant_id").default("master"), // 👈 يحدد مساحة العمل الخاصة بالأدمن
+  tenantId: text("tenant_id").default("master"),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
@@ -112,7 +112,7 @@ export const oilChanges = pgTable("oil_changes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// ── 7. جدول استمارات فحص السيارات الشاملة
+// ── 7. جدول استمارات فحص السيارات 
 export const vehicleInspections = pgTable("vehicle_inspections", {
   id: serial("id").primaryKey(),
   tenantId: text("tenant_id").default("master"),
@@ -130,7 +130,43 @@ export const vehicleInspections = pgTable("vehicle_inspections", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// ── 8. الجدول الجديد: السجل التاريخي الشامل (Audit History) ──
+// ── 8. جدول أجزاء المركبة
+export const vehicleParts = pgTable("vehicle_parts", {
+  id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
+  vehicleId: integer("vehicle_id"),
+  plateNumber: text("plate_number"),
+  partName: text("part_name"),
+  partCategory: text("part_category"),
+  installDate: date("install_date"),
+  brand: text("brand"),
+  condition: text("condition"),
+  kmAtInstall: integer("km_at_install"),
+  cost: decimal("cost"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── 9. ✅ تصدير جدول سجل أجزاء المركبة (vehiclePartsHistory) صراحة لـ Next.js
+export const vehiclePartsHistory = pgTable("vehicle_parts_history", {
+  id: serial("id").primaryKey(),
+  tenantId: text("tenant_id").default("master"),
+  vehicleId: integer("vehicle_id"),
+  vehiclePartId: integer("vehicle_part_id"),
+  plateNumber: text("plate_number"),
+  partName: text("part_name"),
+  partCategory: text("part_category"),
+  action: text("action"),
+  actionDate: date("action_date"),
+  kmAtAction: integer("km_at_action"),
+  cost: decimal("cost"),
+  technician: text("technician"),
+  workshop: text("workshop"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── 10. ✅ تصدير جدول السجل التاريخي الشامل (historyLogs)
 export const historyLogs = pgTable("history_logs", {
   id: serial("id").primaryKey(),
   tenantId: text("tenant_id").default("master"),
