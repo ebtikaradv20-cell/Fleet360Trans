@@ -1,275 +1,202 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
-import { SearchCheck, Plus, X, Save, Loader2, Car, Calendar } from "lucide-react";
+import { 
+  Package, Search, Plus, Save, X, Loader2, Box, DollarSign, AlertTriangle 
+} from "lucide-react";
 import ExportExcelButton from "@/components/ExportExcelButton";
+import ImportExcelButton from "@/components/ImportExcelButton";
 
-const CONDITION_OPTIONS = [
-  { value: "", label: "— اختر —" },
-  { value: "excellent", label: "ممتاز" },
-  { value: "good", label: "جيد" },
-  { value: "average", label: "متوسط" },
-  { value: "poor", label: "سيء" },
-] as const;
+interface SparePart {
+  id: number; partName: string; partNumber: string; category: string;
+  quantity: number; minimumQuantity: number; unitPrice: number;
+  supplier: string; location: string; status: string; notes: string; createdAt: string;
+}
 
-const CONDITION_COLOR: Record<string, string> = {
-  excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold",
-  good: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 font-bold",
-  average: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 font-bold",
-  poor: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 font-bold",
-};
+const TEMPLATE_COLUMNS = ["اسم القطعة", "رقم القطعة", "الفئة", "الكمية المتاحة", "الحد الأدنى", "سعر الوحدة", "المورد", "الموقع بالمخزن", "الحالة", "ملاحظات"];
 
-const INSPECTION_CATEGORIES = [
-  { title: "1. مستندات ومعلومات المركبة", items: ["رخصة السيارة", "التأمين", "جهاز التتبع / GPS", "مفتاح إضافي", "مطابقة بيانات السيارة"] },
-  { title: "2. الفحص الخارجي", items: ["الصدام الأمامي", "الصدام الخلفي", "الكبوت", "السقف", "الأبواب", "المرايا الجانبية", "الزجاج الأمامي والخلفي", "الأنوار الخارجية", "الإطارات والجنوط", "الاستبن"] },
-  { title: "3. الفحص الداخلي", items: ["المقاعد", "لوحة العدادات", "أحزمة الأمان", "التكييف", "الزجاج الكهربائي", "القفل المركزي", "البوق (الكلاكس)", "المساحات"] },
-  { title: "4. الفحص الميكانيكي", items: ["المحرك", "الزيت", "المياه / سائل التبريد", "البطارية", "الفرامل", "العفشة", "ناقل الحركة (الفتيس)", "التسريب أسفل السيارة"] },
-  { title: "5. الفحص الكهربائي والسلامة", items: ["الأنوار الداخلية", "إشارات الانعطاف", "حساسات / كاميرا خلفية", "طفاية الحريق", "مثلث التحذير", "عدة الإسعافات"] }
-];
+const emptyPart: Partial<SparePart> = { partName: "", partNumber: "", category: "", quantity: 0, minimumQuantity: 5, unitPrice: 0, supplier: "", location: "", status: "available", notes: "" };
 
-type CheckItem = { status: string; date: string; notes: string };
+const safeNum = (val: any): number => { if (val === null || val === undefined) return 0; const num = parseFloat(String(val).replace(/[^0-9.-]/g, "")); return isNaN(num) ? 0 : num; };
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (<div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>{children}</div>);
+const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50";
 
-export default function VehicleInspectionPage() {
+export default function SparePartsPage() {
   const { user } = useApp();
-  const [data, setData] = useState<any[]>([]);
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [data, setData] = useState<SparePart[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Partial<SparePart>>(emptyPart);
+  const [isEdit, setIsEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [categoryFilter, setCategoryFilter] = useState("الكل");
 
-  const [formData, setFormData] = useState({
-    plateNumber: "", vehicleId: null as number | null, inspectionDate: new Date().toISOString().slice(0, 10),
-    odometer: 0, branchName: "", driverName: "", inspectorName: user?.name || "فاحص النظام",
-    exteriorNotes: "", generalNotes: ""
-  });
+  const canWrite = user?.role === "admin" || user?.permissions?.includes("spare-parts:write");
 
-  const [checklist, setChecklist] = useState<Record<string, CheckItem>>({});
-
-  const loadData = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      let res = await fetch("/api/vehicle-inspections");
-      if (!res.ok) res = await fetch("/api/vehicle-parts");
+      const res = await fetch(`/api/spare-parts`);
       const d = await res.json();
       setData(Array.isArray(d) ? d : []);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (error) { console.error(error); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const uniqueCategories = ["الكل", ...Array.from(new Set(data.map(r => r.category).filter(Boolean)))];
+
+  const filteredData = data.filter(r => {
+    const matchesSearch = (r.partName || "").toLowerCase().includes(search.toLowerCase()) || (r.partNumber || "").toLowerCase().includes(search.toLowerCase()) || (r.supplier || "").toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "الكل" || r.status === statusFilter;
+    const matchesCat = categoryFilter === "الكل" || r.category === categoryFilter;
+    return matchesSearch && matchesStatus && matchesCat;
+  });
+
+  const lowStockItems = filteredData.filter(r => safeNum(r.quantity) <= safeNum(r.minimumQuantity) || r.status === "out_of_stock");
+  const totalStockValue = filteredData.reduce((sum, item) => sum + (safeNum(item.quantity) * safeNum(item.unitPrice)), 0);
+
+  const mapRow = (row: Record<string, any>) => {
+    const name = row["اسم القطعة"] || row["partName"] || "";
+    if (!String(name).trim()) return null;
+    let st = "available";
+    if (row["الحالة"] === "مخزون منخفض") st = "low";
+    if (row["الحالة"] === "نفذ المخزون") st = "out_of_stock";
+
+    return {
+      partName: String(name).trim(),
+      partNumber: row["رقم القطعة"] || "",
+      category: row["الفئة"] || "",
+      quantity: safeNum(row["الكمية المتاحة"]),
+      minimumQuantity: safeNum(row["الحد الأدنى"]),
+      unitPrice: safeNum(row["سعر الوحدة"]),
+      supplier: row["المورد"] || "",
+      location: row["الموقع بالمخزن"] || "",
+      status: st,
+      notes: row["ملاحظات"] || "",
+    };
   };
 
-  useEffect(() => { loadData(); }, []);
-  useEffect(() => { fetch("/api/vehicles").then(r => r.json()).then(d => setVehicles(Array.isArray(d) ? d : [])); }, []);
-
-  const updateItem = (item: string, field: keyof CheckItem, value: string) => {
-    setChecklist((prev) => ({ ...prev, [item]: { status: prev[item]?.status || "", date: prev[item]?.date || "", notes: prev[item]?.notes || "", [field]: value } }));
-  };
-
-  const fetchVehicleHistoryAndAutoFill = async (vehicleId: number) => {
-    try {
-      const [oilRes, woRes] = await Promise.all([
-        fetch(`/api/oil-changes?vehicleId=${vehicleId}`).catch(() => null),
-        fetch(`/api/work-orders`).catch(() => null),
-      ]);
-      const oilData = oilRes ? await oilRes.json().catch(() => []) : [];
-      const woData = woRes ? await woRes.json().catch(() => []) : [];
-
-      const latestOil = Array.isArray(oilData) && oilData.length > 0 ? oilData[0] : null;
-      const woArray = Array.isArray(woData) ? woData.filter((w: any) => Number(w.vehicleId || w.vehicle_id) === vehicleId) : [];
-
-      const latestTires = woArray.find((w: any) => (w.maintenanceType || "").includes("كاوتش"));
-      const latestSuspension = woArray.find((w: any) => (w.maintenanceType || "").includes("عفشة"));
-      const latestEngine = woArray.find((w: any) => (w.maintenanceType || "").includes("ميكانيكا"));
-
-      setChecklist((prev) => {
-        const next = { ...prev };
-        const fill = (key: string, dateVal: any, note: string) => {
-          if (!dateVal) return;
-          next[key] = { status: next[key]?.status || "", date: String(dateVal).slice(0, 10), notes: next[key]?.notes || note };
-        };
-        if (latestOil) fill("الزيت", latestOil.changeDate || latestOil.change_date, "تلقائي من سجلات الزيوت");
-        if (latestTires) fill("الإطارات والجنوط", latestTires.startDate || latestTires.start_date, "تلقائي من أوامر الشغل");
-        if (latestSuspension) fill("العفشة", latestSuspension.startDate || latestSuspension.start_date, "تلقائي من أوامر الشغل");
-        if (latestEngine) fill("المحرك", latestEngine.startDate || latestEngine.start_date, "تلقائي من أوامر الشغل");
-        return next;
-      });
-    } catch (err) { console.error(err); }
+  const handleImport = async (rows: any[], mode: "append" | "upsert") => {
+    let ok = 0; let failed = 0;
+    for (const payload of rows) {
+      try {
+        if (mode === "upsert" && payload.partNumber) {
+          const existing = data.find(v => v.partNumber === payload.partNumber);
+          if (existing) {
+            const res = await fetch(`/api/spare-parts/${existing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            if (res.ok) ok++; else failed++;
+            continue;
+          }
+        }
+        const res = await fetch("/api/spare-parts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (res.ok) ok++; else failed++;
+      } catch { failed++; }
+    }
+    await load();
+    return { ok, failed };
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     setSaving(true);
     try {
-      let res = await fetch("/api/vehicle-inspections", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, checklist })
-      });
-      if (!res.ok) {
-        res = await fetch("/api/vehicle-parts", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...formData, checklist, partName: formData.inspectorName, brand: formData.driverName, supplier: formData.branchName, installDate: formData.inspectionDate, kmAtInstall: formData.odometer, notes: formData.generalNotes })
-        });
-      }
+      const payload = { ...editing, quantity: safeNum(editing.quantity), minimumQuantity: safeNum(editing.minimumQuantity), unitPrice: safeNum(editing.unitPrice) };
+      const res = await fetch(isEdit ? `/api/spare-parts/${editing.id}` : "/api/spare-parts", { method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const resData = await res.json().catch(() => ({}));
-      if (res.ok && resData.success !== false) { setModalOpen(false); loadData(); } 
-      else { alert(resData.error || "فشل الحفظ. تأكد من اختيار السيارة."); }
-    } catch { alert("خطأ في الاتصال بالخادم."); } finally { setSaving(false); }
+      if (res.ok && resData.success !== false) { setModalOpen(false); load(); } else { alert(resData.error || "حدث خطأ أثناء الحفظ"); }
+    } catch { alert("تعذر الاتصال بالخادم."); } finally { setSaving(false); }
   };
 
-  const openAdd = () => {
-    setFormData({ ...formData, plateNumber: "", vehicleId: null, odometer: 0, exteriorNotes: "", generalNotes: "" });
-    setChecklist({});
-    setModalOpen(true);
+  const handleDelete = async (id: number) => {
+    if (!confirm("هل أنت متأكد من حذف هذه القطعة؟")) return;
+    await fetch(`/api/spare-parts/${id}`, { method: "DELETE" }); load();
   };
 
-  const excelData = data.map((r) => ({
-    "رقم اللوحة": r.plate_number || r.plateNumber || "",
-    "تاريخ الفحص": r.inspection_date || r.inspectionDate ? new Date(r.inspection_date || r.inspectionDate).toLocaleDateString("en-GB") : "",
-    "قراءة العداد": r.odometer || r.kmAtInstall || 0,
-    "الفرع": r.branch_name || r.branchName || "",
-    "السائق": r.driver_name || r.driverName || "",
-    "الفاحص": r.inspector_name || r.inspectorName || "",
+  const excelData = filteredData.map((r) => ({
+    "اسم القطعة": r.partName, "رقم القطعة": r.partNumber, "الفئة": r.category, "الكمية المتاحة": safeNum(r.quantity),
+    "الحد الأدنى": safeNum(r.minimumQuantity), "سعر الوحدة (ج.م)": safeNum(r.unitPrice), "المورد": r.supplier,
+    "الموقع بالمخزن": r.location, "الحالة": r.status === "available" ? "متوفر" : r.status === "low" ? "منخفض" : "نفذ", "تاريخ الإضافة": r.createdAt
   }));
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl"><SearchCheck size={26} /></div>
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white">تقارير فحص السيارات</h1>
-            <p className="text-sm text-gray-500 mt-0.5">إجمالي {data.length} تقرير فحص مسجل</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* ✅ زر التصدير الذكي مع فلترة التاريخ */}
-          <ExportExcelButton data={excelData} fileName="تقارير_الفحص_الشامل" dateColumnName="تاريخ الفحص" />
-          <button onClick={openAdd} className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all">
-            <Plus size={18} /><span>إضافة تقرير فحص</span>
-          </button>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden"><div className="flex justify-between items-start relative z-10"><div><div className="text-blue-200 text-xs font-bold mb-1">أصناف قطع الغيار</div><div className="text-3xl font-black">{data.length}</div></div><div className="p-2.5 bg-white/10 rounded-xl"><Box size={22} /></div></div></div>
+        <div className="bg-gradient-to-br from-sky-600 to-cyan-500 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden"><div className="flex justify-between items-start relative z-10"><div><div className="text-cyan-100 text-xs font-bold mb-1">إجمالي قيمة المخزون</div><div className="text-3xl font-black">{totalStockValue.toLocaleString()} <span className="text-sm">ج.م</span></div></div><div className="p-2.5 bg-white/10 rounded-xl"><DollarSign size={22} /></div></div></div>
+        <div className="bg-gradient-to-br from-amber-600 to-orange-500 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden"><div className="flex justify-between items-start relative z-10"><div><div className="text-amber-100 text-xs font-bold mb-1">أصناف تحت الحد الأدنى</div><div className="text-3xl font-black">{lowStockItems.length}</div></div><div className="p-2.5 bg-white/10 rounded-xl"><AlertTriangle size={22} /></div></div></div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3"><div className="p-3 bg-orange-500/10 text-orange-500 rounded-xl"><Package size={24} /></div><div><h1 className="text-xl font-black text-gray-900">مخزون قطع الغيار</h1><p className="text-sm text-gray-500 mt-0.5">إجمالي {filteredData.length} صنف مطابق</p></div></div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <ImportExcelButton templateColumns={TEMPLATE_COLUMNS} templateFileName="قالب_قطع_الغيار" mapRow={mapRow} onImport={handleImport} buttonText="استيراد" />
+          <ExportExcelButton data={excelData} fileName="مخزون_القطع" dateColumnName="تاريخ الإضافة" />
+          {canWrite && <button onClick={() => {setEditing(emptyPart); setIsEdit(false); setModalOpen(true);}} className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md"><Plus size={18} /><span>إضافة قطعة</span></button>}
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
-        {loading ? (
-          <div className="p-12 flex justify-center text-blue-800 dark:text-blue-400"><Loader2 className="animate-spin" /></div>
-        ) : (
+      <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div><label className="block text-xs font-bold text-gray-700 mb-1.5">بحث شامل</label><div className="relative"><Search size={16} className="absolute inset-y-0 start-3 top-2.5 text-gray-400" /><input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث..." className="w-full bg-gray-50 border border-gray-200 rounded-xl ps-9 pe-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" /></div></div>
+          <div><label className="block text-xs font-bold text-gray-700 mb-1.5">الفئة</label><select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm outline-none">{uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div><label className="block text-xs font-bold text-gray-700 mb-1.5">الحالة</label><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full bg-gray-50 border rounded-xl px-3 py-2 text-sm outline-none"><option value="الكل">الكل</option><option value="available">متوفر</option><option value="low">مخزون منخفض</option><option value="out_of_stock">نفذ المخزون</option></select></div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+        {loading ? <div className="p-12 flex justify-center text-blue-800"><Loader2 className="animate-spin" /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
-              <thead className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
-                <tr>
-                  <th className="p-4 border-l border-blue-600/50">رقم اللوحة</th>
-                  <th className="p-4 border-l border-blue-600/50">تاريخ الفحص</th>
-                  <th className="p-4 border-l border-blue-600/50">السائق</th>
-                  <th className="p-4 border-l border-blue-600/50">الفاحص</th>
-                  <th className="p-4 border-l border-blue-600/50">الفرع</th>
-                  <th className="p-4">العداد</th>
-                </tr>
+              <thead className="bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-sm">
+                <tr><th className="p-4 border-l border-blue-600/50">القطعة</th><th className="p-4 border-l border-blue-600/50">رقم القطعة</th><th className="p-4 border-l border-blue-600/50">الفئة</th><th className="p-4 border-l border-blue-600/50">الكمية</th><th className="p-4 border-l border-blue-600/50">السعر</th><th className="p-4 border-l border-blue-600/50">الحالة</th><th className="p-4 text-center">الإجراءات</th></tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {data.map((r, i) => (
-                  <tr key={r.id || i} className={`hover:bg-blue-50/50 dark:hover:bg-blue-950/20 ${i % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/40"}`}>
-                    <td className="p-4 font-black text-blue-900 dark:text-blue-400">{r.plate_number || r.plateNumber}</td>
-                    <td className="p-4 font-semibold text-gray-700 dark:text-gray-300">{r.inspection_date || r.inspectionDate ? new Date(r.inspection_date || r.inspectionDate).toLocaleDateString("en-GB") : "-"}</td>
-                    <td className="p-4 font-bold dark:text-gray-200">{r.driver_name || r.driverName || "-"}</td>
-                    <td className="p-4 dark:text-gray-200">{r.inspector_name || r.inspectorName || "-"}</td>
-                    <td className="p-4 text-gray-600 dark:text-gray-400">{r.branch_name || r.branchName || "-"}</td>
-                    <td className="p-4 text-orange-600 font-bold">{Number(r.odometer || r.kmAtInstall || 0).toLocaleString()} كم</td>
+              <tbody className="divide-y divide-gray-200">
+                {filteredData.map((r, i) => {
+                  const isLow = safeNum(r.quantity) <= safeNum(r.minimumQuantity);
+                  return (
+                  <tr key={r.id} className={`hover:bg-blue-50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                    <td className="p-4 font-black text-blue-900 flex items-center gap-2">{r.partName} {isLow && <AlertTriangle size={14} className="text-amber-500"/>}</td>
+                    <td className="p-4 font-semibold text-gray-700">{r.partNumber || "-"}</td>
+                    <td className="p-4"><span className="px-2 py-1 bg-gray-200 rounded-md text-xs font-bold">{r.category || "عام"}</span></td>
+                    <td className={`p-4 font-bold ${isLow ? 'text-red-600' : 'text-gray-800'}`}>{safeNum(r.quantity)}</td>
+                    <td className="p-4 font-bold text-emerald-600">{safeNum(r.unitPrice).toLocaleString()} ج.م</td>
+                    <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs font-bold ${r.status === 'available' ? 'bg-emerald-100 text-emerald-700' : r.status === 'low' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{r.status === 'available' ? 'متوفر' : r.status === 'low' ? 'منخفض' : 'نفذ'}</span></td>
+                    <td className="p-4 text-center flex justify-center gap-2">
+                      <button onClick={() => {setEditing(r); setIsEdit(true); setModalOpen(true);}} className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"><Wrench size={16}/></button>
+                      <button onClick={() => handleDelete(r.id)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"><X size={16}/></button>
+                    </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
-            {data.length === 0 && <div className="p-10 text-center text-gray-500 font-bold">لا توجد تقارير فحص مسجلة حالياً.</div>}
           </div>
         )}
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl my-auto flex flex-col max-h-full border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center bg-blue-900 text-white p-4 rounded-t-xl shrink-0">
-              <h2 className="text-lg sm:text-xl font-black flex items-center gap-2"><SearchCheck size={22} /> استمارة فحص سيارة — تقييم الحالة (ممتاز / جيد / متوسط / سيء)</h2>
-              <button onClick={() => setModalOpen(false)} className="hover:text-red-300 transition-colors"><X size={24} /></button>
-            </div>
-
-            <div className="p-4 sm:p-6 overflow-y-auto">
-              <form id="inspection-form" onSubmit={handleSave} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">السيارة (اللوحة) *</label>
-                    <div className="relative"><Car className="absolute start-3 top-2.5 text-gray-400" size={16}/>
-                      <select required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 ps-9 pe-3 text-sm outline-none focus:border-blue-500" value={formData.plateNumber} onChange={(e) => { const v = vehicles.find((x) => x.plateNumber === e.target.value); setFormData({ ...formData, plateNumber: e.target.value, vehicleId: v?.id ?? null, driverName: v?.driverName || v?.driver_name || formData.driverName, odometer: Number(v?.currentKm ?? v?.current_km) || formData.odometer }); if (v?.id) fetchVehicleHistoryAndAutoFill(v.id); }}>
-                        <option value="">-- اختر السيارة --</option>
-                        {vehicles.map((v) => <option key={v.id} value={v.plateNumber}>{v.plateNumber}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">عداد الكيلومترات</label><input type="number" required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.odometer} onChange={(e) => setFormData({ ...formData, odometer: Number(e.target.value) || 0 })} /></div>
-                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">تاريخ الفحص</label><div className="relative"><Calendar className="absolute start-3 top-2.5 text-gray-400" size={16}/><input type="date" required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 ps-9 pe-3 text-sm outline-none" value={formData.inspectionDate} onChange={(e) => setFormData({ ...formData, inspectionDate: e.target.value })} /></div></div>
-                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الفرع</label><input type="text" className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.branchName} onChange={(e) => setFormData({ ...formData, branchName: e.target.value })} /></div>
-                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">اسم السائق</label><input type="text" className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.driverName} onChange={(e) => setFormData({ ...formData, driverName: e.target.value })} /></div>
-                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">اسم الفاحص</label><input type="text" required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.inspectorName} onChange={(e) => setFormData({ ...formData, inspectorName: e.target.value })} /></div>
-                </div>
-
-                <div className="border border-blue-900 dark:border-blue-700 rounded-xl overflow-hidden shadow-sm">
-                  <div className="bg-blue-900 text-white flex text-xs sm:text-sm font-bold text-center items-center">
-                    <div className="flex-[1.2] py-3 border-l border-white/20 px-2">البند</div>
-                    <div className="w-28 sm:w-36 py-3 border-l border-white/20">التقييم</div>
-                    <div className="w-32 sm:w-40 py-3 border-l border-white/20">تاريخ آخر تغيير</div>
-                    <div className="flex-1 py-3 hidden md:block">ملاحظات</div>
-                  </div>
-
-                  {INSPECTION_CATEGORIES.map((cat, cIdx) => (
-                    <div key={cIdx}>
-                      <div className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white font-black py-2.5 px-4 text-sm border-y border-gray-300 dark:border-gray-700">
-                        {cat.title}
-                      </div>
-
-                      {cat.items.map((item, iIdx) => {
-                        const current = checklist[item]?.status || "";
-                        return (
-                          <div key={item} className="flex flex-wrap md:flex-nowrap border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors text-sm items-stretch bg-white dark:bg-gray-900">
-                            <div className="flex-[1.2] min-w-[140px] py-2.5 px-3 font-bold text-gray-800 dark:text-gray-100 border-l border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
-                              <span>{item}</span>
-                              <span className="text-[10px] text-gray-400 font-black w-5 h-5 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full shrink-0">{iIdx + 1}</span>
-                            </div>
-
-                            <div className="w-28 sm:w-36 p-1.5 border-l border-gray-200 dark:border-gray-700 flex items-center">
-                              <select value={current} onChange={(e) => updateItem(item, "status", e.target.value)} className={`w-full text-xs font-bold rounded-lg border dark:border-gray-600 py-2 px-1.5 outline-none cursor-pointer ${current ? CONDITION_COLOR[current] || "bg-gray-50 dark:bg-gray-800 dark:text-white" : "bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}`}>
-                                {CONDITION_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                              </select>
-                            </div>
-
-                            <div className="w-32 sm:w-40 p-1.5 border-l border-gray-200 dark:border-gray-700 flex items-center">
-                              <input type="date" value={checklist[item]?.date || ""} onChange={(e) => updateItem(item, "date", e.target.value)} className="w-full text-xs p-1.5 border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg outline-none focus:border-blue-500 font-semibold" />
-                            </div>
-
-                            <div className="flex-1 min-w-full md:min-w-0 p-1.5 flex items-center">
-                              <input type="text" value={checklist[item]?.notes || ""} onChange={(e) => updateItem(item, "notes", e.target.value)} placeholder="ملاحظات..." className="w-full text-xs p-1.5 border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg outline-none focus:border-blue-500" />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 p-2 rounded-t-lg border border-gray-200 dark:border-gray-700 border-b-0">ملاحظات الفحص الخارجي</label>
-                    <textarea rows={3} className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-b-lg p-3 text-sm outline-none focus:border-blue-500" placeholder="صدمات / خدوش..." value={formData.exteriorNotes} onChange={(e) => setFormData({ ...formData, exteriorNotes: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 p-2 rounded-t-lg border border-gray-200 dark:border-gray-700 border-b-0">ملاحظات عامة</label>
-                    <textarea rows={3} className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-b-lg p-3 text-sm outline-none focus:border-blue-500" placeholder="ملاحظات أخرى..." value={formData.generalNotes} onChange={(e) => setFormData({ ...formData, generalNotes: e.target.value })} />
-                  </div>
-                </div>
-              </form>
-            </div>
-
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-xl flex gap-3 shrink-0">
-              <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700">إلغاء</button>
-              <button form="inspection-form" type="submit" disabled={saving} className="flex-1 py-3 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-xl shadow-md flex justify-center items-center gap-2">
-                {saving ? <Loader2 className="animate-spin" /> : <Save size={18} />} حفظ واعتماد الاستمارة الشاملة
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-5">
+            <div className="flex justify-between items-center border-b pb-3"><h2 className="text-xl font-black text-blue-900 flex items-center gap-2"><Package/> {isEdit ? "تعديل القطعة" : "إضافة قطعة"}</h2><button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-800"><X size={20}/></button></div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="اسم القطعة *"><input required className={inputClass} value={editing.partName || ""} onChange={e => setEditing({...editing, partName: e.target.value})} /></Field>
+                <Field label="رقم القطعة (Part No)"><input className={inputClass} value={editing.partNumber || ""} onChange={e => setEditing({...editing, partNumber: e.target.value})} /></Field>
+                <Field label="الفئة"><input className={inputClass} value={editing.category || ""} onChange={e => setEditing({...editing, category: e.target.value})} /></Field>
+                <Field label="المورد"><input className={inputClass} value={editing.supplier || ""} onChange={e => setEditing({...editing, supplier: e.target.value})} /></Field>
+                <Field label="الكمية المتاحة"><input type="number" className={inputClass} value={editing.quantity || ""} onChange={e => setEditing({...editing, quantity: safeNum(e.target.value)})} /></Field>
+                <Field label="الحد الأدنى للتنبيه"><input type="number" className={inputClass} value={editing.minimumQuantity || ""} onChange={e => setEditing({...editing, minimumQuantity: safeNum(e.target.value)})} /></Field>
+                <Field label="سعر الوحدة (ج.م)"><input type="number" step="0.01" className={inputClass} value={editing.unitPrice || ""} onChange={e => setEditing({...editing, unitPrice: safeNum(e.target.value)})} /></Field>
+                <Field label="الحالة التشغيلية"><select className={inputClass} value={editing.status || "available"} onChange={e => setEditing({...editing, status: e.target.value})}><option value="available">متوفر</option><option value="low">مخزون منخفض</option><option value="out_of_stock">نفذ المخزون</option></select></Field>
+                <div className="col-span-2"><Field label="ملاحظات"><textarea className={inputClass} rows={2} value={editing.notes || ""} onChange={e => setEditing({...editing, notes: e.target.value})} /></Field></div>
+              </div>
+              <div className="flex gap-3 pt-5 border-t"><button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl hover:bg-gray-200">إلغاء</button><button type="submit" disabled={saving} className="flex-1 py-3 bg-blue-900 text-white font-bold rounded-xl flex justify-center items-center gap-2"><Save size={18}/> حفظ</button></div>
+            </form>
           </div>
         </div>
       )}
