@@ -1,42 +1,84 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { vehicleParts } from "@/db/schema";
-import { eq, ilike, and, gte, lte } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
+export const dynamic = 'force-dynamic';
+
 function auth(req: NextRequest) {
-  const token = req.cookies.get("fleet360_token")?.value;
-  if (!token) return null;
-  return verifyToken(token);
+  try { 
+    const token = req.cookies.get("fleet360_token")?.value;
+    return token ? verifyToken(token) : null; 
+  } catch { 
+    return null; 
+  }
 }
 
+// ── GET: جلب استمارات الفحص المكتملة ──
 export async function GET(req: NextRequest) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const vehicleId = searchParams.get("vehicleId") || "";
-  const category = searchParams.get("category") || "";
-  const from = searchParams.get("from") || "";
-  const to = searchParams.get("to") || "";
+    const raw = await db.execute(sql`SELECT * FROM vehicle_parts ORDER BY id DESC`);
+    const rows = (raw as any).rows || raw || [];
 
-  let conditions = [];
-  if (vehicleId) conditions.push(eq(vehicleParts.vehicleId, parseInt(vehicleId)));
-  if (category) conditions.push(ilike(vehicleParts.partCategory, `%${category}%`));
-  if (from) conditions.push(gte(vehicleParts.createdAt, new Date(from)));
-  if (to) conditions.push(lte(vehicleParts.createdAt, new Date(to + "T23:59:59")));
+    const formatted = (Array.isArray(rows) ? rows : []).map((v: any) => ({
+      id: v?.id ?? 0,
+      vehicleId: v?.vehicle_id || v?.vehicleId,
+      plateNumber: String(v?.plate_number || v?.plateNumber || "غير محدد"),
+      inspectionDate: v?.install_date || v?.installDate || v?.created_at || v?.createdAt || "",
+      odometer: Number(v?.km_at_install ?? v?.kmAtInstall ?? 0),
+      branchName: String(v?.supplier || v?.branchName || "الفرع الرئيسي"),
+      driverName: String(v?.brand || v?.driverName || "غير محدد"),
+      inspectorName: String(v?.part_name || v?.partName || "فاحص النظام"),
+      generalNotes: String(v?.notes || ""),
+      createdAt: v?.created_at || v?.createdAt || "",
+    }));
 
-  const rows = conditions.length > 0
-    ? await db.select().from(vehicleParts).where(and(...conditions)).orderBy(vehicleParts.createdAt)
-    : await db.select().from(vehicleParts).orderBy(vehicleParts.createdAt);
-
-  return NextResponse.json(rows);
+    return NextResponse.json(formatted);
+  } catch (error) {
+    console.error("GET Vehicle Parts Inspection Error:", error);
+    return NextResponse.json([], { status: 200 });
+  }
 }
 
+// ── POST: حفظ استمارة فحص السيارة الجديدة ──
 export async function POST(req: NextRequest) {
-  const user = auth(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json();
-  const [row] = await db.insert(vehicleParts).values(body).returning();
-  return NextResponse.json(row);
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json().catch(() => ({}));
+
+    const plateNumber = String(body.plateNumber || body.plate_number || "").trim();
+    if (!plateNumber) {
+      return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
+    }
+
+    const vehicleId = body.vehicleId ? Number(body.vehicleId) : null;
+    const odometer = Number(body.odometer || body.kmAtInstall) || 0;
+    const inspectionDate = body.inspectionDate && String(body.inspectionDate).trim() !== "" ? body.inspectionDate : null;
+    const inspectorName = String(body.inspectorName || body.partName || "فاحص التقرير");
+    const driverName = String(body.driverName || body.brand || "");
+    const branchName = String(body.branchName || body.supplier || "");
+    const notes = String(body.generalNotes || body.notes || "");
+
+    const result = await db.execute(sql`
+      INSERT INTO vehicle_parts (
+        vehicle_id, plate_number, part_name, brand, supplier, 
+        install_date, km_at_install, condition, notes
+      ) VALUES (
+        ${vehicleId}, ${plateNumber}, ${inspectorName}, ${driverName}, ${branchName},
+        ${inspectionDate}, ${odometer}, 'good', ${notes}
+      ) RETURNING *
+    `);
+
+    const newRow = (result as any).rows?.[0] || (result as any)[0];
+
+    return NextResponse.json({ success: true, data: newRow }, { status: 201 });
+  } catch (error: any) {
+    console.error("POST Vehicle Parts Inspection Error:", error);
+    return NextResponse.json({ error: `فشل الحفظ: ${error?.message || String(error)}` }, { status: 500 });
+  }
 }
