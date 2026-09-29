@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { workOrders, vehicles } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 function auth(req: NextRequest) {
-  try {
-    const t = req.cookies.get("fleet360_token")?.value;
-    return t ? verifyToken(t) : null;
-  } catch {
-    return null;
-  }
+  try { return verifyToken(req.cookies.get("fleet360_token")?.value || ""); } catch { return null; }
 }
 
 function toDate(v: any): string | null {
@@ -47,9 +42,7 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    if (!plateNumber) {
-      return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
-    }
+    if (!plateNumber) return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
 
     const [row] = await db
       .insert(workOrders)
@@ -65,12 +58,16 @@ export async function POST(req: NextRequest) {
         startDate: toDate(b.startDate || b.start_date),
         endDate: toDate(b.endDate || b.end_date),
         technicianName: String(b.technicianName || b.technician_name || ""),
+        receivedBy: String(b.receivedBy || b.received_by || ""), // الفني المستلم
+        lifespanKm: String(Number(b.lifespanKm || b.lifespan_km) || 0), // العمر الافتراضي
+        lastMaintenanceDate: toDate(b.lastMaintenanceDate || b.last_maintenance_date), // آخر صيانة
+        nextMaintenanceDate: toDate(b.nextMaintenanceDate || b.next_maintenance_date), // الصيانة القادمة
+        invoiceUrl: String(b.invoiceUrl || b.invoice_url || ""), // رابط الفاتورة
       } as any)
       .returning();
 
     return NextResponse.json({ success: true, data: row }, { status: 201 });
   } catch (e: any) {
-    console.error("POST work-orders:", e);
     return NextResponse.json({ error: `فشل الحفظ: ${e?.message || e}` }, { status: 500 });
   }
 }
