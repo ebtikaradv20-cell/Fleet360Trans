@@ -30,6 +30,15 @@ const VEHICLE_TEMPLATE_COLUMNS = [
   "تاريخ الترخيص", "الحالة", "الكيلومتر الحالي"
 ];
 
+// 🔴 قائمة أنواع الوقود المعتمدة الجديدة
+const FUEL_TYPES = [
+  "بنزين",
+  "سولار",
+  "بنزين و غاز",
+  "سولار وغاز",
+  "غاز"
+];
+
 const safeNum = (val: any): number => {
   if (val === null || val === undefined) return 0;
   const num = parseFloat(String(val).replace(/[^0-9.-]/g, ""));
@@ -279,13 +288,12 @@ export default function VehiclesPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* ✅ زر الاستيراد الذكي */}
           <ImportExcelButton 
             templateColumns={VEHICLE_TEMPLATE_COLUMNS}
             templateFileName="قالب_السيارات"
             sampleRow={{
               "رقم اللوحة": "ل ج أ 1234", "الشركة المالكة": "ترانس جاس", "الماركة": "تويوتا", "الموديل": "هايلوكس", "سنة الصنع": 2022,
-              "المافظة": "القاهرة", "المنطقة": "التجمع", "الإدارة": "الحركة", "اسم السائق": "أحمد", "نوع الوقود": "سولار",
+              "المحافظة": "القاهرة", "المنطقة": "التجمع", "الإدارة": "الحركة", "اسم السائق": "أحمد", "نوع الوقود": "بنزين و غاز",
               "تاريخ الترخيص": "2025-12-31", "الحالة": "نشطة", "الكيلومتر الحالي": 50000
             }}
             mapRow={mapVehicleRow}
@@ -293,7 +301,6 @@ export default function VehiclesPage() {
             buttonText="استيراد Excel"
           />
 
-          {/* ✅ زر التصدير مع خيار فلترة التواريخ */}
           <ExportExcelButton 
             data={excelData} 
             fileName="سجل_السيارات" 
@@ -407,14 +414,17 @@ export default function VehiclesPage() {
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">سنة الصنع</label>
                   <input type="number" value={formData.year} onChange={e=>setFormData({...formData, year: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" />
                 </div>
+
+                {/* 🔴 قائمة أنواع الوقود الجديدة المحدثة */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">نوع الوقود</label>
                   <select value={formData.fuel_type} onChange={e=>setFormData({...formData, fuel_type: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500">
-                    <option value="بنزين">بنزين</option>
-                    <option value="سولار">سولار</option>
-                    <option value="غاز">غاز</option>
+                    {FUEL_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">المحافظة</label>
                   <input type="text" value={formData.governorate} onChange={e=>setFormData({...formData, governorate: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: كفر الشيخ" />
