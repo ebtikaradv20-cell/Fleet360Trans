@@ -8,9 +8,8 @@ export const dynamic = "force-dynamic";
 
 function auth(req: NextRequest) {
   try {
-    const token = req.cookies.get("fleet360_token")?.value;
-    if (!token) return null;
-    return verifyToken(token);
+    const t = req.cookies.get("fleet360_token")?.value;
+    return t ? verifyToken(t) : null;
   } catch {
     return null;
   }
@@ -18,67 +17,53 @@ function auth(req: NextRequest) {
 
 export async function PUT(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
+  ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const params = await context.params;
-    const id = Number(params.id);
-    if (!id) return NextResponse.json({ error: "معرف غير صحيح" }, { status: 400 });
-
-    const body = await req.json().catch(() => ({}));
-
-    const updateData = {
-      partName: String(body.partName || body.part_name || "").trim(),
-      partNumber: String(body.partNumber || body.part_number || ""),
-      category: String(body.category || ""),
-      quantity: Number(body.quantity) || 0,
-      minimumQuantity: Number(body.minimumQuantity ?? body.minimum_quantity) || 0,
-      unitPrice: String(body.unitPrice ?? body.unit_price ?? 0),
-      supplier: String(body.supplier || ""),
-      location: String(body.location || ""),
-      status: String(body.status || "available"),
-    };
-
-    if (!updateData.partName) {
+    const { id: idStr } = await ctx.params;
+    const id = Number(idStr);
+    const b = await req.json().catch(() => ({}));
+    const partName = String(b.partName || b.part_name || "").trim();
+    if (!partName) {
       return NextResponse.json({ error: "اسم القطعة مطلوب" }, { status: 400 });
     }
 
     const [row] = await db
       .update(spareParts)
-      .set(updateData as any)
+      .set({
+        partName,
+        partNumber: String(b.partNumber || b.part_number || ""),
+        category: String(b.category || ""),
+        quantity: Number(b.quantity) || 0,
+        minimumQuantity: Number(b.minimumQuantity ?? b.minimum_quantity) || 0,
+        unitPrice: String(Number(b.unitPrice ?? b.unit_price) || 0),
+        supplier: String(b.supplier || ""),
+        location: String(b.location || ""),
+        status: String(b.status || "available"),
+      } as any)
       .where(eq(spareParts.id, id))
       .returning();
 
     return NextResponse.json({ success: true, data: row });
-  } catch (error: any) {
-    console.error("PUT Spare Parts Error:", error);
-    return NextResponse.json(
-      { error: `فشل التعديل: ${error?.message || String(error)}` },
-      { status: 500 }
-    );
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "فشل التعديل" }, { status: 500 });
   }
 }
 
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
+  ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const params = await context.params;
-    const id = Number(params.id);
-
-    await db.delete(spareParts).where(eq(spareParts.id, id));
+    const { id } = await ctx.params;
+    await db.delete(spareParts).where(eq(spareParts.id, Number(id)));
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "فشل الحذف" },
-      { status: 500 }
-    );
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "فشل الحذف" }, { status: 500 });
   }
 }
