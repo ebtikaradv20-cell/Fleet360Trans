@@ -1,15 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useApp } from "@/context/AppContext";
-import {
-  SearchCheck,
-  Plus,
-  X,
-  Save,
-  Loader2,
-  Car,
-  Calendar,
-} from "lucide-react";
+import { SearchCheck, Plus, X, Save, Loader2, Car, Calendar } from "lucide-react";
 import ExportExcelButton from "@/components/ExportExcelButton";
 
 const CONDITION_OPTIONS = [
@@ -20,83 +12,19 @@ const CONDITION_OPTIONS = [
   { value: "poor", label: "سيء" },
 ] as const;
 
-const CONDITION_LABEL: Record<string, string> = {
-  excellent: "ممتاز",
-  good: "جيد",
-  average: "متوسط",
-  poor: "سيء",
-};
-
 const CONDITION_COLOR: Record<string, string> = {
-  excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-  good: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
-  average: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-  poor: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
+  excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold",
+  good: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 font-bold",
+  average: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 font-bold",
+  poor: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 font-bold",
 };
 
 const INSPECTION_CATEGORIES = [
-  {
-    title: "1. مستندات ومعلومات المركبة",
-    items: [
-      "رخصة السيارة",
-      "التأمين",
-      "جهاز التتبع / GPS",
-      "مفتاح إضافي",
-      "مطابقة بيانات السيارة",
-    ],
-  },
-  {
-    title: "2. الفحص الخارجي",
-    items: [
-      "الصدام الأمامي",
-      "الصدام الخلفي",
-      "الكبوت",
-      "السقف",
-      "الأبواب",
-      "المرايا الجانبية",
-      "الزجاج الأمامي والخلفي",
-      "الأنوار الخارجية",
-      "الإطارات والجنوط",
-      "الاستبن",
-    ],
-  },
-  {
-    title: "3. الفحص الداخلي",
-    items: [
-      "المقاعد",
-      "لوحة العدادات",
-      "أحزمة الأمان",
-      "التكييف",
-      "الزجاج الكهربائي",
-      "القفل المركزي",
-      "البوق (الكلاكس)",
-      "المساحات",
-    ],
-  },
-  {
-    title: "4. الفحص الميكانيكي",
-    items: [
-      "المحرك",
-      "الزيت",
-      "المياه / سائل التبريد",
-      "البطارية",
-      "الفرامل",
-      "العفشة",
-      "ناقل الحركة (الفتيس)",
-      "التسريب أسفل السيارة",
-    ],
-  },
-  {
-    title: "5. الفحص الكهربائي والسلامة",
-    items: [
-      "الأنوار الداخلية",
-      "إشارات الانعطاف",
-      "حساسات / كاميرا خلفية",
-      "طفاية الحريق",
-      "مثلث التحذير",
-      "عدة الإسعافات",
-    ],
-  },
+  { title: "1. مستندات ومعلومات المركبة", items: ["رخصة السيارة", "التأمين", "جهاز التتبع / GPS", "مفتاح إضافي", "مطابقة بيانات السيارة"] },
+  { title: "2. الفحص الخارجي", items: ["الصدام الأمامي", "الصدام الخلفي", "الكبوت", "السقف", "الأبواب", "المرايا الجانبية", "الزجاج الأمامي والخلفي", "الأنوار الخارجية", "الإطارات والجنوط", "الاستبن"] },
+  { title: "3. الفحص الداخلي", items: ["المقاعد", "لوحة العدادات", "أحزمة الأمان", "التكييف", "الزجاج الكهربائي", "القفل المركزي", "البوق (الكلاكس)", "المساحات"] },
+  { title: "4. الفحص الميكانيكي", items: ["المحرك", "الزيت", "المياه / سائل التبريد", "البطارية", "الفرامل", "العفشة", "ناقل الحركة (الفتيس)", "التسريب أسفل السيارة"] },
+  { title: "5. الفحص الكهربائي والسلامة", items: ["الأنوار الداخلية", "إشارات الانعطاف", "حساسات / كاميرا خلفية", "طفاية الحريق", "مثلث التحذير", "عدة الإسعافات"] }
 ];
 
 type CheckItem = { status: string; date: string; notes: string };
@@ -110,15 +38,9 @@ export default function VehicleInspectionPage() {
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    plateNumber: "",
-    vehicleId: null as number | null,
-    inspectionDate: new Date().toISOString().slice(0, 10),
-    odometer: 0,
-    branchName: "",
-    driverName: "",
-    inspectorName: user?.name || "فاحص النظام",
-    exteriorNotes: "",
-    generalNotes: "",
+    plateNumber: "", vehicleId: null as number | null, inspectionDate: new Date().toISOString().slice(0, 10),
+    odometer: 0, branchName: "", driverName: "", inspectorName: user?.name || "فاحص النظام",
+    exteriorNotes: "", generalNotes: ""
   });
 
   const [checklist, setChecklist] = useState<Record<string, CheckItem>>({});
@@ -126,189 +48,80 @@ export default function VehicleInspectionPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // جرّب المسارين حسب ما عندك
       let res = await fetch("/api/vehicle-inspections");
       if (!res.ok) res = await fetch("/api/vehicle-parts");
       const d = await res.json();
       setData(Array.isArray(d) ? d : []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
+  useEffect(() => { fetch("/api/vehicles").then(r => r.json()).then(d => setVehicles(Array.isArray(d) ? d : [])); }, []);
 
-  useEffect(() => {
-    fetch("/api/vehicles")
-      .then((r) => r.json())
-      .then((d) => setVehicles(Array.isArray(d) ? d : []));
-  }, []);
-
-  const updateItem = (
-    item: string,
-    field: keyof CheckItem,
-    value: string
-  ) => {
-    setChecklist((prev) => ({
-      ...prev,
-      [item]: {
-        status: prev[item]?.status || "",
-        date: prev[item]?.date || "",
-        notes: prev[item]?.notes || "",
-        [field]: value,
-      },
-    }));
+  const updateItem = (item: string, field: keyof CheckItem, value: string) => {
+    setChecklist((prev) => ({ ...prev, [item]: { status: prev[item]?.status || "", date: prev[item]?.date || "", notes: prev[item]?.notes || "", [field]: value } }));
   };
 
-  /** سحب تواريخ آخر صيانة من الزيوت / أوامر الشغل تلقائياً */
   const fetchVehicleHistoryAndAutoFill = async (vehicleId: number) => {
     try {
       const [oilRes, woRes] = await Promise.all([
         fetch(`/api/oil-changes?vehicleId=${vehicleId}`).catch(() => null),
         fetch(`/api/work-orders`).catch(() => null),
       ]);
-
       const oilData = oilRes ? await oilRes.json().catch(() => []) : [];
       const woData = woRes ? await woRes.json().catch(() => []) : [];
 
-      const oils = Array.isArray(oilData) ? oilData : [];
-      const orders = Array.isArray(woData)
-        ? woData.filter(
-            (w: any) =>
-              Number(w.vehicleId) === vehicleId ||
-              Number(w.vehicle_id) === vehicleId
-          )
-        : [];
+      const latestOil = Array.isArray(oilData) && oilData.length > 0 ? oilData[0] : null;
+      const woArray = Array.isArray(woData) ? woData.filter((w: any) => Number(w.vehicleId || w.vehicle_id) === vehicleId) : [];
 
-      const latestOil = oils[0];
-      const latestTires = orders.find(
-        (w: any) =>
-          (w.maintenanceType || w.maintenance_type || "").includes("كاوتش")
-      );
-      const latestSuspension = orders.find(
-        (w: any) =>
-          (w.maintenanceType || w.maintenance_type || "").includes("عفشة")
-      );
-      const latestEngine = orders.find(
-        (w: any) =>
-          (w.maintenanceType || w.maintenance_type || "").includes("ميكانيكا") ||
-          (w.maintenanceType || w.maintenance_type || "").includes("محرك")
-      );
+      const latestTires = woArray.find((w: any) => (w.maintenanceType || "").includes("كاوتش"));
+      const latestSuspension = woArray.find((w: any) => (w.maintenanceType || "").includes("عفشة"));
+      const latestEngine = woArray.find((w: any) => (w.maintenanceType || "").includes("ميكانيكا"));
 
       setChecklist((prev) => {
         const next = { ...prev };
         const fill = (key: string, dateVal: any, note: string) => {
           if (!dateVal) return;
-          const d = String(dateVal).slice(0, 10);
-          next[key] = {
-            status: next[key]?.status || "",
-            date: d,
-            notes: next[key]?.notes || note,
-          };
+          next[key] = { status: next[key]?.status || "", date: String(dateVal).slice(0, 10), notes: next[key]?.notes || note };
         };
-
-        if (latestOil) {
-          fill(
-            "الزيت",
-            latestOil.changeDate || latestOil.change_date,
-            "تلقائي من سجلات الزيوت"
-          );
-        }
-        if (latestTires) {
-          fill(
-            "الإطارات والجنوط",
-            latestTires.startDate || latestTires.start_date,
-            "تلقائي من أوامر الشغل"
-          );
-        }
-        if (latestSuspension) {
-          fill(
-            "العفشة",
-            latestSuspension.startDate || latestSuspension.start_date,
-            "تلقائي من أوامر الشغل"
-          );
-        }
-        if (latestEngine) {
-          fill(
-            "المحرك",
-            latestEngine.startDate || latestEngine.start_date,
-            "تلقائي من أوامر الشغل"
-          );
-        }
+        if (latestOil) fill("الزيت", latestOil.changeDate || latestOil.change_date, "تلقائي من سجلات الزيوت");
+        if (latestTires) fill("الإطارات والجنوط", latestTires.startDate || latestTires.start_date, "تلقائي من أوامر الشغل");
+        if (latestSuspension) fill("العفشة", latestSuspension.startDate || latestSuspension.start_date, "تلقائي من أوامر الشغل");
+        if (latestEngine) fill("المحرك", latestEngine.startDate || latestEngine.start_date, "تلقائي من أوامر الشغل");
         return next;
       });
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      // حفظ عبر vehicle-inspections أو vehicle-parts حسب المتاح
       let res = await fetch("/api/vehicle-inspections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, checklist }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, checklist })
       });
       if (!res.ok) {
         res = await fetch("/api/vehicle-parts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...formData,
-            checklist,
-            partName: formData.inspectorName,
-            brand: formData.driverName,
-            supplier: formData.branchName,
-            installDate: formData.inspectionDate,
-            kmAtInstall: formData.odometer,
-            notes: formData.generalNotes,
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...formData, checklist, partName: formData.inspectorName, brand: formData.driverName, supplier: formData.branchName, installDate: formData.inspectionDate, kmAtInstall: formData.odometer, notes: formData.generalNotes })
         });
       }
-
       const resData = await res.json().catch(() => ({}));
-      if (res.ok && resData.success !== false) {
-        setModalOpen(false);
-        loadData();
-      } else {
-        alert(resData.error || "فشل الحفظ. تأكد من اختيار السيارة.");
-      }
-    } catch {
-      alert("خطأ في الاتصال بالخادم.");
-    } finally {
-      setSaving(false);
-    }
+      if (res.ok && resData.success !== false) { setModalOpen(false); loadData(); } 
+      else { alert(resData.error || "فشل الحفظ. تأكد من اختيار السيارة."); }
+    } catch { alert("خطأ في الاتصال بالخادم."); } finally { setSaving(false); }
   };
 
   const openAdd = () => {
-    setFormData({
-      plateNumber: "",
-      vehicleId: null,
-      inspectionDate: new Date().toISOString().slice(0, 10),
-      odometer: 0,
-      branchName: "",
-      driverName: "",
-      inspectorName: user?.name || "فاحص النظام",
-      exteriorNotes: "",
-      generalNotes: "",
-    });
+    setFormData({ ...formData, plateNumber: "", vehicleId: null, odometer: 0, exteriorNotes: "", generalNotes: "" });
     setChecklist({});
     setModalOpen(true);
   };
 
   const excelData = data.map((r) => ({
     "رقم اللوحة": r.plate_number || r.plateNumber || "",
-    "تاريخ الفحص":
-      r.inspection_date || r.inspectionDate
-        ? new Date(r.inspection_date || r.inspectionDate).toLocaleDateString("en-GB")
-        : "",
+    "تاريخ الفحص": r.inspection_date || r.inspectionDate ? new Date(r.inspection_date || r.inspectionDate).toLocaleDateString("en-GB") : "",
     "قراءة العداد": r.odometer || r.kmAtInstall || 0,
     "الفرع": r.branch_name || r.branchName || "",
     "السائق": r.driver_name || r.driverName || "",
@@ -317,39 +130,26 @@ export default function VehicleInspectionPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* رأس الصفحة */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl">
-            <SearchCheck size={26} />
-          </div>
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl"><SearchCheck size={26} /></div>
           <div>
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white">
-              تقارير فحص السيارات
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              إجمالي {data.length} تقرير فحص مسجل
-            </p>
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white">تقارير فحص السيارات</h1>
+            <p className="text-sm text-gray-500 mt-0.5">إجمالي {data.length} تقرير فحص مسجل</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <ExportExcelButton data={excelData} fileName="تقارير_الفحص" />
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all"
-          >
-            <Plus size={18} />
-            <span>إضافة تقرير فحص</span>
+          {/* ✅ زر التصدير الذكي مع فلترة التاريخ */}
+          <ExportExcelButton data={excelData} fileName="تقارير_الفحص_الشامل" dateColumnName="تاريخ الفحص" />
+          <button onClick={openAdd} className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all">
+            <Plus size={18} /><span>إضافة تقرير فحص</span>
           </button>
         </div>
       </div>
 
-      {/* جدول التقارير */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
         {loading ? (
-          <div className="p-12 flex justify-center text-blue-800 dark:text-blue-400">
-            <Loader2 className="animate-spin" />
-          </div>
+          <div className="p-12 flex justify-center text-blue-800 dark:text-blue-400"><Loader2 className="animate-spin" /></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-right text-sm">
@@ -365,214 +165,54 @@ export default function VehicleInspectionPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {data.map((r, i) => (
-                  <tr
-                    key={r.id || i}
-                    className={`hover:bg-blue-50/50 dark:hover:bg-blue-950/20 ${
-                      i % 2 === 0
-                        ? "bg-white dark:bg-gray-900"
-                        : "bg-gray-50 dark:bg-gray-800/40"
-                    }`}
-                  >
-                    <td className="p-4 font-black text-blue-900 dark:text-blue-400">
-                      {r.plate_number || r.plateNumber}
-                    </td>
-                    <td className="p-4 font-semibold text-gray-700 dark:text-gray-300">
-                      {r.inspection_date || r.inspectionDate
-                        ? new Date(
-                            r.inspection_date || r.inspectionDate
-                          ).toLocaleDateString("en-GB")
-                        : "-"}
-                    </td>
-                    <td className="p-4 font-bold dark:text-gray-200">
-                      {r.driver_name || r.driverName || "-"}
-                    </td>
-                    <td className="p-4 dark:text-gray-200">
-                      {r.inspector_name || r.inspectorName || "-"}
-                    </td>
-                    <td className="p-4 text-gray-600 dark:text-gray-400">
-                      {r.branch_name || r.branchName || "-"}
-                    </td>
-                    <td className="p-4 text-orange-600 font-bold">
-                      {Number(r.odometer || r.kmAtInstall || 0).toLocaleString()}{" "}
-                      كم
-                    </td>
+                  <tr key={r.id || i} className={`hover:bg-blue-50/50 dark:hover:bg-blue-950/20 ${i % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/40"}`}>
+                    <td className="p-4 font-black text-blue-900 dark:text-blue-400">{r.plate_number || r.plateNumber}</td>
+                    <td className="p-4 font-semibold text-gray-700 dark:text-gray-300">{r.inspection_date || r.inspectionDate ? new Date(r.inspection_date || r.inspectionDate).toLocaleDateString("en-GB") : "-"}</td>
+                    <td className="p-4 font-bold dark:text-gray-200">{r.driver_name || r.driverName || "-"}</td>
+                    <td className="p-4 dark:text-gray-200">{r.inspector_name || r.inspectorName || "-"}</td>
+                    <td className="p-4 text-gray-600 dark:text-gray-400">{r.branch_name || r.branchName || "-"}</td>
+                    <td className="p-4 text-orange-600 font-bold">{Number(r.odometer || r.kmAtInstall || 0).toLocaleString()} كم</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {data.length === 0 && (
-              <div className="p-10 text-center text-gray-500 font-bold">
-                لا توجد تقارير فحص مسجلة حالياً.
-              </div>
-            )}
+            {data.length === 0 && <div className="p-10 text-center text-gray-500 font-bold">لا توجد تقارير فحص مسجلة حالياً.</div>}
           </div>
         )}
       </div>
 
-      {/* مودال الاستمارة */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl my-auto flex flex-col max-h-full border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center bg-blue-900 text-white p-4 rounded-t-xl shrink-0">
-              <h2 className="text-lg sm:text-xl font-black flex items-center gap-2">
-                <SearchCheck size={22} />
-                استمارة فحص سيارة — تقييم الحالة (ممتاز / جيد / متوسط / سيء)
-              </h2>
-              <button
-                onClick={() => setModalOpen(false)}
-                className="hover:text-red-300 transition-colors"
-              >
-                <X size={24} />
-              </button>
+              <h2 className="text-lg sm:text-xl font-black flex items-center gap-2"><SearchCheck size={22} /> استمارة فحص سيارة — تقييم الحالة (ممتاز / جيد / متوسط / سيء)</h2>
+              <button onClick={() => setModalOpen(false)} className="hover:text-red-300 transition-colors"><X size={24} /></button>
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto">
               <form id="inspection-form" onSubmit={handleSave} className="space-y-6">
-                {/* بيانات الرأس */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      السيارة (اللوحة) *
-                    </label>
-                    <div className="relative">
-                      <Car
-                        className="absolute start-3 top-2.5 text-gray-400"
-                        size={16}
-                      />
-                      <select
-                        required
-                        className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 ps-9 pe-3 text-sm outline-none focus:border-blue-500"
-                        value={formData.plateNumber}
-                        onChange={(e) => {
-                          const v = vehicles.find(
-                            (x) => x.plateNumber === e.target.value
-                          );
-                          setFormData({
-                            ...formData,
-                            plateNumber: e.target.value,
-                            vehicleId: v?.id ?? null,
-                            driverName:
-                              v?.driverName ||
-                              v?.driver_name ||
-                              formData.driverName,
-                            odometer:
-                              Number(v?.currentKm ?? v?.current_km) ||
-                              formData.odometer,
-                          });
-                          if (v?.id) fetchVehicleHistoryAndAutoFill(v.id);
-                        }}
-                      >
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">السيارة (اللوحة) *</label>
+                    <div className="relative"><Car className="absolute start-3 top-2.5 text-gray-400" size={16}/>
+                      <select required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 ps-9 pe-3 text-sm outline-none focus:border-blue-500" value={formData.plateNumber} onChange={(e) => { const v = vehicles.find((x) => x.plateNumber === e.target.value); setFormData({ ...formData, plateNumber: e.target.value, vehicleId: v?.id ?? null, driverName: v?.driverName || v?.driver_name || formData.driverName, odometer: Number(v?.currentKm ?? v?.current_km) || formData.odometer }); if (v?.id) fetchVehicleHistoryAndAutoFill(v.id); }}>
                         <option value="">-- اختر السيارة --</option>
-                        {vehicles.map((v) => (
-                          <option key={v.id} value={v.plateNumber}>
-                            {v.plateNumber}
-                          </option>
-                        ))}
+                        {vehicles.map((v) => <option key={v.id} value={v.plateNumber}>{v.plateNumber}</option>)}
                       </select>
                     </div>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      عداد الكيلومترات
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none"
-                      value={formData.odometer}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          odometer: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      تاريخ الفحص
-                    </label>
-                    <div className="relative">
-                      <Calendar
-                        className="absolute start-3 top-2.5 text-gray-400"
-                        size={16}
-                      />
-                      <input
-                        type="date"
-                        required
-                        className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 ps-9 pe-3 text-sm outline-none"
-                        value={formData.inspectionDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            inspectionDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      الفرع
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none"
-                      value={formData.branchName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, branchName: e.target.value })
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      اسم السائق
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none"
-                      value={formData.driverName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, driverName: e.target.value })
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      اسم الفاحص
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none"
-                      value={formData.inspectorName}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          inspectorName: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
+                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">عداد الكيلومترات</label><input type="number" required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.odometer} onChange={(e) => setFormData({ ...formData, odometer: Number(e.target.value) || 0 })} /></div>
+                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">تاريخ الفحص</label><div className="relative"><Calendar className="absolute start-3 top-2.5 text-gray-400" size={16}/><input type="date" required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 ps-9 pe-3 text-sm outline-none" value={formData.inspectionDate} onChange={(e) => setFormData({ ...formData, inspectionDate: e.target.value })} /></div></div>
+                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الفرع</label><input type="text" className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.branchName} onChange={(e) => setFormData({ ...formData, branchName: e.target.value })} /></div>
+                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">اسم السائق</label><input type="text" className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.driverName} onChange={(e) => setFormData({ ...formData, driverName: e.target.value })} /></div>
+                  <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">اسم الفاحص</label><input type="text" required className="w-full border dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg py-2 px-3 text-sm outline-none" value={formData.inspectorName} onChange={(e) => setFormData({ ...formData, inspectorName: e.target.value })} /></div>
                 </div>
 
-                {/* شبكة الفحص — Dropdown بدل صح/غلط */}
                 <div className="border border-blue-900 dark:border-blue-700 rounded-xl overflow-hidden shadow-sm">
                   <div className="bg-blue-900 text-white flex text-xs sm:text-sm font-bold text-center items-center">
-                    <div className="flex-[1.2] py-3 border-l border-white/20 px-2">
-                      البند
-                    </div>
-                    <div className="w-28 sm:w-36 py-3 border-l border-white/20">
-                      التقييم
-                    </div>
-                    <div className="w-32 sm:w-40 py-3 border-l border-white/20">
-                      تاريخ آخر تغيير
-                    </div>
+                    <div className="flex-[1.2] py-3 border-l border-white/20 px-2">البند</div>
+                    <div className="w-28 sm:w-36 py-3 border-l border-white/20">التقييم</div>
+                    <div className="w-32 sm:w-40 py-3 border-l border-white/20">تاريخ آخر تغيير</div>
                     <div className="flex-1 py-3 hidden md:block">ملاحظات</div>
                   </div>
 
@@ -585,64 +225,24 @@ export default function VehicleInspectionPage() {
                       {cat.items.map((item, iIdx) => {
                         const current = checklist[item]?.status || "";
                         return (
-                          <div
-                            key={item}
-                            className="flex flex-wrap md:flex-nowrap border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors text-sm items-stretch bg-white dark:bg-gray-900"
-                          >
-                            {/* اسم البند */}
+                          <div key={item} className="flex flex-wrap md:flex-nowrap border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors text-sm items-stretch bg-white dark:bg-gray-900">
                             <div className="flex-[1.2] min-w-[140px] py-2.5 px-3 font-bold text-gray-800 dark:text-gray-100 border-l border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
                               <span>{item}</span>
-                              <span className="text-[10px] text-gray-400 font-black w-5 h-5 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full shrink-0">
-                                {iIdx + 1}
-                              </span>
+                              <span className="text-[10px] text-gray-400 font-black w-5 h-5 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full shrink-0">{iIdx + 1}</span>
                             </div>
 
-                            {/* Dropdown التقييم */}
                             <div className="w-28 sm:w-36 p-1.5 border-l border-gray-200 dark:border-gray-700 flex items-center">
-                              <select
-                                value={current}
-                                onChange={(e) =>
-                                  updateItem(item, "status", e.target.value)
-                                }
-                                className={`w-full text-xs font-bold rounded-lg border dark:border-gray-600 py-2 px-1.5 outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer
-                                  ${
-                                    current
-                                      ? CONDITION_COLOR[current] ||
-                                        "bg-gray-50 dark:bg-gray-800 dark:text-white"
-                                      : "bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-300"
-                                  }`}
-                              >
-                                {CONDITION_OPTIONS.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
+                              <select value={current} onChange={(e) => updateItem(item, "status", e.target.value)} className={`w-full text-xs font-bold rounded-lg border dark:border-gray-600 py-2 px-1.5 outline-none cursor-pointer ${current ? CONDITION_COLOR[current] || "bg-gray-50 dark:bg-gray-800 dark:text-white" : "bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-300"}`}>
+                                {CONDITION_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                               </select>
                             </div>
 
-                            {/* تاريخ آخر تغيير */}
                             <div className="w-32 sm:w-40 p-1.5 border-l border-gray-200 dark:border-gray-700 flex items-center">
-                              <input
-                                type="date"
-                                value={checklist[item]?.date || ""}
-                                onChange={(e) =>
-                                  updateItem(item, "date", e.target.value)
-                                }
-                                className="w-full text-xs p-1.5 border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg outline-none focus:border-blue-500 font-semibold"
-                              />
+                              <input type="date" value={checklist[item]?.date || ""} onChange={(e) => updateItem(item, "date", e.target.value)} className="w-full text-xs p-1.5 border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg outline-none focus:border-blue-500 font-semibold" />
                             </div>
 
-                            {/* ملاحظات */}
                             <div className="flex-1 min-w-full md:min-w-0 p-1.5 flex items-center">
-                              <input
-                                type="text"
-                                value={checklist[item]?.notes || ""}
-                                onChange={(e) =>
-                                  updateItem(item, "notes", e.target.value)
-                                }
-                                placeholder="ملاحظات..."
-                                className="w-full text-xs p-1.5 border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg outline-none focus:border-blue-500"
-                              />
+                              <input type="text" value={checklist[item]?.notes || ""} onChange={(e) => updateItem(item, "notes", e.target.value)} placeholder="ملاحظات..." className="w-full text-xs p-1.5 border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 rounded-lg outline-none focus:border-blue-500" />
                             </div>
                           </div>
                         );
@@ -651,66 +251,23 @@ export default function VehicleInspectionPage() {
                   ))}
                 </div>
 
-                {/* ملاحظات عامة */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 p-2 rounded-t-lg border border-gray-200 dark:border-gray-700 border-b-0">
-                      ملاحظات الفحص الخارجي
-                    </label>
-                    <textarea
-                      rows={3}
-                      className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-b-lg p-3 text-sm outline-none focus:border-blue-500"
-                      placeholder="صدمات / خدوش..."
-                      value={formData.exteriorNotes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          exteriorNotes: e.target.value,
-                        })
-                      }
-                    />
+                    <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 p-2 rounded-t-lg border border-gray-200 dark:border-gray-700 border-b-0">ملاحظات الفحص الخارجي</label>
+                    <textarea rows={3} className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-b-lg p-3 text-sm outline-none focus:border-blue-500" placeholder="صدمات / خدوش..." value={formData.exteriorNotes} onChange={(e) => setFormData({ ...formData, exteriorNotes: e.target.value })} />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 p-2 rounded-t-lg border border-gray-200 dark:border-gray-700 border-b-0">
-                      ملاحظات عامة
-                    </label>
-                    <textarea
-                      rows={3}
-                      className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-b-lg p-3 text-sm outline-none focus:border-blue-500"
-                      placeholder="ملاحظات أخرى..."
-                      value={formData.generalNotes}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          generalNotes: e.target.value,
-                        })
-                      }
-                    />
+                    <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 p-2 rounded-t-lg border border-gray-200 dark:border-gray-700 border-b-0">ملاحظات عامة</label>
+                    <textarea rows={3} className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white rounded-b-lg p-3 text-sm outline-none focus:border-blue-500" placeholder="ملاحظات أخرى..." value={formData.generalNotes} onChange={(e) => setFormData({ ...formData, generalNotes: e.target.value })} />
                   </div>
                 </div>
               </form>
             </div>
 
             <div className="p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-xl flex gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="flex-1 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                إلغاء
-              </button>
-              <button
-                form="inspection-form"
-                type="submit"
-                disabled={saving}
-                className="flex-1 py-3 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-xl shadow-md flex justify-center items-center gap-2"
-              >
-                {saving ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <Save size={18} />
-                )}
-                حفظ واعتماد الاستمارة
+              <button type="button" onClick={() => setModalOpen(false)} className="flex-1 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700">إلغاء</button>
+              <button form="inspection-form" type="submit" disabled={saving} className="flex-1 py-3 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-xl shadow-md flex justify-center items-center gap-2">
+                {saving ? <Loader2 className="animate-spin" /> : <Save size={18} />} حفظ واعتماد الاستمارة الشاملة
               </button>
             </div>
           </div>
