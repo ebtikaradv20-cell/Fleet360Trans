@@ -1,94 +1,115 @@
-"use client";
-import React, { useEffect, useState, useCallback } from "react";
-import { useApp } from "@/context/AppContext";
-import { ShieldCheck, Check, X, Loader2, Clock, AlertTriangle } from "lucide-react";
-import DataTable from "@/components/ui/DataTable";
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db";
+import { vehicles } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { verifyToken } from "@/lib/auth";
 
-export default function ApprovalsPage() {
-  const { user } = useApp();
-  const [approvals, setApprovals] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<number | null>(null);
+export const dynamic = "force-dynamic";
 
-  const loadApprovals = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/approvals");
-      const data = await res.json();
-      setApprovals(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadApprovals(); }, [loadApprovals]);
-
-  const handleAction = async (id: number, action: "approve" | "reject") => {
-    if (!confirm(`هل أنت متأكد من ${action === "approve" ? "قبول" : "رفض"} هذا الطلب؟`)) return;
-    setProcessing(id);
-    try {
-      const res = await fetch(`/api/approvals/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: action === "approve" ? "approved" : "rejected" })
-      });
-      if (res.ok) {
-        loadApprovals();
-      } else {
-        const err = await res.json();
-        alert(err.error || "حدث خطأ");
-      }
-    } catch (e) {
-      alert("تعذر الاتصال بالخادم");
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const columns = [
-    { key: "moduleName", header: "القسم", render: (r:any) => <span className="font-bold text-blue-900">{r.module_name === 'vehicles' ? 'السيارات' : r.module_name}</span> },
-    { key: "requestType", header: "نوع الطلب", render: (r:any) => <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${r.request_type === 'delete' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{r.request_type === 'delete' ? 'طلب حذف' : 'تعديل/إضافة'}</span> },
-    { key: "notes", header: "التفاصيل", render: (r:any) => <span className="text-gray-600 font-semibold">{r.notes || "-"}</span> },
-    { key: "requestedBy", header: "مقدم الطلب", render: (r:any) => <span className="font-bold">{r.requested_by}</span> },
-    { key: "createdAt", header: "التاريخ", render: (r:any) => new Date(r.created_at).toLocaleDateString("en-GB") },
-    { key: "status", header: "الحالة", render: (r:any) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold ${r.status === 'pending' ? 'bg-amber-100 text-amber-700' : r.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700'}`}>
-          {r.status === 'pending' ? 'قيد الانتظار' : r.status === 'approved' ? 'تمت الموافقة' : 'مرفوض'}
-        </span>
-      ) 
-    },
-    { key: "actions", header: "قرار المدير", render: (r:any) => (
-      r.status === 'pending' && user?.role === 'super_admin' ? (
-        <div className="flex gap-2 justify-center">
-          <button onClick={() => handleAction(r.id, "approve")} disabled={processing === r.id} className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg flex items-center gap-1 transition-colors">
-            {processing === r.id ? <Loader2 size={16} className="animate-spin"/> : <Check size={16}/>}
-          </button>
-          <button onClick={() => handleAction(r.id, "reject")} disabled={processing === r.id} className="p-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg flex items-center gap-1 transition-colors">
-            {processing === r.id ? <Loader2 size={16} className="animate-spin"/> : <X size={16}/>}
-          </button>
-        </div>
-      ) : <span className="text-gray-400 text-xs">مغلق</span>
-    )},
-  ];
-
-  if (user?.role === "user") {
-    return <div className="p-12 text-center font-bold text-red-500">غير مصرح لك بدخول هذه الصفحة</div>;
+function auth(req: NextRequest) {
+  try {
+    const token = req.cookies.get("fleet360_token")?.value;
+    if (!token) return null;
+    return verifyToken(token);
+  } catch {
+    return null;
   }
+}
 
-  return (
-    <div className="w-full space-y-6" dir="rtl">
-      <div className="flex items-center gap-3 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-        <div className="p-3 bg-blue-900 text-white rounded-xl shadow-md"><ShieldCheck size={26} /></div>
-        <div><h1 className="text-2xl font-black text-gray-900">مركز الموافقات (Approval Center)</h1><p className="text-sm text-gray-500 mt-0.5">إدارة طلبات الحذف والتعديل المعلقة</p></div>
-      </div>
+function toDateOrNull(val: any): string | null {
+  if (!val || String(val).trim() === "" || String(val).includes("mm/dd")) return null;
+  const d = new Date(String(val).trim());
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
 
-      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
-        {loading ? <div className="p-12 flex justify-center text-blue-800"><Loader2 className="animate-spin" size={32}/></div> : (
-          <DataTable columns={columns} data={approvals} loading={false} />
-        )}
-      </div>
-    </div>
-  );
+// ── PUT: تعديل بيانات سيارة ──
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const params = await context.params;
+    const vehicleId = Number(params.id);
+    if (!vehicleId) return NextResponse.json({ error: "معرف السيارة غير صحيح" }, { status: 400 });
+
+    const body = await req.json().catch(() => ({}));
+
+    const updateData = {
+      plateNumber: String(body.plate_number || body.plateNumber || "").trim(),
+      vin: String(body.vin || "").trim(),
+      company: String(body.company || "").trim(),
+      brand: String(body.brand || "").trim(),
+      model: String(body.model || "").trim(),
+      year: body.year ? Number(body.year) : null,
+      governorate: String(body.governorate || "").trim(),
+      region: String(body.region || "").trim(),
+      department: String(body.department || "").trim(),
+      driverName: String(body.driver_name || body.driverName || "").trim(),
+      status: String(body.status || "active"),
+      currentKm: Number(body.current_km ?? body.currentKm) || 0,
+      licenseExpiry: toDateOrNull(body.license_expiry || body.licenseExpiry),
+      fuelType: String(body.fuel_type || body.fuelType || "بنزين"),
+    };
+
+    await db.execute(sql`
+      UPDATE vehicles SET
+        plate_number = ${updateData.plateNumber},
+        vin = ${updateData.vin},
+        company = ${updateData.company},
+        brand = ${updateData.brand},
+        model = ${updateData.model},
+        year = ${updateData.year},
+        governorate = ${updateData.governorate},
+        region = ${updateData.region},
+        department = ${updateData.department},
+        driver_name = ${updateData.driverName},
+        status = ${updateData.status},
+        current_km = ${updateData.currentKm},
+        license_expiry = ${updateData.licenseExpiry},
+        fuel_type = ${updateData.fuelType}
+      WHERE id = ${vehicleId}
+    `);
+
+    return NextResponse.json({ success: true, message: "تم تعديل بيانات السيارة بنجاح" });
+  } catch (error: any) {
+    console.error("PUT Vehicle Error:", error);
+    return NextResponse.json({ error: error?.message || "فشل في تعديل بيانات السيارة" }, { status: 500 });
+  }
+}
+
+// ── DELETE: الحذف الذكي (Soft Delete للمدير الرئيسي / طلب موافقة للمستويات الأقل) ──
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const params = await context.params;
+    const vehicleId = Number(params.id);
+    if (!vehicleId) return NextResponse.json({ error: "معرف السيارة غير صحيح" }, { status: 400 });
+
+    // إذا كان الموظف Super Admin يتم الحذف الوهمي مباشرة (Soft Delete)
+    if (user.role === "super_admin") {
+      await db.execute(sql`UPDATE vehicles SET is_deleted = 1, deleted_by = ${user.username}, deleted_at = NOW() WHERE id = ${vehicleId}`);
+      return NextResponse.json({ success: true, message: "تم أرشفة السيارة بنجاح (Soft Delete)" });
+    } 
+    // إذا كان الموظف بمستوى أقل يُرسل طلب موافقة للمدير
+    else {
+      await db.execute(sql`UPDATE vehicles SET status = 'pending_deletion' WHERE id = ${vehicleId}`);
+      await db.execute(sql`
+        INSERT INTO approvals (tenant_id, module_name, record_id, request_type, status, notes, requested_by)
+        VALUES (${user.tenantId || 'master'}, 'vehicles', ${vehicleId}, 'delete', 'pending', 'طلب حذف سيارة من الأسطول', ${user.username})
+      `);
+
+      return NextResponse.json({ success: true, message: "تم إرسال طلب الحذف للإدارة الرئيسية للموافقة." });
+    }
+  } catch (error: any) {
+    console.error("DELETE Vehicle Error:", error);
+    return NextResponse.json({ error: error?.message || "فشل إجراء الحذف" }, { status: 500 });
+  }
 }
