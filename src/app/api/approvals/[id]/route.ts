@@ -15,9 +15,8 @@ export async function PUT(
 ) {
   try {
     const user = auth(req);
-    // فقط الـ Super Admin له حق اتخاذ القرار
     if (!user || user.role !== "super_admin") {
-      return NextResponse.json({ error: "غير مصرح لك باتخاذ القرار" }, { status: 403 });
+      return NextResponse.json({ error: "غير مصرح لك باتخاذ القرار (Super Admin Only)" }, { status: 403 });
     }
 
     const params = await context.params;
@@ -25,40 +24,40 @@ export async function PUT(
     const body = await req.json();
     const newStatus = body.status; // 'approved' أو 'rejected'
 
-    // 1. جلب بيانات الطلب
     const raw = await db.execute(sql`SELECT * FROM approvals WHERE id = ${approvalId}`);
     const approval = (raw as any).rows?.[0] || (raw as any)[0];
     
-    if (!approval) return NextResponse.json({ error: "الطلب غير موجود" }, { status: 404 });
-    if (approval.status !== "pending") return NextResponse.json({ error: "تم الرد على هذا الطلب مسبقاً" }, { status: 400 });
+    if (!approval) return NextResponse.json({ error: "طلب غير موجود" }, { status: 404 });
 
-    // 2. تحديث حالة الطلب في جدول الموافقات
+    // تحديث حالة الطلب
     await db.execute(sql`
       UPDATE approvals 
       SET status = ${newStatus}, approved_by = ${user.username}, approved_at = NOW() 
       WHERE id = ${approvalId}
     `);
 
-    // 3. التنفيذ الفعلي للإجراء بناءً على القرار
-    if (approval.module_name === "vehicles" && approval.request_type === "delete") {
-      if (newStatus === "approved") {
-        // موافقة: حذف وهمي للسيارة (إخفاؤها)
-        await db.execute(sql`
-          UPDATE vehicles 
-          SET is_deleted = 1, deleted_by = ${user.username}, deleted_at = NOW(), status = 'deleted' 
-          WHERE id = ${approval.record_id}
-        `);
-      } else if (newStatus === "rejected") {
-        // رفض: إرجاع السيارة للعمل الطبيعي
-        await db.execute(sql`
-          UPDATE vehicles 
-          SET status = 'active' 
-          WHERE id = ${approval.record_id}
-        `);
+    // ⚡ التنفيذ التلقائي لقرار الموافقة على أي قسم
+    if (newStatus === "approved" && approval.request_type === "delete") {
+      if (approval.module_name === "vehicles") {
+        await db.execute(sql`UPDATE vehicles SET is_deleted = 1, status = 'deleted' WHERE id = ${approval.record_id}`);
+      } else if (approval.module_name === "work_orders") {
+        await db.execute(sql`UPDATE work_orders SET is_deleted = 1, status = 'deleted' WHERE id = ${approval.record_id}`);
+      } else if (approval.module_name === "fuel_records") {
+        await db.execute(sql`UPDATE fuel_records SET is_deleted = 1 WHERE id = ${approval.record_id}`);
+      } else if (approval.module_name === "oil_changes") {
+        await db.execute(sql`UPDATE oil_changes SET is_deleted = 1 WHERE id = ${approval.record_id}`);
+      }
+    } 
+    // ⚡ حالة الرفض: إرجاع السجل لربطه وحالته الأصلية
+    else if (newStatus === "rejected") {
+      if (approval.module_name === "vehicles") {
+        await db.execute(sql`UPDATE vehicles SET status = 'active' WHERE id = ${approval.record_id}`);
+      } else if (approval.module_name === "work_orders") {
+        await db.execute(sql`UPDATE work_orders SET status = 'pending' WHERE id = ${approval.record_id}`);
       }
     }
 
-    return NextResponse.json({ success: true, message: `تم ${newStatus === 'approved' ? 'قبول' : 'رفض'} الطلب بنجاح.` });
+    return NextResponse.json({ success: true, message: `تمت معالجة الطلب بـ (${newStatus === 'approved' ? 'القبول' : 'الرفض'}).` });
   } catch (error: any) {
     console.error("PUT Approval Error:", error);
     return NextResponse.json({ error: error?.message || "فشل معالجة الطلب" }, { status: 500 });
