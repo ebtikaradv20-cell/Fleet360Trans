@@ -6,13 +6,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
-        {/* ── عنوان وأيقونة اللوجو لتاب المتصفح ── */}
         <title>Fleet360 - Trans Gas / TAQA ARABIA</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        <meta name="theme-color" content="#0B1A3B" />
+        <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/logo.png" type="image/png" />
-        <link rel="shortcut icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-        {/* ── سكريبت الدارك مود واللغة المفضلة ── */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -29,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white min-h-screen transition-colors duration-300">
+      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white min-h-screen transition-colors duration-300 antialiased selection:bg-teal-500 selection:text-white">
         <AppProvider>
           {children}
         </AppProvider>
