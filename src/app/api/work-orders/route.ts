@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { workOrders, vehicles } from "@/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -10,64 +9,37 @@ function auth(req: NextRequest) {
   try { return verifyToken(req.cookies.get("fleet360_token")?.value || ""); } catch { return null; }
 }
 
-function toDate(v: any): string | null {
-  if (!v || String(v).trim() === "" || String(v).includes("mm/dd")) return null;
-  const d = new Date(String(v).trim());
-  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const rows = await db.select().from(workOrders).orderBy(desc(workOrders.id));
-    return NextResponse.json(rows);
-  } catch {
-    return NextResponse.json([]);
-  }
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const raw = await db.execute(sql`SELECT * FROM work_orders WHERE tenant_id = ${user.tenantId} ORDER BY id DESC`);
+    const rows = (raw as any).rows || raw || [];
+    const formatted = rows.map((r: any) => ({
+      ...r, orderNumber: r.order_number, vehicleId: r.vehicle_id, plateNumber: r.plate_number,
+      maintenanceType: r.maintenance_type, startDate: r.start_date, endDate: r.end_date, technicianName: r.technician_name
+    }));
+    return NextResponse.json(formatted);
+  } catch { return NextResponse.json([]); }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const b = await req.json().catch(() => ({}));
 
-    let plateNumber = String(b.plateNumber || b.plate_number || "").trim();
-    let vehicleId = b.vehicleId != null && b.vehicleId !== "" ? Number(b.vehicleId) : null;
+    const result = await db.execute(sql`
+      INSERT INTO work_orders (
+        tenant_id, order_number, vehicle_id, plate_number, maintenance_type, status, workshop, description, cost, start_date, end_date, technician_name
+      ) VALUES (
+        ${user.tenantId}, ${b.orderNumber || `WO-${Date.now()}`}, ${Number(b.vehicleId) || null}, ${b.plateNumber || ""}, 
+        ${b.maintenanceType || ""}, ${b.status || "pending"}, ${b.workshop || ""}, ${b.description || ""}, ${Number(b.cost) || 0}, 
+        ${b.startDate || null}, ${b.endDate || null}, ${b.technicianName || ""}
+      ) RETURNING *
+    `);
 
-    if ((!vehicleId || isNaN(vehicleId)) && plateNumber) {
-      try {
-        const found = await db.select().from(vehicles).where(eq(vehicles.plateNumber, plateNumber)).limit(1);
-        if (found[0]?.id) vehicleId = found[0].id;
-      } catch {}
-    }
-
-    if (!plateNumber) return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
-
-    const [row] = await db
-      .insert(workOrders)
-      .values({
-        orderNumber: String(b.orderNumber || b.order_number || `WO-${Date.now()}`),
-        vehicleId: vehicleId && !isNaN(vehicleId) ? vehicleId : null,
-        plateNumber,
-        maintenanceType: String(b.maintenanceType || b.maintenance_type || "صيانة ميكانيكا"),
-        status: String(b.status || "pending"),
-        workshop: String(b.workshop || ""),
-        description: String(b.description || ""),
-        cost: String(Number(b.cost) || 0),
-        startDate: toDate(b.startDate || b.start_date),
-        endDate: toDate(b.endDate || b.end_date),
-        technicianName: String(b.technicianName || b.technician_name || ""),
-        receivedBy: String(b.receivedBy || b.received_by || ""), // الفني المستلم
-        lifespanKm: String(Number(b.lifespanKm || b.lifespan_km) || 0), // العمر الافتراضي
-        lastMaintenanceDate: toDate(b.lastMaintenanceDate || b.last_maintenance_date), // آخر صيانة
-        nextMaintenanceDate: toDate(b.nextMaintenanceDate || b.next_maintenance_date), // الصيانة القادمة
-        invoiceUrl: String(b.invoiceUrl || b.invoice_url || ""), // رابط الفاتورة
-      } as any)
-      .returning();
-
-    return NextResponse.json({ success: true, data: row }, { status: 201 });
-  } catch (e: any) {
-    return NextResponse.json({ error: `فشل الحفظ: ${e?.message || e}` }, { status: 500 });
-  }
+    return NextResponse.json({ success: true, data: (result as any).rows?.[0] }, { status: 201 });
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }
