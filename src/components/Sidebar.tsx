@@ -5,14 +5,14 @@ import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import {
   LayoutDashboard, Car, Fuel, Wrench, Droplet, 
-  ClipboardCheck, Database, Users, LogOut
+  ClipboardCheck, Database, Users, LogOut, ShieldCheck
 } from "lucide-react";
 
 interface SidebarProps { collapsed?: boolean; }
 
 export default function Sidebar({ collapsed = false }: SidebarProps) {
   const pathname = usePathname();
-  const { isRTL } = useApp();
+  const { isRTL, user } = useApp();
 
   const menuItems = [
     { name: "لوحة التحكم", href: "/dashboard", icon: <LayoutDashboard size={22} /> },
@@ -22,8 +22,16 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     { name: "الزيوت وقطع الغيار", href: "/dashboard/oil-changes", icon: <Droplet size={22} /> },
     { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: <ClipboardCheck size={22} /> },
     { name: "داتا الأسطول الشاملة", href: "/dashboard/fleet-data", icon: <Database size={22} /> },
+    // 🌟 الشاشة الجديدة لإدارة طلبات الحذف والموافقات
+    { name: "الطلبات والموافقات", href: "/dashboard/approvals", icon: <ShieldCheck size={22} /> },
     { name: "المستخدمون", href: "/dashboard/users", icon: <Users size={22} /> },
   ];
+
+  // إخفاء الموافقات والمستخدمين عن المستوى الثالث (user)
+  const filteredMenu = menuItems.filter(item => {
+    if (user?.role === "user" && (item.href.includes("users") || item.href.includes("approvals"))) return false;
+    return true;
+  });
 
   return (
     <aside
@@ -35,7 +43,6 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       `}
       dir={isRTL ? "rtl" : "ltr"}
     >
-      {/* ✅ رأس القائمة (اللوجو ملتصق تماماً بالنص للأعلى) */}
       <div className="pt-4 pb-3 px-2 border-b border-white/15 flex flex-col items-center justify-center text-center transition-all duration-300">
         <img 
           src="/logo.png" alt="Fleet360 Logo" 
@@ -53,7 +60,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
-        {menuItems.map((item) => {
+        {filteredMenu.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link key={item.href} href={item.href} title={collapsed ? item.name : undefined}
