@@ -9,15 +9,10 @@ function auth(req: NextRequest) {
   try { return verifyToken(req.cookies.get("fleet360_token")?.value || ""); } catch { return null; }
 }
 
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> | { id: string } }) {
   try {
     const user = auth(req);
-    if (!user || user.role !== "super_admin") {
-      return NextResponse.json({ error: "غير مصرح لك باتخاذ القرار (Super Admin Only)" }, { status: 403 });
-    }
+    if (!user || (user.role !== "super_admin" && user.role !== "owner")) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const params = await context.params;
     const approvalId = Number(params.id);
@@ -26,40 +21,27 @@ export async function PUT(
 
     const raw = await db.execute(sql`SELECT * FROM approvals WHERE id = ${approvalId}`);
     const approval = (raw as any).rows?.[0] || (raw as any)[0];
-    
     if (!approval) return NextResponse.json({ error: "طلب غير موجود" }, { status: 404 });
 
-    // تحديث حالة الطلب
-    await db.execute(sql`
-      UPDATE approvals 
-      SET status = ${newStatus}, approved_by = ${user.username}, approved_at = NOW() 
-      WHERE id = ${approvalId}
-    `);
+    await db.execute(sql`UPDATE approvals SET status = ${newStatus}, approved_by = ${user.username}, approved_at = NOW() WHERE id = ${approvalId}`);
 
-    // ⚡ التنفيذ التلقائي لقرار الموافقة على أي قسم
-    if (newStatus === "approved" && approval.request_type === "delete") {
-      if (approval.module_name === "vehicles") {
-        await db.execute(sql`UPDATE vehicles SET is_deleted = 1, status = 'deleted' WHERE id = ${approval.record_id}`);
-      } else if (approval.module_name === "work_orders") {
-        await db.execute(sql`UPDATE work_orders SET is_deleted = 1, status = 'deleted' WHERE id = ${approval.record_id}`);
-      } else if (approval.module_name === "fuel_records") {
-        await db.execute(sql`UPDATE fuel_records SET is_deleted = 1 WHERE id = ${approval.record_id}`);
-      } else if (approval.module_name === "oil_changes") {
-        await db.execute(sql`UPDATE oil_changes SET is_deleted = 1 WHERE id = ${approval.record_id}`);
-      }
-    } 
-    // ⚡ حالة الرفض: إرجاع السجل لربطه وحالته الأصلية
-    else if (newStatus === "rejected") {
-      if (approval.module_name === "vehicles") {
-        await db.execute(sql`UPDATE vehicles SET status = 'active' WHERE id = ${approval.record_id}`);
-      } else if (approval.module_name === "work_orders") {
-        await db.execute(sql`UPDATE work_orders SET status = 'pending' WHERE id = ${approval.record_id}`);
+    // ⚡ معالجة أمر الشغل + الإشعارات
+    if (approval.module_name === "work_orders") {
+      if (approval.request_type === "add") {
+        if (newStatus === "approved") {
+          await db.execute(sql`UPDATE work_orders SET status = 'in_progress' WHERE id = ${approval.record_id}`);
+          // إشعار للموظف بالقبول
+          await db.execute(sql`INSERT INTO notifications (tenant_id, target_username, title, message, link) VALUES (${approval.tenant_id}, ${approval.requested_by}, 'تمت الموافقة!', 'تم اعتماد أمر الصيانة الخاص بك وهو الآن قيد التنفيذ.', '/dashboard/work-orders')`);
+        } else {
+          await db.execute(sql`UPDATE work_orders SET is_deleted = 1, status = 'rejected' WHERE id = ${approval.record_id}`);
+          // إشعار للموظف بالرفض
+          await db.execute(sql`INSERT INTO notifications (tenant_id, target_username, title, message, link) VALUES (${approval.tenant_id}, ${approval.requested_by}, 'طلب مرفوض', 'تم رفض طلب أمر الصيانة من قبل الإدارة.', '/dashboard/work-orders')`);
+        }
       }
     }
 
-    return NextResponse.json({ success: true, message: `تمت معالجة الطلب بـ (${newStatus === 'approved' ? 'القبول' : 'الرفض'}).` });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("PUT Approval Error:", error);
-    return NextResponse.json({ error: error?.message || "فشل معالجة الطلب" }, { status: 500 });
+    return NextResponse.json({ error: "فشل معالجة الطلب" }, { status: 500 });
   }
 }
