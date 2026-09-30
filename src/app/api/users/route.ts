@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
@@ -14,14 +14,16 @@ function auth(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
-    if (!user || user.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // ✅ السماح للمدير والمدير الرئيسي بالوصول
+    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // ✅ المدير الماستر يرى الجميع، مدير الفرع يرى مستخدمي فرعه فقط!
     let rows;
-    if (user.tenantId === "master") {
+    if (user.role === "super_admin") {
       rows = await db.select().from(users).orderBy(desc(users.id));
     } else {
-      rows = await db.select().from(users).where(eq(users.tenantId, user.tenantId)).orderBy(desc(users.id));
+      rows = await db.select().from(users).where(eq(users.tenantId, user.tenantId || 'master')).orderBy(desc(users.id));
     }
     return NextResponse.json(rows);
   } catch (error) { return NextResponse.json([], { status: 200 }); }
@@ -30,26 +32,35 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = auth(req);
-    if (!user || user.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // ✅ السماح للمدير والمدير الرئيسي بالإضافة
+    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+      return NextResponse.json({ error: "Forbidden: Access Denied" }, { status: 403 });
+    }
 
     const body = await req.json();
     const username = String(body.username || "").trim().toLowerCase();
     const rawPassword = String(body.password || "").trim();
     const name = String(body.name || "").trim();
     
-    // ⚡ الذكاء المعماري: تحديد الـ Tenant
-    let assignedTenant = user.tenantId; // الافتراضي: يأخذ نفس فرع المدير الذي أنشأه
-    if (body.role === "admin" && body.createNewBranch) {
-      assignedTenant = username; // إذا اختار فرع مستقل، يصبح اسم الفرع هو نفس اسم اليوزر!
+    // ⚡ تحديد مساحة العمل (Tenant)
+    let assignedTenant = user.tenantId || "master"; 
+    // إذا كان المضيف Super Admin واختار (فرع مستقل)
+    if (user.role === "super_admin" && body.role === "admin" && body.createNewBranch) {
+      assignedTenant = username;
     }
 
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
-    const [newUser] = await db.insert(users).values({
-      username, password: hashedPassword, name, role: body.role || "user",
-      permissions: typeof body.permissions === "string" ? body.permissions : JSON.stringify(body.permissions || []),
-      tenantId: assignedTenant, // 👈 حفظ الفرع في الداتا بيز
-    }).returning();
+    const result = await db.execute(sql`
+      INSERT INTO users (username, password, name, role, permissions, tenant_id)
+      VALUES (
+        ${username}, ${hashedPassword}, ${name}, ${body.role || "user"}, 
+        ${typeof body.permissions === "string" ? body.permissions : JSON.stringify(body.permissions || [])}, 
+        ${assignedTenant}
+      ) RETURNING id, username, name, role, permissions, tenant_id, created_at
+    `);
+
+    const newUser = (result as any).rows?.[0] || (result as any)[0];
 
     return NextResponse.json({ success: true, user: newUser }, { status: 201 });
   } catch (error: any) {
