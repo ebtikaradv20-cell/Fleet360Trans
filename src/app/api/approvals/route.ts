@@ -12,17 +12,20 @@ function auth(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
-    if (!user || user.role === "user") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // المدير الرئيسي يرى كل الطلبات، مدير الفرع يرى طلباته المعلقة فقط لمتابعتها
     let raw;
     if (user.role === "super_admin") {
-      raw = await db.execute(sql`SELECT * FROM approvals ORDER BY id DESC`);
+      raw = await db.execute(sql`SELECT * FROM approvals ORDER BY CASE WHEN status = 'pending' THEN 1 ELSE 2 END, id DESC`);
     } else {
       raw = await db.execute(sql`SELECT * FROM approvals WHERE tenant_id = ${user.tenantId} ORDER BY id DESC`);
     }
 
-    return NextResponse.json((raw as any).rows || raw || []);
+    const rows = (raw as any).rows || raw || [];
+    return NextResponse.json(rows);
   } catch (error) {
+    console.error("GET Approvals Error:", error);
     return NextResponse.json([], { status: 200 });
   }
 }
