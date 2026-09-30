@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { workOrders } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { workOrders, vehicles } from "@/db/schema";
+import { eq, desc, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +16,18 @@ function auth(req: NextRequest) {
   }
 }
 
+function toDateOrNull(val: any): string | null {
+  if (!val || String(val).trim() === "" || String(val).includes("mm/dd")) return null;
+  const d = new Date(String(val).trim());
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+// ── GET: جلب الصيانات غير المحذوفة وهمياً ──
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // جلب الأوامر غير المحذوفة وهمياً
     let raw;
     if (user.role === "super_admin") {
       raw = await db.execute(sql`SELECT * FROM work_orders WHERE is_deleted = 0 ORDER BY id DESC`);
@@ -53,30 +59,71 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ── POST: إضافة أمر صيانة مع الاحترام التام للحالة المحددة ──
 export async function POST(req: NextRequest) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const b = await req.json().catch(() => ({}));
+    let plateNumber = String(b.plateNumber || b.plate_number || "").trim();
+    let vehicleId = b.vehicleId ? Number(b.vehicleId) : null;
+
+    if (!plateNumber) return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
+
+    // ⚡ قراءة الحالة المحددة من الفورم (قيد التنفيذ / مكتمل / معلق)
+    const selectedStatus = String(b.status || "in_progress");
+    const isSuperAdmin = user.role === "super_admin";
+
+    // لو اليوزر مش Super Admin -> الحالة تكون بانتظار الموافقة
+    const finalStatus = isSuperAdmin ? selectedStatus : "pending_approval";
+
+    const payload = {
+      tenant_id: user.tenantId || 'master',
+      order_number: String(b.orderNumber || `WO-${Date.now()}`),
+      vehicle_id: vehicleId,
+      plate_number: plateNumber,
+      maintenance_type: String(b.maintenanceType || "صيانة ميكانيكا"),
+      status: finalStatus,
+      workshop: String(b.workshop || ""),
+      description: String(b.description || ""),
+      cost: Number(b.cost) || 0,
+      start_date: toDateOrNull(b.startDate || b.start_date),
+      end_date: toDateOrNull(b.endDate || b.end_date),
+      technician_name: String(b.technicianName || b.technician_name || ""),
+      received_by: String(b.receivedBy || b.received_by || ""),
+      lifespan_km: Number(b.lifespanKm || b.lifespan_km) || 0,
+      invoice_url: String(b.invoiceUrl || b.invoice_url || ""),
+      notes: String(b.notes || "")
+    };
 
     const result = await db.execute(sql`
       INSERT INTO work_orders (
         tenant_id, order_number, vehicle_id, plate_number, maintenance_type, status, workshop, 
         description, cost, start_date, end_date, technician_name, received_by, lifespan_km, 
-        last_maintenance_date, next_maintenance_date, invoice_url, notes
+        invoice_url, notes
       ) VALUES (
-        ${user.tenantId || 'master'}, ${b.orderNumber || `WO-${Date.now()}`}, ${Number(b.vehicleId) || null}, 
-        ${b.plateNumber || ""}, ${b.maintenanceType || "صيانة ميكانيكا"}, ${b.status || "pending"}, 
-        ${b.workshop || ""}, ${b.description || ""}, ${Number(b.cost) || 0}, 
-        ${b.startDate || null}, ${b.endDate || null}, ${b.technicianName || ""}, 
-        ${b.receivedBy || ""}, ${Number(b.lifespanKm) || 0}, ${b.lastMaintenanceDate || null}, 
-        ${b.nextMaintenanceDate || null}, ${b.invoiceUrl || ""}, ${b.notes || ""}
+        ${payload.tenant_id}, ${payload.order_number}, ${payload.vehicle_id}, ${payload.plate_number}, 
+        ${payload.maintenance_type}, ${payload.status}, ${payload.workshop}, ${payload.description}, 
+        ${payload.cost}, ${payload.start_date}, ${payload.end_date}, ${payload.technician_name}, 
+        ${payload.received_by}, ${payload.lifespan_km}, ${payload.invoice_url}, ${payload.notes}
       ) RETURNING *
     `);
 
-    return NextResponse.json({ success: true, data: (result as any).rows?.[0] || (result as any)[0] }, { status: 201 });
+    const newRow = (result as any).rows?.[0] || (result as any)[0];
+
+    // ⚡ إذا كان المستخدم غير Super Admin -> إنشاء طلب في جدول الموافقات
+    if (!isSuperAdmin && newRow?.id) {
+      await db.execute(sql`
+        INSERT INTO approvals (tenant_id, module_name, record_id, request_type, status, notes, requested_by)
+        VALUES (${user.tenantId || 'master'}, 'work_orders', ${newRow.id}, 'add', 'pending', ${`طلب إنشاء امر صيانة (${payload.maintenance_type}) بحالة: ${selectedStatus}`}, ${user.username})
+      `);
+      return NextResponse.json({ success: true, data: newRow, message: "تم إرسال أمر الصيانة لـ Super Admin للموافقة." }, { status: 201 });
+    }
+
+    return NextResponse.json({ success: true, data: newRow }, { status: 201 });
   } catch (e: any) {
+    console.error("POST Work Order Error:", e);
     return NextResponse.json({ error: `فشل الحفظ: ${e.message}` }, { status: 500 });
   }
 }
