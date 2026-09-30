@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Loader2
+  Loader2,
+  Database
 } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
@@ -30,7 +31,7 @@ const safeNum = (val: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
-// 🔴 دالة جلب آمنة ومحصنة تضمن عدم انكسار الصفحة تحت أي ظرف
+// دالة جلب آمنة تضمن عدم انكسار الصفحة
 async function safeFetchArray(url: string): Promise<any[]> {
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -49,14 +50,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   
-  // ── 1. الحالات المضمونة ──
+  // ── 1. الحالات الحية ──
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [fuelRecords, setFuelRecords] = useState<any[]>([]);
   const [spareParts, setSpareParts] = useState<any[]>([]);
   const [oilChanges, setOilChanges] = useState<any[]>([]);
 
-  // ضمان اكتمال التحميل في المتصفح لمنع تعارض Recharts
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -91,11 +91,10 @@ export default function DashboardPage() {
     }
   }, [mounted, fetchAllDashboardData]);
 
-  // ── 3. الحسابات الآمنة مع حماية من undefined ──
+  // ── 3. الحسابات ──
   const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
   const safeWorkOrders = Array.isArray(workOrders) ? workOrders : [];
   const safeFuelRecords = Array.isArray(fuelRecords) ? fuelRecords : [];
-  const safeSpareParts = Array.isArray(spareParts) ? spareParts : [];
   const safeOilChanges = Array.isArray(oilChanges) ? oilChanges : [];
 
   const totalVehicles = safeVehicles.length;
@@ -109,7 +108,6 @@ export default function DashboardPage() {
 
   const openWorkOrders = safeWorkOrders.filter(w => w && w.status !== "completed").length;
   const totalFuelCost = safeFuelRecords.reduce((sum, r) => sum + safeNum(r?.totalCost ?? r?.total_cost), 0);
-  const lowStockParts = safeSpareParts.filter(p => p && safeNum(p.quantity) <= safeNum(p.minimumQuantity ?? p.minimum_quantity)).length;
 
   // ── 4. التنبيهات ──
   const today = new Date();
@@ -151,9 +149,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── الكروت الأربعة ── */}
+      {/* ── الكروت الأربعة الزرقاء ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
+        {/* الكارت 1: السيارات */}
         <Link href="/dashboard/vehicles" className="group bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-800/40">
           <div className="flex justify-between items-start relative z-10">
             <div>
@@ -176,6 +175,7 @@ export default function DashboardPage() {
           </div>
         </Link>
 
+        {/* الكارت 2: الصيانات */}
         <Link href="/dashboard/work-orders" className="group bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-700/40">
           <div className="flex justify-between items-start relative z-10">
             <div>
@@ -198,6 +198,7 @@ export default function DashboardPage() {
           </div>
         </Link>
 
+        {/* الكارت 3: الوقود */}
         <Link href="/dashboard/fuel" className="group bg-gradient-to-br from-blue-800 via-blue-700 to-sky-600 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-600/40">
           <div className="flex justify-between items-start relative z-10">
             <div>
@@ -219,15 +220,16 @@ export default function DashboardPage() {
           </div>
         </Link>
 
-        <Link href="/dashboard/spare-parts" className="group bg-gradient-to-br from-blue-700 via-sky-600 to-sky-500 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-sky-500/40">
+        {/* ✅ الكارت 4 المحدث: داتا الأسطول الشاملة */}
+        <Link href="/dashboard/fleet-data" className="group bg-gradient-to-br from-blue-700 via-sky-600 to-sky-500 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-sky-500/40">
           <div className="flex justify-between items-start relative z-10">
             <div>
-              <div className="text-cyan-100 text-xs font-bold mb-1">نواقص قطع الغيار</div>
-              <span className="text-3xl font-black">{lowStockParts}</span>
-              <span className="text-[11px] text-amber-200 font-semibold ms-2">أصناف تحت الحد الأدنى</span>
+              <div className="text-cyan-100 text-xs font-bold mb-1">داتا الأسطول الشاملة</div>
+              <span className="text-2xl font-black block mt-1">البحث المتقدم</span>
+              <span className="text-[11px] text-amber-200 font-semibold inline-block mt-1">سجل الصيانة والوقود الكامل</span>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
-              <Package size={22} className="text-white" />
+              <Database size={22} className="text-white" />
             </div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
@@ -243,7 +245,7 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* ── التنبيهات العاجلة ── */}
+      {/* ── لوحة التنبيهات العاجلة ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
           <div className="p-2.5 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-xl">
