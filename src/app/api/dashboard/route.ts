@@ -16,16 +16,7 @@ export async function GET(req: NextRequest) {
 
     const tenantFilter = user.role === "super_admin" || user.role === "owner" ? sql`1=1` : sql`tenant_id = ${user.tenantId}`;
 
-    // ── الإحصائيات الأساسية ──
-    const vCount = await db.execute(sql`SELECT COUNT(*) as count FROM vehicles WHERE is_deleted = 0 AND ${tenantFilter}`);
-    const woCount = await db.execute(sql`SELECT COUNT(*) as count FROM work_orders WHERE status != 'completed' AND is_deleted = 0 AND ${tenantFilter}`);
-    const fuelCost = await db.execute(sql`SELECT COALESCE(SUM(total_cost::numeric), 0) as total FROM fuel_records WHERE is_deleted = 0 AND ${tenantFilter}`);
-    
-    // ── التنبيهات ──
-    const licenseAlertsRaw = await db.execute(sql`SELECT id, plate_number FROM vehicles WHERE license_expiry IS NOT NULL AND license_expiry <= (CURRENT_DATE + INTERVAL '30 days') AND is_deleted = 0 AND ${tenantFilter}`);
-    const oilAlertsRaw = await db.execute(sql`SELECT id, plate_number FROM oil_changes WHERE is_deleted = 0 AND ((next_change_date IS NOT NULL AND next_change_date <= (CURRENT_DATE + INTERVAL '7 days')) OR (next_change_km > 0 AND (next_change_km - km_at_change) <= alert_km_before)) AND ${tenantFilter}`);
-
-    // ── 📊 التحليلات المالية (آخر 6 شهور) ──
+    // ── 📊 التحليلات المالية (آخر 6 شهور) الحقيقية من قاعدة البيانات ──
     const monthlyStatsRaw = await db.execute(sql`
       SELECT 
         TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') as month,
@@ -42,11 +33,6 @@ export async function GET(req: NextRequest) {
     `);
 
     return NextResponse.json({
-      totalVehicles: Number((vCount as any).rows?.[0]?.count || 0),
-      openWorkOrders: Number((woCount as any).rows?.[0]?.count || 0),
-      totalFuelCost: Number((fuelCost as any).rows?.[0]?.total || 0),
-      licenseAlerts: ((licenseAlertsRaw as any).rows || []).length,
-      oilAlerts: ((oilAlertsRaw as any).rows || []).length,
       monthlyAnalytics: (monthlyStatsRaw as any).rows || []
     });
   } catch (error: any) {
