@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { 
-  Plus, Search, Pencil, Trash2, Car, X, Loader2, Hash 
+  Plus, Search, Pencil, Trash2, Car, X, Loader2, Hash, Download, FileSpreadsheet
 } from "lucide-react";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ImportExcelButton from "@/components/ImportExcelButton";
@@ -65,11 +65,12 @@ export default function VehiclesPage() {
   const fetchVehicles = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/vehicles");
+      const res = await fetch("/api/vehicles", { cache: "no-store" });
       const data = await res.json();
       setVehicles(Array.isArray(data) ? data : (data.vehicles || []));
     } catch (err) {
       console.error("خطأ في جلب السيارات:", err);
+      setVehicles([]); // حماية من انهيار الشاشة
     } finally {
       setLoading(false);
     }
@@ -77,13 +78,16 @@ export default function VehiclesPage() {
 
   useEffect(() => { fetchVehicles(); }, []);
 
-  const uniqueStatuses = ["الكل", ...Array.from(new Set(vehicles.map(v => v.status || "active")))];
-  const uniqueCompanies = ["الكل", ...Array.from(new Set(vehicles.map(v => v.company || "غير محدد")))];
-  const uniqueGovs = ["الكل", ...Array.from(new Set(vehicles.map(v => v.governorate || "غير محدد")))];
-  const uniqueFuels = ["الكل", ...Array.from(new Set(vehicles.map(v => v.fuel_type || "بنزين")))];
-  const uniqueDepts = ["الكل", ...Array.from(new Set(vehicles.map(v => v.department || "غير محدد")))];
+  // تأمين الفلاتر الديناميكية ضد القيم الفارغة
+  const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
+  const uniqueStatuses = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.status || "active")))];
+  const uniqueCompanies = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.company || "غير محدد")))];
+  const uniqueGovs = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.governorate || "غير محدد")))];
+  const uniqueFuels = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.fuel_type || "بنزين")))];
+  const uniqueDepts = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.department || "غير محدد")))];
 
-  const filteredVehicles = vehicles.filter(v => {
+  const filteredVehicles = safeVehicles.filter(v => {
+    if (!v) return false;
     const matchesSearch = 
       (v.plate_number || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.vin || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -152,15 +156,20 @@ export default function VehiclesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("⚠️ تنبيه: هل أنت متأكد من حذف هذه السيارة؟")) return;
+    if (!confirm("⚠️ تنبيه: هل أنت متأكد من حذف هذه السيارة نهائياً؟")) return;
+
     const previousVehicles = [...vehicles];
     setVehicles(prev => prev.filter(v => v.id !== id));
 
     try {
       let res = await fetch(`/api/vehicles/${id}`, { method: "DELETE" });
-      if (res.status === 404 || res.status === 405) { res = await fetch(`/api/vehicles?id=${id}`, { method: "DELETE" }); }
-      if (res.ok) fetchVehicles();
-      else {
+      if (res.status === 404 || res.status === 405) {
+        res = await fetch(`/api/vehicles?id=${id}`, { method: "DELETE" });
+      }
+
+      if (res.ok) {
+        fetchVehicles();
+      } else {
         setVehicles(previousVehicles);
         let errorMsg = "❌ تعذر حذف السيارة لأنها مرتبطة بسجلات أخرى.";
         try { const errData = await res.json(); if (errData && errData.error) errorMsg = errData.error; } catch {}
@@ -230,16 +239,32 @@ export default function VehiclesPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl"><Car size={26} /></div>
-          <div><h1 className="text-2xl font-black text-gray-900 dark:text-white">إدارة الأسطول والسيارات</h1><p className="text-sm text-gray-500 mt-0.5">إجمالي <span className="font-bold text-gray-900 dark:text-white">{vehicles.length}</span> سيارة مسجلة بالأسطول</p></div>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white">إدارة الأسطول والسيارات</h1>
+            <p className="text-sm text-gray-500 mt-0.5">إجمالي <span className="font-bold text-gray-900 dark:text-white">{safeVehicles.length}</span> سيارة مسجلة بالأسطول</p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           <ImportExcelButton 
-            templateColumns={VEHICLE_TEMPLATE_COLUMNS} templateFileName="قالب_السيارات"
-            sampleRow={{ "رقم اللوحة": "ل ج أ 1234", "رقم الشاسيه": "JT2BF22", "الشركة المالكة": "ترانس جاس", "الماركة": "تويوتا", "الموديل": "هايلوكس", "سنة الصنع": 2022, "المحافظة": "القاهرة", "المنطقة": "التجمع", "الإدارة": "الحركة", "اسم السائق": "أحمد", "نوع الوقود": "بنزين و غاز", "تاريخ الترخيص": "2025-12-31", "الحالة": "نشطة", "الكيلومتر الحالي": 50000 }}
-            mapRow={mapVehicleRow} onImport={handleVehiclesImport} buttonText="استيراد Excel"
+            templateColumns={VEHICLE_TEMPLATE_COLUMNS}
+            templateFileName="قالب_السيارات"
+            sampleRow={{
+              "رقم اللوحة": "ل ج أ 1234", "رقم الشاسيه": "JT2BF22", "الشركة المالكة": "ترانس جاس", "الماركة": "تويوتا", "الموديل": "هايلوكس", "سنة الصنع": 2022,
+              "المحافظة": "القاهرة", "المنطقة": "التجمع", "الإدارة": "الحركة", "اسم السائق": "أحمد", "نوع الوقود": "بنزين و غاز",
+              "تاريخ الترخيص": "2025-12-31", "الحالة": "نشطة", "الكيلومتر الحالي": 50000
+            }}
+            mapRow={mapVehicleRow}
+            onImport={handleVehiclesImport}
+            buttonText="استيراد Excel"
           />
-          <ExportExcelButton data={excelData} fileName="سجل_السيارات" dateColumnName="تاريخ الترخيص" />
+
+          <ExportExcelButton 
+            data={excelData} 
+            fileName="سجل_السيارات" 
+            dateColumnName="تاريخ الترخيص" 
+          />
+
           <button onClick={openAddModal} className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer">
             <Plus size={18} /><span>إضافة سيارة</span>
           </button>
@@ -256,10 +281,10 @@ export default function VehiclesPage() {
               <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="ابحث باللوحة، الشاسيه، السائق، الموديل..." className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl ps-9 pe-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
-          <div><label className="block text-xs font-bold mb-1.5">الشركة</label><select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm outline-none">{uniqueCompanies.map((c, i) => <option key={i} value={c}>{c}</option>)}</select></div>
-          <div><label className="block text-xs font-bold mb-1.5">المحافظة</label><select value={selectedGovernorate} onChange={e => setSelectedGovernorate(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm outline-none">{uniqueGovs.map((g, i) => <option key={i} value={g}>{g}</option>)}</select></div>
-          <div><label className="block text-xs font-bold mb-1.5">الإدارة</label><select value={selectedDept} onChange={e => setSelectedDept(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm outline-none">{uniqueDepts.map((d, i) => <option key={i} value={d}>{d}</option>)}</select></div>
-          <div><label className="block text-xs font-bold mb-1.5">الوقود</label><select value={selectedFuel} onChange={e => setSelectedFuel(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm outline-none">{uniqueFuels.map((f, i) => <option key={i} value={f}>{f}</option>)}</select></div>
+          <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">الشركة</label><select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none">{uniqueCompanies.map((c, i) => <option key={i} value={c}>{c}</option>)}</select></div>
+          <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">المحافظة</label><select value={selectedGovernorate} onChange={e => setSelectedGovernorate(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none">{uniqueGovs.map((g, i) => <option key={i} value={g}>{g}</option>)}</select></div>
+          <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">الإدارة</label><select value={selectedDept} onChange={e => setSelectedDept(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none">{uniqueDepts.map((d, i) => <option key={i} value={d}>{d}</option>)}</select></div>
+          <div><label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">الوقود</label><select value={selectedFuel} onChange={e => setSelectedFuel(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none">{uniqueFuels.map((f, i) => <option key={i} value={f}>{f}</option>)}</select></div>
         </div>
       </div>
 
@@ -272,7 +297,15 @@ export default function VehiclesPage() {
             <table className="w-full text-right text-sm">
               <thead className="bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-sm">
                 <tr>
-                  <th className="p-4 font-bold border-l border-blue-600/50">اللوحة / الشاسيه</th><th className="p-4 font-bold border-l border-blue-600/50">الشركة المالكة</th><th className="p-4 font-bold border-l border-blue-600/50">الماركة / الموديل</th><th className="p-4 font-bold border-l border-blue-600/50">المحافظة</th><th className="p-4 font-bold border-l border-blue-600/50">الوقود</th><th className="p-4 font-bold border-l border-blue-600/50">السائق</th><th className="p-4 font-bold border-l border-blue-600/50">تاريخ الترخيص</th><th className="p-4 font-bold border-l border-blue-600/50">الحالة</th><th className="p-4 font-bold text-center">الإجراءات</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">اللوحة / الشاسيه</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">الشركة المالكة</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">الماركة / الموديل</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">المحافظة</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">نوع الوقود</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">اسم السائق</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">تاريخ الترخيص</th>
+                  <th className="p-4 font-bold border-l border-blue-600/50">الحالة</th>
+                  <th className="p-4 font-bold text-center">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -315,19 +348,64 @@ export default function VehiclesPage() {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="block text-xs font-bold mb-1">رقم اللوحة *</label><input type="text" required value={formData.plate_number} onChange={e=>setFormData({...formData, plate_number: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">رقم الشاسيه (VIN)</label><div className="relative"><Hash className="absolute start-3 top-2.5 text-gray-400" size={16}/><input type="text" value={formData.vin || ""} onChange={e=>setFormData({...formData, vin: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl ps-9 pe-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="مثال: JT2BF22..." /></div></div>
-                <div><label className="block text-xs font-bold mb-1">الشركة المالكة</label><input type="text" value={formData.company} onChange={e=>setFormData({...formData, company: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">الماركة</label><input type="text" value={formData.brand} onChange={e=>setFormData({...formData, brand: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">الموديل</label><input type="text" value={formData.model} onChange={e=>setFormData({...formData, model: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">سنة الصنع</label><input type="number" value={formData.year} onChange={e=>setFormData({...formData, year: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">نوع الوقود</label><select value={formData.fuel_type} onChange={e=>setFormData({...formData, fuel_type: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500">{FUEL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                <div><label className="block text-xs font-bold mb-1">المحافظة</label><input type="text" value={formData.governorate} onChange={e=>setFormData({...formData, governorate: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">المنطقة</label><input type="text" value={formData.region} onChange={e=>setFormData({...formData, region: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">الإدارة المختصة</label><input type="text" value={formData.department} onChange={e=>setFormData({...formData, department: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">اسم السائق الرئيسي</label><input type="text" value={formData.driver_name} onChange={e=>setFormData({...formData, driver_name: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">تاريخ انتهاء الترخيص</label><input type="date" value={formData.license_expiry} onChange={e=>setFormData({...formData, license_expiry: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-xs font-bold mb-1">الحالة التشغيلية</label><select value={formData.status} onChange={e=>setFormData({...formData, status: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-500"><option value="active">نشطة</option><option value="maintenance">صيانة</option><option value="stopped">متوقفة</option></select></div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">رقم اللوحة *</label>
+                  <input type="text" required value={formData.plate_number} onChange={e=>setFormData({...formData, plate_number: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: ل ج أ 6318" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">رقم الشاسيه (VIN)</label>
+                  <div className="relative"><Hash className="absolute start-3 top-2.5 text-gray-400" size={16}/><input type="text" value={formData.vin || ""} onChange={e=>setFormData({...formData, vin: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl ps-9 pe-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: JT2BF22..." /></div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الشركة المالكة</label>
+                  <input type="text" value={formData.company} onChange={e=>setFormData({...formData, company: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: ترانس جاس" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الماركة</label>
+                  <input type="text" value={formData.brand} onChange={e=>setFormData({...formData, brand: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: تويوتا" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الموديل</label>
+                  <input type="text" value={formData.model} onChange={e=>setFormData({...formData, model: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: دوبل كابينة" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">سنة الصنع</label>
+                  <input type="number" value={formData.year} onChange={e=>setFormData({...formData, year: Number(e.target.value)})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">نوع الوقود</label>
+                  <select value={formData.fuel_type} onChange={e=>setFormData({...formData, fuel_type: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500">
+                    {FUEL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">المحافظة</label>
+                  <input type="text" value={formData.governorate} onChange={e=>setFormData({...formData, governorate: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: كفر الشيخ" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">المنطقة</label>
+                  <input type="text" value={formData.region} onChange={e=>setFormData({...formData, region: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: دسوق" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الإدارة المختصة</label>
+                  <input type="text" value={formData.department} onChange={e=>setFormData({...formData, department: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" placeholder="مثال: الصيانة" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">اسم السائق الرئيسي</label>
+                  <input type="text" value={formData.driver_name} onChange={e=>setFormData({...formData, driver_name: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">تاريخ انتهاء الترخيص</label>
+                  <input type="date" value={formData.license_expiry} onChange={e=>setFormData({...formData, license_expiry: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">الحالة التشغيلية</label>
+                  <select value={formData.status} onChange={e=>setFormData({...formData, status: e.target.value})} className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white outline-none focus:border-blue-500">
+                    <option value="active">نشطة</option>
+                    <option value="maintenance">صيانة</option>
+                    <option value="stopped">متوقفة</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-5 border-t border-gray-100 dark:border-gray-800">
