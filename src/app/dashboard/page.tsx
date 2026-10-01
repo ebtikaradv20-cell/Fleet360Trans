@@ -2,12 +2,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { 
-  Car, Wrench, Droplet, Package, AlertTriangle, ShieldAlert, Disc, FileText, 
-  ArrowUpRight, CheckCircle2, Clock, AlertCircle, Loader2, BarChart2 
+  Car, Wrench, Droplet, Package, AlertTriangle, ShieldAlert, Disc, 
+  FileText, ArrowUpRight, CheckCircle2, Clock, AlertCircle, Loader2, BarChart2 
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-// داتا المخططات البيانية الوهمية لتعطي حركة مموجة في خلفية الكروت الزرقاء فقط
 const sparklineData = [
   { value: 12 }, { value: 28 }, { value: 18 }, { value: 45 }, 
   { value: 32 }, { value: 55 }, { value: 48 }
@@ -19,7 +18,6 @@ const safeNum = (val: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
-// دالة جلب آمنة لتفادي انكسار الصفحة
 async function safeFetchArray(url: string): Promise<any[]> {
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -38,19 +36,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   
-  // ── مخازن البيانات الحية ──
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [fuelRecords, setFuelRecords] = useState<any[]>([]);
   const [spareParts, setSpareParts] = useState<any[]>([]);
   const [oilChanges, setOilChanges] = useState<any[]>([]);
-  const [dashboardData, setDashboardData] = useState<any>(null); // للتحليل المالي
+  const [dashboardData, setDashboardData] = useState<any>(null); // الداتا الخاصة بالتحليلات الحقيقية
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  // ── محرك جلب البيانات المتوازي لأقصى سرعة ──
   const fetchAllDashboardData = useCallback(async () => {
     setLoading(true);
     try {
@@ -77,13 +71,8 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (mounted) {
-      fetchAllDashboardData();
-    }
-  }, [mounted, fetchAllDashboardData]);
+  useEffect(() => { if (mounted) fetchAllDashboardData(); }, [mounted, fetchAllDashboardData]);
 
-  // ── الحسابات الآمنة مع حماية من undefined ──
   const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
   const safeWorkOrders = Array.isArray(workOrders) ? workOrders : [];
   const safeFuelRecords = Array.isArray(fuelRecords) ? fuelRecords : [];
@@ -99,11 +88,10 @@ export default function DashboardPage() {
   const maintPct = totalVehicles ? Math.round((maintenanceVehicles / totalVehicles) * 100) : 0;
   const stoppedPct = totalVehicles ? Math.round((stoppedVehicles / totalVehicles) * 100) : 0;
 
-  const openWorkOrders = safeWorkOrders.filter(w => w && w.status !== "completed").length;
-  const totalFuelCost = safeFuelRecords.reduce((sum, r) => sum + safeNum(r?.totalCost ?? r?.total_cost), 0);
+  const openWorkOrders = safeWorkOrders.filter(w => w && w.status !== "completed" && (w.is_deleted === 0 || !w.is_deleted)).length;
+  const totalFuelCost = safeFuelRecords.filter(r => r.is_deleted === 0 || !r.is_deleted).reduce((sum, r) => sum + safeNum(r?.totalCost ?? r?.total_cost), 0);
   const lowStockParts = safeSpareParts.filter(p => p && safeNum(p.quantity) <= safeNum(p.minimumQuantity ?? p.minimum_quantity)).length;
 
-  // ── التنبيهات ──
   const today = new Date();
   const thirtyDaysFromNow = new Date();
   thirtyDaysFromNow.setDate(today.getDate() + 30);
@@ -119,7 +107,7 @@ export default function DashboardPage() {
   const lateOilChanges = safeOilChanges.filter(o => o && (o.kmAlert || o.dayAlert)).length;
   const tireAlerts = safeWorkOrders.filter(w => w && String(w.maintenanceType || w.maintenance_type || "").includes("كاوتش") && w.status !== "completed").length;
 
-  // ── بيانات الرسم البياني المالي ──
+  // ── ترجمة وتجهيز بيانات الرسم البياني الحقيقي ──
   const chartData = (dashboardData?.monthlyAnalytics || []).map((m: any) => ({
     name: m.month,
     "تكلفة الوقود": Number(m.fuel_cost) || 0,
@@ -150,9 +138,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── الكروت الأربعة الزرقاء المدرجة (بشكلها الأصلي المحبوب) ── */}
+      {/* ── الكروت الأربعة الزرقاء ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
         <Link href="/dashboard/vehicles" className="group bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-blue-800/40">
           <div className="flex justify-between items-start relative z-10">
             <div>
@@ -160,16 +147,10 @@ export default function DashboardPage() {
               <span className="text-3xl font-black">{totalVehicles}</span>
               <span className="text-[11px] text-teal-400 font-semibold ms-2">{activeVehicles} سيارة نشطة</span>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
-              <Car size={22} className="text-white" />
-            </div>
+            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors"><Car size={22} className="text-white" /></div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#2DD4BF" fill="#0D9488" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%"><AreaChart data={sparklineData}><Area type="monotone" dataKey="value" stroke="#2DD4BF" fill="#0D9488" fillOpacity={0.3} strokeWidth={2}/></AreaChart></ResponsiveContainer>
           </div>
         </Link>
 
@@ -180,16 +161,10 @@ export default function DashboardPage() {
               <span className="text-3xl font-black">{openWorkOrders}</span>
               <span className="text-[11px] text-orange-300 font-semibold ms-2">قيد التنفيذ / معلق</span>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
-              <Wrench size={22} className="text-white" />
-            </div>
+            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors"><Wrench size={22} className="text-white" /></div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#93C5FD" fill="#60A5FA" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%"><AreaChart data={sparklineData}><Area type="monotone" dataKey="value" stroke="#93C5FD" fill="#60A5FA" fillOpacity={0.3} strokeWidth={2}/></AreaChart></ResponsiveContainer>
           </div>
         </Link>
 
@@ -199,106 +174,56 @@ export default function DashboardPage() {
               <div className="text-sky-100 text-xs font-bold mb-1">إجمالي تكلفة الوقود</div>
               <span className="text-3xl font-black">{totalFuelCost.toLocaleString()} <span className="text-xs font-normal">ج.م</span></span>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
-              <Droplet size={22} className="text-white" />
-            </div>
+            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors"><Droplet size={22} className="text-white" /></div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#BAE6FD" fill="#93C5FD" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%"><AreaChart data={sparklineData}><Area type="monotone" dataKey="value" stroke="#BAE6FD" fill="#93C5FD" fillOpacity={0.3} strokeWidth={2}/></AreaChart></ResponsiveContainer>
           </div>
         </Link>
 
-        <Link href="/dashboard/spare-parts" className="group bg-gradient-to-br from-blue-700 via-sky-600 to-sky-500 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-sky-500/40">
+        <Link href="/dashboard/fleet-data" className="group bg-gradient-to-br from-blue-700 via-sky-600 to-sky-500 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-sky-500/40">
           <div className="flex justify-between items-start relative z-10">
             <div>
-              <div className="text-cyan-100 text-xs font-bold mb-1">نواقص المخزون</div>
-              <span className="text-3xl font-black">{lowStockParts}</span>
-              <span className="text-[11px] text-amber-200 font-semibold ms-2">تحتاج إعادة طلب</span>
+              <div className="text-cyan-100 text-xs font-bold mb-1">داتا الأسطول الشاملة</div>
+              <span className="text-2xl font-black block mt-2">البحث المتقدم</span>
+              <span className="text-[11px] text-amber-200 font-semibold inline-block mt-1">سجل السيارات بالكامل</span>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
-              <Package size={22} className="text-white" />
-            </div>
+            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors"><Package size={22} className="text-white" /></div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparklineData}>
-                <Area type="monotone" dataKey="value" stroke="#E0F2FE" fill="#BAE6FD" fillOpacity={0.3} strokeWidth={2}/>
-              </AreaChart>
-            </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%"><AreaChart data={sparklineData}><Area type="monotone" dataKey="value" stroke="#E0F2FE" fill="#BAE6FD" fillOpacity={0.3} strokeWidth={2}/></AreaChart></ResponsiveContainer>
           </div>
         </Link>
-
       </div>
 
-      {/* ── لوحة التنبيهات العاجلة ── */}
+      {/* ── لوحة التنبيهات ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-6">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
-          <div className="p-2.5 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-xl">
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <h2 className="text-lg font-black text-gray-900 dark:text-white">التنبيهات العاجلة للأسطول</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">تتطلب اتخاذ إجراء فوري للحفاظ على سلامة التشغيل</p>
-          </div>
+          <div className="p-2.5 bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 rounded-xl"><AlertTriangle size={22} /></div>
+          <div><h2 className="text-lg font-black text-gray-900 dark:text-white">التنبيهات العاجلة للأسطول</h2><p className="text-xs text-gray-500 mt-0.5">تتطلب اتخاذ إجراء فوري للحفاظ على سلامة التشغيل</p></div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <Link href="/dashboard/oil-changes" className="flex items-center justify-between p-4 rounded-xl border border-amber-200/80 bg-amber-50/40 hover:bg-amber-100/60 transition-all group">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-amber-500 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform"><Droplet size={20} /></div>
-              <div><p className="text-xs text-gray-600 font-bold">تغيير زيوت متأخر</p><p className="text-lg font-black text-amber-600 mt-0.5">{lateOilChanges} سيارة</p></div>
-            </div>
-            <ArrowUpRight size={18} className="text-amber-500 opacity-60 group-hover:opacity-100 transition-all" />
-          </Link>
-
-          <Link href="/dashboard/work-orders" className="flex items-center justify-between p-4 rounded-xl border border-red-200/80 bg-red-50/40 hover:bg-red-100/60 transition-all group">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-red-500 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform"><Disc size={20} /></div>
-              <div><p className="text-xs text-gray-600 font-bold">أعطال كاوتش مفتوحة</p><p className="text-lg font-black text-red-600 mt-0.5">{tireAlerts} أمر صيانة</p></div>
-            </div>
-            <ArrowUpRight size={18} className="text-red-500 opacity-60 group-hover:opacity-100 transition-all" />
-          </Link>
-
-          <Link href="/dashboard/vehicles" className="flex items-center justify-between p-4 rounded-xl border border-purple-200/80 bg-purple-50/40 hover:bg-purple-100/60 transition-all group">
-            <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-purple-600 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform"><ShieldAlert size={20} /></div>
-              <div><p className="text-xs text-gray-600 font-bold">تراخيص منتهية/مقتربة</p><p className="text-lg font-black text-purple-600 mt-0.5">{expiringLicenses} سيارة</p></div>
-            </div>
-            <ArrowUpRight size={18} className="text-purple-500 opacity-60 group-hover:opacity-100 transition-all" />
-          </Link>
+          <Link href="/dashboard/oil-changes" className="flex items-center justify-between p-4 rounded-xl border border-amber-200/80 bg-amber-50/40 hover:bg-amber-100/60 transition-all group"><div className="flex items-center gap-3.5"><div className="p-3 bg-amber-500 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform"><Droplet size={20} /></div><div><p className="text-xs text-gray-600 font-bold">تغيير زيوت متأخر</p><p className="text-lg font-black text-amber-600 mt-0.5">{lateOilChanges} سيارة</p></div></div><ArrowUpRight size={18} className="text-amber-500 opacity-60 group-hover:opacity-100 transition-all" /></Link>
+          <Link href="/dashboard/work-orders" className="flex items-center justify-between p-4 rounded-xl border border-red-200/80 bg-red-50/40 hover:bg-red-100/60 transition-all group"><div className="flex items-center gap-3.5"><div className="p-3 bg-red-500 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform"><Disc size={20} /></div><div><p className="text-xs text-gray-600 font-bold">أعطال كاوتش مفتوحة</p><p className="text-lg font-black text-red-600 mt-0.5">{tireAlerts} أمر صيانة</p></div></div><ArrowUpRight size={18} className="text-red-500 opacity-60 group-hover:opacity-100 transition-all" /></Link>
+          <Link href="/dashboard/vehicles" className="flex items-center justify-between p-4 rounded-xl border border-purple-200/80 bg-purple-50/40 hover:bg-purple-100/60 transition-all group"><div className="flex items-center gap-3.5"><div className="p-3 bg-purple-600 text-white rounded-xl shadow-md group-hover:scale-105 transition-transform"><ShieldAlert size={20} /></div><div><p className="text-xs text-gray-600 font-bold">تراخيص منتهية/مقتربة</p><p className="text-lg font-black text-purple-600 mt-0.5">{expiringLicenses} سيارة</p></div></div><ArrowUpRight size={18} className="text-purple-500 opacity-60 group-hover:opacity-100 transition-all" /></Link>
         </div>
       </div>
 
       {/* ── توزيع حالة الأسطول + الإجراءات السريعة ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* توزيع حالة الأسطول */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2"><Car size={18} className="text-teal-600" /><span>توزيع حالة الأسطول التشغيلي</span></h2>
+            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2"><Car size={18} className="text-teal-600 dark:text-teal-400" /><span>توزيع حالة الأسطول التشغيلي</span></h2>
             <span className="text-xs text-gray-400 font-bold">إجمالي {totalVehicles} سيارة</span>
           </div>
           <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm font-bold mb-1.5"><span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"><CheckCircle2 size={16} className="text-teal-500" /><span>نشطة وفي الخدمة</span></span><span className="text-gray-900 dark:text-white">{activeVehicles} ({activePct}%)</span></div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden"><div className="bg-teal-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${activePct}%` }}></div></div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm font-bold mb-1.5"><span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"><Clock size={16} className="text-amber-500" /><span>قيد الصيانة والتأهيل</span></span><span className="text-gray-900 dark:text-white">{maintenanceVehicles} ({maintPct}%)</span></div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden"><div className="bg-amber-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${maintPct}%` }}></div></div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm font-bold mb-1.5"><span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"><AlertCircle size={16} className="text-red-500" /><span>متوقفة عن العمل</span></span><span className="text-gray-900 dark:text-white">{stoppedVehicles} ({stoppedPct}%)</span></div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden"><div className="bg-red-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${stoppedPct}%` }}></div></div>
-            </div>
+            <div><div className="flex justify-between text-sm font-bold mb-1.5"><span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"><CheckCircle2 size={16} className="text-emerald-500" /><span>نشطة وفي الخدمة</span></span><span className="text-gray-900 dark:text-white">{activeVehicles} ({activePct}%)</span></div><div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden"><div className="bg-emerald-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${activePct}%` }}></div></div></div>
+            <div><div className="flex justify-between text-sm font-bold mb-1.5"><span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"><Clock size={16} className="text-amber-500" /><span>قيد الصيانة والتأهيل</span></span><span className="text-gray-900 dark:text-white">{maintenanceVehicles} ({maintPct}%)</span></div><div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden"><div className="bg-amber-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${maintPct}%` }}></div></div></div>
+            <div><div className="flex justify-between text-sm font-bold mb-1.5"><span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300"><AlertCircle size={16} className="text-red-500" /><span>متوقفة عن العمل</span></span><span className="text-gray-900 dark:text-white">{stoppedVehicles} ({stoppedPct}%)</span></div><div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden"><div className="bg-red-500 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${stoppedPct}%` }}></div></div></div>
           </div>
         </div>
 
-        {/* الإجراءات السريعة */}
         <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
           <div>
             <h2 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><FileText size={18} className="text-teal-500" /><span>الإجراءات السريعة للنظام</span></h2>
@@ -309,13 +234,10 @@ export default function DashboardPage() {
               <Link href="/dashboard/oil-changes" className="p-3.5 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-teal-500/50 hover:bg-teal-50/30 flex items-center justify-between text-sm font-bold text-gray-700 dark:text-gray-200 transition-all group"><span className="group-hover:text-teal-600 transition-colors">جدولة تغيير زيت</span><Filter size={18} className="text-gray-400 group-hover:text-teal-500 transition-colors" /></Link>
             </div>
           </div>
-          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center text-xs text-gray-400">
-            <span>نظام إدارة أسطول Trans Gas / TAQA Arabia</span><span className="font-bold text-teal-600">Enterprise Edition</span>
-          </div>
         </div>
       </div>
 
-      {/* ── 📊 التحليلات المالية الحقيقية (Real Analytics) المدمجة بكل شياكة ── */}
+      {/* ── 📊 التحليلات المالية (الرسم البياني الحقيقي) يظهر إذا توفرت بيانات ── */}
       {chartData.length > 0 && (
         <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-2 mb-6">
@@ -337,9 +259,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
-
-// تعريف الداتا المالية للحفاظ على تواجد المتغير
-const chartData = [] as any[]; // الداتا ستأتي لاحقاً من الـ API عند تفعيلها برمجياً
