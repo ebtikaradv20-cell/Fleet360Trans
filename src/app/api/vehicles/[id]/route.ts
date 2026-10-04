@@ -141,4 +141,14 @@ export async function DELETE(
         console.error("Notification failed (non-blocking):", notifyErr);
       }
 
-      return NextResponse.json({ success: true, message: "تم إرسال طلب الحذف للإدارة 
+      return NextResponse.json({ success: true, message: "تم إرسال طلب الحذف للإدارة الرئيسية للموافقة." });
+    }
+
+    // owner / super_admin: حذف وهمي مباشر
+    await db.execute(sql`UPDATE vehicles SET is_deleted = 1, deleted_by = ${user.username}, deleted_at = NOW() WHERE id = ${vehicleId}`);
+    return NextResponse.json({ success: true, message: "تم أرشفة السيارة بنجاح" });
+  } catch (error: any) {
+    console.error("DELETE Vehicle Error:", error);
+    return NextResponse.json({ error: error?.message || "فشل إجراء الحذف" }, { status: 500 });
+  }
+}
