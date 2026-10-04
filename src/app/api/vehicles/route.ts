@@ -15,15 +15,18 @@ function toDateOrNull(val: any): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
+const ROLE_POWER: Record<string, number> = { owner: 4, super_admin: 3, admin: 2, user: 1 };
+
 // ── GET: جلب السيارات (تتجاهل المحذوف وهمياً وتدعم Multi-Tenancy) ──
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // ⚡ السطر الذهبي: فلترة السيارات حسب الفرع وإخفاء المحذوف وهمياً `is_deleted = 0`
+    const isHighLevel = user.role === "owner" || user.role === "super_admin";
+
     let raw;
-    if (user.role === "super_admin") {
+    if (isHighLevel) {
       raw = await db.execute(sql`SELECT * FROM vehicles WHERE is_deleted = 0 ORDER BY id DESC`);
     } else {
       raw = await db.execute(sql`SELECT * FROM vehicles WHERE tenant_id = ${user.tenantId || 'master'} AND is_deleted = 0 ORDER BY id DESC`);
@@ -52,6 +55,7 @@ export async function GET(req: NextRequest) {
       license_expiry: v?.license_expiry || v?.licenseExpiry || "",
       fuelType: String(v?.fuel_type || v?.fuelType || "بنزين"),
       fuel_type: String(v?.fuel_type || v?.fuelType || "بنزين"),
+      tenant_id: v?.tenant_id || "master",
     }));
 
     return NextResponse.json(formattedVehicles);
