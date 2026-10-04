@@ -70,7 +70,7 @@ export default function VehiclesPage() {
       setVehicles(Array.isArray(data) ? data : (data.vehicles || []));
     } catch (err) {
       console.error("خطأ في جلب السيارات:", err);
-      setVehicles([]); // حماية من انهيار الشاشة
+      setVehicles([]);
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,6 @@ export default function VehiclesPage() {
 
   useEffect(() => { fetchVehicles(); }, []);
 
-  // تأمين الفلاتر الديناميكية ضد القيم الفارغة
   const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
   const uniqueStatuses = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.status || "active")))];
   const uniqueCompanies = ["الكل", ...Array.from(new Set(safeVehicles.map(v => v?.company || "غير محدد")))];
@@ -156,27 +155,19 @@ export default function VehiclesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("⚠️ تنبيه: هل أنت متأكد من حذف هذه السيارة نهائياً؟")) return;
-
-    const previousVehicles = [...vehicles];
-    setVehicles(prev => prev.filter(v => v.id !== id));
+    if (!confirm("⚠️ تنبيه: هل أنت متأكد من حذف هذه السيارة؟")) return;
 
     try {
-      let res = await fetch(`/api/vehicles/${id}`, { method: "DELETE" });
-      if (res.status === 404 || res.status === 405) {
-        res = await fetch(`/api/vehicles?id=${id}`, { method: "DELETE" });
-      }
+      const res = await fetch(`/api/vehicles/${id}`, { method: "DELETE" });
+      const resData = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        if (resData.message) alert(resData.message);
         fetchVehicles();
       } else {
-        setVehicles(previousVehicles);
-        let errorMsg = "❌ تعذر حذف السيارة لأنها مرتبطة بسجلات أخرى.";
-        try { const errData = await res.json(); if (errData && errData.error) errorMsg = errData.error; } catch {}
-        alert(errorMsg);
+        alert(resData.error || "❌ تعذر حذف السيارة.");
       }
     } catch (err) {
-      setVehicles(previousVehicles);
       alert("❌ تعذر الاتصال بالخادم لحذف السيارة.");
     }
   };
@@ -235,7 +226,6 @@ export default function VehiclesPage() {
   return (
     <div className="space-y-6" dir="rtl">
       
-      {/* رأس الصفحة */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-xl"><Car size={26} /></div>
@@ -271,7 +261,6 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      {/* الفلاتر */}
       <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="lg:col-span-2">
@@ -288,7 +277,6 @@ export default function VehiclesPage() {
         </div>
       </div>
 
-      {/* الجدول */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
         {loading ? (
           <div className="p-12 flex justify-center items-center gap-3 text-blue-800 dark:text-blue-400 font-bold"><Loader2 className="animate-spin" /> جاري التحميل...</div>
@@ -325,7 +313,7 @@ export default function VehiclesPage() {
                     <td className="p-4 text-center">
                       <div className="flex justify-center items-center gap-2">
                         <button onClick={() => openEditModal(v)} className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 transition-colors" title="تعديل"><Pencil size={16}/></button>
-                        <button onClick={() => handleDelete(v.id)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 dark:bg-red-900/50 dark:text-red-400 transition-colors" title="حذف نهائي"><Trash2 size={16}/></button>
+                        <button onClick={() => handleDelete(v.id)} className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 dark:bg-red-900/50 dark:text-red-400 transition-colors" title="حذف"><Trash2 size={16}/></button>
                       </div>
                     </td>
                   </tr>
@@ -337,7 +325,6 @@ export default function VehiclesPage() {
         )}
       </div>
 
-      {/* المودال */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800">
