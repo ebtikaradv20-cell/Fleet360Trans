@@ -21,7 +21,8 @@ import {
   Pencil,
   Trash2,
   Paperclip,
-  ImageIcon
+  ImageIcon,
+  FileText
 } from "lucide-react";
 
 interface WorkOrder {
@@ -30,6 +31,8 @@ interface WorkOrder {
   vehicleId: number;
   plateNumber: string;
   maintenanceType: string;
+  operationType: string;
+  sapNumber?: string;
   status: string;
   workshop: string;
   description: string;
@@ -62,24 +65,19 @@ const MAINTENANCE_TYPES = [
   "سمكرة ودهان"
 ];
 
-const WO_TEMPLATE_COLUMNS = [
-  "رقم اللوحة",
-  "اسم الصيانة",
-  "الحالة",
-  "الورشة",
-  "الوصف",
-  "التكلفة",
-  "تاريخ البدء",
-  "تاريخ الانتهاء",
-  "الفني",
-  "ملاحظات"
+const OPERATION_TYPES = [
+  "صيانة جديدة",
+  "إصلاح طارئ",
+  "صيانة دورية"
 ];
 
 const emptyWO: Partial<WorkOrder> = {
   orderNumber: `WO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`,
   plateNumber: "",
   maintenanceType: "صيانة ميكانيكا",
-  status: "in_progress",
+  operationType: "صيانة جديدة",
+  sapNumber: "",
+  status: "pending_approval",
   workshop: "",
   description: "",
   cost: 0,
@@ -113,6 +111,7 @@ export default function WorkOrdersPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"approval" | "invoice">("approval");
   const [editing, setEditing] = useState<Partial<WorkOrder>>(emptyWO);
   const [isEdit, setIsEdit] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -124,7 +123,6 @@ export default function WorkOrdersPage() {
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ التصحيح الصارم: السماح بالوصول لكافة المديرين لزر الإضافة
   const canWrite =
     user?.role === "owner" ||
     user?.role === "super_admin" ||
@@ -142,7 +140,14 @@ export default function WorkOrdersPage() {
       if (dateTo) params.set("to", dateTo);
       const res = await fetch(`/api/work-orders?${params}`);
       const d = await res.json();
-      setData(Array.isArray(d) ? d : []);
+      
+      const mapped = (Array.isArray(d) ? d : []).map((item: any) => ({
+        ...item,
+        operationType: item.operationType || item.operation_type || "صيانة جديدة",
+        sapNumber: item.sapNumber || item.sap_number || ""
+      }));
+
+      setData(mapped);
     } catch (error) {
       console.error(error);
     } finally {
@@ -167,7 +172,8 @@ export default function WorkOrdersPage() {
     const matchesSearch =
       (r.orderNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (r.plateNumber || "").toLowerCase().includes(search.toLowerCase()) ||
-      (r.workshop || "").toLowerCase().includes(search.toLowerCase());
+      (r.workshop || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.sapNumber || "").toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === "الكل" || r.maintenanceType === typeFilter;
     const matchesStatus = statusFilter === "الكل" || r.status === statusFilter;
     return matchesSearch && matchesType && matchesStatus;
@@ -202,7 +208,11 @@ export default function WorkOrdersPage() {
         ...editing,
         vehicleId: Number(editing.vehicleId) || null,
         cost: safeNum(editing.cost),
-        status: editing.status || "in_progress",
+        status: editing.status || (modalMode === "approval" ? "pending_approval" : "completed"),
+        operationType: editing.operationType || "صيانة جديدة",
+        operation_type: editing.operationType || "صيانة جديدة",
+        sapNumber: String(editing.sapNumber || "").trim(),
+        sap_number: String(editing.sapNumber || "").trim(),
         startDate: editing.startDate || null,
         endDate: editing.endDate || null,
         invoiceUrl: editing.invoiceUrl || ""
@@ -227,19 +237,16 @@ export default function WorkOrdersPage() {
     }
   };
 
-  // ✅ الدالة المطورة وفق أعلى معايير البنية البرمجية لمعالجة الحذف
   const handleDelete = async (id: number) => {
     if (!confirm("هل أنت متأكد من حذف هذه الصيانة نهائياً؟")) return;
 
     try {
-      // 1. المحاولة الأولى: الحذف عبر المسار الديناميكي
       let res = await fetch(`/api/work-orders/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" }
       });
       let resData = await res.json().catch(() => ({}));
 
-      // 2. المحاولة الثانية: إذا كان الـ API يعتمد Query Params أو Body
       if (res.status === 404 || res.status === 405) {
         res = await fetch(`/api/work-orders?id=${id}`, {
           method: "DELETE",
@@ -249,7 +256,6 @@ export default function WorkOrdersPage() {
         resData = await res.json().catch(() => ({}));
       }
 
-      // 3. المحاولة الثالثة: إذا رفضت قاعدة البيانات الحذف النهائي (Foreign Key) أو لم يتوفر مسار DELETE، تطبيق Soft Delete عبر PUT
       if (!res.ok && (res.status === 404 || res.status === 405 || res.status === 500 || res.status === 409)) {
         const currentOrder = data.find((item) => item.id === id);
         if (currentOrder) {
@@ -275,13 +281,12 @@ export default function WorkOrdersPage() {
         }
       }
 
-      // 4. تأكيد النجاح وتحديث واجهة المستخدم فورياً
       if (res.ok && resData.success !== false) {
         setData((prev) => prev.filter((item) => item.id !== id));
         alert(resData.message || "تم حذف أمر الصيانة بنجاح");
         load();
       } else {
-        alert(resData.error || resData.message || "فشل حذف أمر الصيانة من الخادم. يرجى مراجعة صلاحيات النظام.");
+        alert(resData.error || resData.message || "فشل حذف أمر الصيانة من الخادم.");
       }
     } catch (error: any) {
       console.error("Delete operation failed:", error);
@@ -312,7 +317,16 @@ export default function WorkOrdersPage() {
     "رقم الأمر": r.orderNumber,
     "رقم اللوحة": r.plateNumber,
     "نوع الصيانة": r.maintenanceType,
-    "الحالة": r.status === "completed" ? "مكتمل" : r.status === "in_progress" ? "قيد التنفيذ" : "معلق",
+    "نوع العملية": r.operationType || "صيانة جديدة",
+    "رقم SAP": r.sapNumber || "-",
+    "الحالة":
+      r.status === "completed"
+        ? "مكتمل"
+        : r.status === "in_progress"
+        ? "قيد التنفيذ"
+        : r.status === "pending_approval"
+        ? "بانتظار الموافقة"
+        : "معلق",
     "الورشة / المركز": r.workshop || "",
     "التكلفة (ج.م)": safeNum(r.cost),
     "تاريخ البدء": r.startDate,
@@ -336,6 +350,27 @@ export default function WorkOrdersPage() {
           {r.maintenanceType}
         </span>
       )
+    },
+    {
+      key: "operationType",
+      header: "نوع العملية",
+      render: (r: WorkOrder) => (
+        <span className="px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg text-xs font-bold border border-blue-200 dark:border-blue-800">
+          {r.operationType || "صيانة جديدة"}
+        </span>
+      )
+    },
+    {
+      key: "sapNumber",
+      header: "رقم SAP",
+      render: (r: WorkOrder) =>
+        r.sapNumber ? (
+          <span className="font-mono text-xs font-black text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-700">
+            {r.sapNumber}
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">-</span>
+        )
     },
     { key: "status", header: "الحالة", render: (r: WorkOrder) => renderStatusBadge(r.status) },
     { key: "workshop", header: "الورشة / المركز" },
@@ -419,19 +454,47 @@ export default function WorkOrdersPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <ExportExcelButton data={excelData} fileName="أوامر_الصيانة" dateColumnName="تاريخ البدء" />
-          {/* ✅ زر الإضافة متاح حسب الصلاحيات الصحيحة */}
+          
           {canWrite && (
-            <button
-              onClick={() => {
-                setEditing(emptyWO);
-                setIsEdit(false);
-                setModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer"
-            >
-              <Plus size={18} />
-              <span>إضافة صيانة</span>
-            </button>
+            <>
+              {/* زر 1: طلب موافقة صيانة */}
+              <button
+                onClick={() => {
+                  setModalMode("approval");
+                  setEditing({
+                    ...emptyWO,
+                    status: "pending_approval",
+                    operationType: "صيانة جديدة",
+                    sapNumber: ""
+                  });
+                  setIsEdit(false);
+                  setModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer"
+              >
+                <Plus size={18} />
+                <span>طلب موافقة صيانة</span>
+              </button>
+
+              {/* زر 2: إضافة فاتورة صيانة */}
+              <button
+                onClick={() => {
+                  setModalMode("invoice");
+                  setEditing({
+                    ...emptyWO,
+                    status: "completed",
+                    operationType: "صيانة جديدة",
+                    sapNumber: ""
+                  });
+                  setIsEdit(false);
+                  setModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer"
+              >
+                <FileText size={18} />
+                <span>إضافة فاتورة صيانة</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -486,6 +549,7 @@ export default function WorkOrdersPage() {
           options={[
             { value: "الكل", label: "الكل" },
             { value: "in_progress", label: "قيد التنفيذ" },
+            { value: "pending_approval", label: "بانتظار الموافقة" },
             { value: "pending", label: "معلق" },
             { value: "completed", label: "مكتمل" }
           ]}
@@ -496,10 +560,10 @@ export default function WorkOrdersPage() {
         <DataTable
           columns={columns}
           data={filteredData}
-          loading={loading}
           onEdit={
             canWrite && activeTab === "active"
               ? (r) => {
+                  setModalMode(r.sapNumber ? "invoice" : "approval");
                   setEditing(r);
                   setIsEdit(true);
                   setModalOpen(true);
@@ -520,7 +584,12 @@ export default function WorkOrdersPage() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[95vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center bg-blue-900 text-white p-4 rounded-t-2xl shrink-0">
               <h2 className="text-xl font-black flex items-center gap-2">
-                <Wrench className="text-teal-400" /> {isEdit ? "تعديل أمر الصيانة" : "إضافة أمر صيانة جديد"}
+                <Wrench className="text-teal-400" />
+                {isEdit
+                  ? "تعديل أمر الصيانة"
+                  : modalMode === "approval"
+                  ? "طلب موافقة صيانة جديدة"
+                  : "إضافة فاتورة صيانة جديدة"}
               </h2>
               <button onClick={() => setModalOpen(false)} className="hover:text-red-400">
                 <X size={24} />
@@ -569,17 +638,37 @@ export default function WorkOrdersPage() {
                       ))}
                     </select>
                   </Field>
-                  <Field label="الحالة التشغيلية">
+
+                  {/* استبدال الحالة التشغيلية بـ "نوع العملية" */}
+                  <Field label="نوع العملية *">
                     <select
+                      required
                       className={inputClass}
-                      value={editing.status || "in_progress"}
-                      onChange={(e) => setEditing({ ...editing, status: e.target.value })}
+                      value={editing.operationType || "صيانة جديدة"}
+                      onChange={(e) => setEditing({ ...editing, operationType: e.target.value })}
                     >
-                      <option value="in_progress">قيد التنفيذ</option>
-                      <option value="pending">معلق</option>
-                      <option value="completed">تمت الصيانة (مكتمل)</option>
+                      {OPERATION_TYPES.map((op) => (
+                        <option key={op} value={op}>
+                          {op}
+                        </option>
+                      ))}
                     </select>
                   </Field>
+
+                  {/* حقل رقم الساب (SAP) المخصص لفورم الفاتورة */}
+                  {modalMode === "invoice" && (
+                    <Field label="رقم الساب (SAP) *">
+                      <input
+                        required
+                        type="text"
+                        className={`${inputClass} font-mono font-bold text-blue-900 dark:text-blue-300`}
+                        value={editing.sapNumber || ""}
+                        onChange={(e) => setEditing({ ...editing, sapNumber: e.target.value })}
+                        placeholder="أدخل رقم الـ SAP يدوياً..."
+                      />
+                    </Field>
+                  )}
+
                   <Field label="اسم الورشة / المركز">
                     <input
                       className={inputClass}
@@ -668,7 +757,7 @@ export default function WorkOrdersPage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-md transition-colors whitespace-nowrap"
+                    className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-md transition-colors whitespace-nowrap cursor-pointer"
                   >
                     <Paperclip size={18} /> {editing.invoiceUrl ? "تغيير المرفق الحالي" : "إرفاق ملف / فاتورة"}
                   </button>
@@ -710,7 +799,12 @@ export default function WorkOrdersPage() {
                 disabled={saving}
                 className="flex-1 py-3 bg-blue-900 text-white font-bold rounded-xl flex justify-center items-center gap-2 shadow-md hover:bg-blue-800"
               >
-                {saving ? <Loader2 className="animate-spin" /> : <Save size={18} />} حفظ أمر الصيانة
+                {saving ? <Loader2 className="animate-spin" /> : <Save size={18} />}
+                {isEdit
+                  ? "حفظ التعديلات"
+                  : modalMode === "approval"
+                  ? "إرسال طلب موافقة الصيانة"
+                  : "حفظ فاتورة الصيانة"}
               </button>
             </div>
           </div>
