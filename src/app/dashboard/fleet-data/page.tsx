@@ -8,51 +8,50 @@ import ExportExcelButton from "@/components/ExportExcelButton";
 import ImportExcelButton from "@/components/ImportExcelButton";
 import {
   Truck,
-  Search,
+  FileSpreadsheet,
+  Download,
+  ChevronDown,
   CheckSquare,
   Square,
-  ChevronDown,
-  X,
-  Loader2,
-  FileSpreadsheet,
-  Layers,
-  CheckCircle2,
-  AlertCircle
+  X
 } from "lucide-react";
 
 interface FleetVehicle {
   id: number;
   plateNumber: string;
   sapNumber?: string;
-  model?: string;
-  make?: string;
-  year?: string | number;
-  type?: string;
-  status?: string;
-  currentOdometer?: number | string;
-  driverName?: string;
-  department?: string;
-  branch?: string;
   chassisNumber?: string;
   engineNumber?: string;
+  company?: string;
+  make?: string;
+  model?: string;
+  year?: string | number;
+  governorate?: string;
+  department?: string;
+  fuelType?: string;
+  driverName?: string;
+  currentOdometer?: number | string;
   licenseExpiry?: string;
   insuranceExpiry?: string;
+  status?: string;
   notes?: string;
 }
 
-const FLEET_TEMPLATE_COLUMNS = [
+const FLEET_FULL_COLUMNS = [
   "رقم اللوحة",
   "رقم SAP",
-  "الموديل / النوع",
+  "الموديل / المركبة",
   "سنة الصنع",
-  "الحالة التشغيلية",
-  "قراءة العداد (كم)",
-  "اسم السائق",
-  "القسم / الإدارة",
-  "الفرع / الموقع",
   "رقم الشاسيه",
   "رقم الماتور",
+  "الشركة المالكة",
+  "المحافظة",
+  "القسم / الإدارة",
+  "السائق المسند",
+  "نوع الوقود",
+  "العداد الحالي (كم)",
   "انتهاء الرخصة",
+  "الحالة التشغيلية",
   "ملاحظات"
 ];
 
@@ -66,14 +65,18 @@ export default function FleetDataPage() {
   const { user } = useApp();
   const [data, setData] = useState<FleetVehicle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("الكل");
-  const [typeFilter, setTypeFilter] = useState("الكل");
 
-  // ── منطق الفلترة المتعددة للسيارات (Multi-Select) ──
+  // الفلاتر
+  const [search, setSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("الكل");
+  const [govFilter, setGovFilter] = useState("الكل");
+  const [deptFilter, setDeptFilter] = useState("الكل");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+
+  // تحديد سيارات متعددة (Multi-Select)
   const [selectedPlates, setSelectedPlates] = useState<string[]>([]);
-  const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false);
+  const vehicleMenuRef = useRef<HTMLDivElement>(null);
 
   const canWrite =
     user?.role === "owner" ||
@@ -81,15 +84,15 @@ export default function FleetDataPage() {
     user?.role === "admin" ||
     user?.permissions?.includes("fleet:write");
 
-  // إغلاق القائمة المنسدلة عند النقر في الخارج
+  // إغلاق قائمة اختيار السيارات عند النقر في الخارج
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsVehicleDropdownOpen(false);
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (vehicleMenuRef.current && !vehicleMenuRef.current.contains(e.target as Node)) {
+        setIsVehicleMenuOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
   const loadData = useCallback(async () => {
@@ -101,11 +104,19 @@ export default function FleetDataPage() {
         ...v,
         plateNumber: v.plateNumber || v.plate_number || "",
         sapNumber: v.sapNumber || v.sap_number || "",
-        currentOdometer: v.currentOdometer || v.current_odometer || 0,
-        driverName: v.driverName || v.driver_name || "",
         chassisNumber: v.chassisNumber || v.chassis_number || "",
         engineNumber: v.engineNumber || v.engine_number || "",
-        licenseExpiry: v.licenseExpiry || v.license_expiry || ""
+        company: v.company || "ترانس جاس",
+        model: v.model || v.make || "",
+        year: v.year || "-",
+        governorate: v.governorate || "كفر الشيخ",
+        department: v.department || "تشغيل وصيانة",
+        fuelType: v.fuelType || v.fuel_type || "سولار و غاز طبيعى",
+        driverName: v.driverName || v.driver_name || "",
+        currentOdometer: v.currentOdometer || v.current_odometer || 0,
+        licenseExpiry: v.licenseExpiry || v.license_expiry || "",
+        status: v.status || "نشطة",
+        notes: v.notes || ""
       }));
       setData(list);
     } catch (err) {
@@ -119,64 +130,87 @@ export default function FleetDataPage() {
     loadData();
   }, [loadData]);
 
-  // قائمة جميع اللوحات المتاحة دون تكرار
   const allPlates = Array.from(new Set(data.map((d) => d.plateNumber).filter(Boolean)));
 
-  const toggleSelectPlate = (plate: string) => {
+  const togglePlate = (plate: string) => {
     setSelectedPlates((prev) =>
       prev.includes(plate) ? prev.filter((p) => p !== plate) : [...prev, plate]
     );
   };
 
-  const selectAllPlates = () => {
-    setSelectedPlates(allPlates);
-  };
-
-  const clearSelectedPlates = () => {
-    setSelectedPlates([]);
-  };
-
-  // ── الفلترة الشاملة ──
+  // الفلترة الشاملة
   const filteredData = data.filter((row) => {
     const matchesSearch =
       (row.plateNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (row.sapNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (row.driverName || "").toLowerCase().includes(search.toLowerCase()) ||
+      (row.chassisNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (row.model || "").toLowerCase().includes(search.toLowerCase());
 
-    const matchesStatus = statusFilter === "الكل" || row.status === statusFilter;
-    const matchesType = typeFilter === "الكل" || row.type === typeFilter;
+    const matchesCompany = companyFilter === "الكل" || row.company === companyFilter;
+    const matchesGov = govFilter === "الكل" || row.governorate === govFilter;
+    const matchesDept = deptFilter === "الكل" || row.department === deptFilter;
+    const matchesStatus =
+      statusFilter === "الكل" ||
+      row.status === statusFilter ||
+      (statusFilter === "نشط" && (row.status === "نشطة" || row.status === "active"));
 
-    // شرط الفلتر المتعدد للسيارات
-    const matchesSelectedVehicles =
+    const matchesSelectedCars =
       selectedPlates.length === 0 || selectedPlates.includes(row.plateNumber);
 
-    return matchesSearch && matchesStatus && matchesType && matchesSelectedVehicles;
+    return (
+      matchesSearch &&
+      matchesCompany &&
+      matchesGov &&
+      matchesDept &&
+      matchesStatus &&
+      matchesSelectedCars
+    );
   });
 
-  // ── بيانات تصدير الإكسل الموحدة (تشمل رقم SAP) ──
+  // تجهيز شيت إكسل الكامل
   const excelData = filteredData.map((row) => ({
     "رقم اللوحة": row.plateNumber,
     "رقم SAP": row.sapNumber || "-",
-    "الموديل / النوع": row.model || row.make || "-",
+    "الموديل / المركبة": row.model || "-",
     "سنة الصنع": row.year || "-",
-    "الحالة التشغيلية": row.status || "نشط",
-    "قراءة العداد (كم)": safeNum(row.currentOdometer),
-    "اسم السائق": row.driverName || "-",
-    "القسم / الإدارة": row.department || "-",
-    "الفرع / الموقع": row.branch || "-",
     "رقم الشاسيه": row.chassisNumber || "-",
     "رقم الماتور": row.engineNumber || "-",
+    "الشركة المالكة": row.company || "ترانس جاس",
+    "المحافظة": row.governorate || "كفر الشيخ",
+    "القسم / الإدارة": row.department || "تشغيل وصيانة",
+    "السائق المسند": row.driverName || "-",
+    "نوع الوقود": row.fuelType || "سولار و غاز طبيعى",
+    "العداد الحالي (كم)": safeNum(row.currentOdometer),
     "انتهاء الرخصة": row.licenseExpiry || "-",
+    "الحالة التشغيلية": row.status || "نشطة",
     "ملاحظات": row.notes || ""
   }));
 
-  // ── معالجة استيراد الشيت وربط البيانات بكافة القوائم ──
+  // قالب الإكسل الفارغ
+  const templateData = allPlates.map((plate) => ({
+    "رقم اللوحة": plate,
+    "رقم SAP": "",
+    "الموديل / المركبة": "",
+    "سنة الصنع": "",
+    "رقم الشاسيه": "",
+    "رقم الماتور": "",
+    "الشركة المالكة": "ترانس جاس",
+    "المحافظة": "كفر الشيخ",
+    "القسم / الإدارة": "تشغيل وصيانة",
+    "السائق المسند": "",
+    "نوع الوقود": "سولار و غاز طبيعى",
+    "العداد الحالي (كم)": 0,
+    "انتهاء الرخصة": "",
+    "الحالة التشغيلية": "نشطة",
+    "ملاحظات": ""
+  }));
+
+  // مزامنة الشيت مع النظام بالكامل
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
     try {
-      // إرسال البيانات للـ API ليتم توزيعها وتحديثها في كل الجداول تلقائياً
       const res = await fetch("/api/vehicles/bulk-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,16 +218,18 @@ export default function FleetDataPage() {
           rows: importedRows.map((r) => ({
             plateNumber: r["رقم اللوحة"] || r.plateNumber,
             sapNumber: r["رقم SAP"] || r["رقم الساب"] || r.sapNumber || "",
-            model: r["الموديل / النوع"] || r.model,
+            model: r["الموديل / المركبة"] || r.model,
             year: r["سنة الصنع"] || r.year,
-            status: r["الحالة التشغيلية"] || r.status || "نشط",
-            currentOdometer: safeNum(r["قراءة العداد (كم)"] || r.currentOdometer),
-            driverName: r["اسم السائق"] || r.driverName,
-            department: r["القسم / الإدارة"] || r.department,
-            branch: r["الفرع / الموقع"] || r.branch,
             chassisNumber: r["رقم الشاسيه"] || r.chassisNumber,
             engineNumber: r["رقم الماتور"] || r.engineNumber,
+            company: r["الشركة المالكة"] || r.company,
+            governorate: r["المحافظة"] || r.governorate,
+            department: r["القسم / الإدارة"] || r.department,
+            driverName: r["السائق المسند"] || r.driverName,
+            fuelType: r["نوع الوقود"] || r.fuelType,
+            currentOdometer: safeNum(r["العداد الحالي (كم)"] || r.currentOdometer),
             licenseExpiry: r["انتهاء الرخصة"] || r.licenseExpiry,
+            status: r["الحالة التشغيلية"] || r.status || "نشطة",
             notes: r["ملاحظات"] || r.notes
           }))
         })
@@ -201,7 +237,7 @@ export default function FleetDataPage() {
 
       const resData = await res.json().catch(() => ({}));
       if (res.ok && resData.success !== false) {
-        alert("تم استيراد الشيت بنجاح ومزامنة بيانات الأسطول مع كافة القوائم المرتبطة.");
+        alert("تم استيراد الشيت ومزامنة كافة بيانات الأسطول بنجاح.");
         loadData();
       } else {
         alert(resData.error || "حدث خطأ أثناء مزامنة بيانات الشيت.");
@@ -212,6 +248,7 @@ export default function FleetDataPage() {
     }
   };
 
+  // جميع أعمدة داتا الأسطول الشاملة الكاملة
   const columns = [
     {
       key: "plateNumber",
@@ -232,30 +269,41 @@ export default function FleetDataPage() {
           <span className="text-gray-400 text-xs">-</span>
         )
     },
-    { key: "model", header: "الموديل / المركبة", render: (r: FleetVehicle) => r.model || r.make || "-" },
+    { key: "model", header: "الموديل / المركبة", render: (r: FleetVehicle) => r.model || "-" },
     { key: "driverName", header: "السائق المسند", render: (r: FleetVehicle) => r.driverName || "-" },
     { key: "department", header: "القسم / الإدارة", render: (r: FleetVehicle) => r.department || "-" },
     {
       key: "currentOdometer",
       header: "العداد الحالي",
       render: (r: FleetVehicle) => (
-        <span className="font-bold text-gray-700 dark:text-gray-300">
+        <span className="font-bold text-gray-800 dark:text-gray-200">
           {safeNum(r.currentOdometer).toLocaleString()} كم
         </span>
       )
     },
+    {
+      key: "chassisNumber",
+      header: "رقم الشاسيه",
+      render: (r: FleetVehicle) => (
+        <span className="font-mono text-xs text-gray-500">{r.chassisNumber || "-"}</span>
+      )
+    },
+    { key: "company", header: "الشركة", render: (r: FleetVehicle) => r.company || "ترانس جاس" },
+    { key: "governorate", header: "المحافظة", render: (r: FleetVehicle) => r.governorate || "كفر الشيخ" },
+    { key: "fuelType", header: "الوقود", render: (r: FleetVehicle) => r.fuelType || "-" },
+    { key: "licenseExpiry", header: "انتهاء الرخصة", render: (r: FleetVehicle) => r.licenseExpiry || "-" },
     {
       key: "status",
       header: "الحالة",
       render: (r: FleetVehicle) => (
         <span
           className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-            r.status === "نشط" || r.status === "active"
-              ? "bg-emerald-100 text-emerald-800"
-              : "bg-amber-100 text-amber-800"
+            r.status === "نشطة" || r.status === "active" || r.status === "نشط"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
           }`}
         >
-          {r.status || "نشط"}
+          {r.status || "نشطة"}
         </span>
       )
     }
@@ -263,7 +311,7 @@ export default function FleetDataPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── الرأس والإجراءات ── */}
+      {/* ── الرأس الأصلي مع الأزرار الثلاثة كاملة ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-300 rounded-xl">
@@ -278,10 +326,20 @@ export default function FleetDataPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {/* 1. تصدير Excel */}
           <ExportExcelButton data={excelData} fileName="داتا_الأسطول_الشاملة" />
+
+          {/* 2. قالب Excel */}
+          <ExportExcelButton
+            data={templateData}
+            fileName="قالب_داتا_الأسطول"
+            buttonText="قالب Excel"
+          />
+
+          {/* 3. استيراد وتحديث الشيت */}
           {canWrite && (
             <ImportExcelButton
-              templateColumns={FLEET_TEMPLATE_COLUMNS}
+              templateColumns={FLEET_FULL_COLUMNS}
               onImport={handleImport}
               buttonText="استيراد وتحديث الشيت"
             />
@@ -289,7 +347,7 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── شريط الفلاتر متضمناً الفلترة المتعددة للسيارات ── */}
+      {/* ── شريط الفلاتر الأصلي متضمناً الفلترة المتعددة للسيارات ── */}
       <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-wrap items-center gap-4 shadow-sm">
         <div className="flex items-center gap-2">
           <label className="text-xs font-bold text-gray-500 dark:text-gray-400">بحث:</label>
@@ -302,50 +360,50 @@ export default function FleetDataPage() {
           />
         </div>
 
-        {/* ── الفلتر المتعدد للسيارات (Multi-Select Dropdown) ── */}
-        <div className="relative" ref={dropdownRef}>
-          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
+        {/* ── فلتر اختيار عدة سيارات مندمج بنفس تصميم باقي الفلاتر ── */}
+        <div className="relative flex items-center gap-2" ref={vehicleMenuRef}>
+          <label className="text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
             تحديد السيارات:
           </label>
           <button
             type="button"
-            onClick={() => setIsVehicleDropdownOpen(!isVehicleDropdownOpen)}
-            className="flex items-center justify-between gap-2 border dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 dark:text-white min-w-[170px] hover:bg-gray-100 transition-colors"
+            onClick={() => setIsVehicleMenuOpen(!isVehicleMenuOpen)}
+            className="flex items-center justify-between gap-2 border dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 dark:text-white min-w-[140px] hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <span>
               {selectedPlates.length === 0
-                ? "جميع السيارات (الكل)"
+                ? "الكل"
                 : `${selectedPlates.length} سيارة محددة`}
             </span>
             <ChevronDown size={14} className="text-gray-400" />
           </button>
 
-          {isVehicleDropdownOpen && (
-            <div className="absolute z-30 top-full mt-1.5 right-0 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 space-y-2">
+          {isVehicleMenuOpen && (
+            <div className="absolute z-50 top-full mt-1.5 right-0 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3 space-y-2">
               <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-gray-800 text-xs">
                 <button
                   type="button"
-                  onClick={selectAllPlates}
-                  className="text-teal-600 font-bold hover:underline"
+                  onClick={() => setSelectedPlates(allPlates)}
+                  className="text-teal-600 font-bold hover:underline cursor-pointer"
                 >
                   تحديد الكل
                 </button>
                 <button
                   type="button"
-                  onClick={clearSelectedPlates}
-                  className="text-red-500 font-bold hover:underline"
+                  onClick={() => setSelectedPlates([])}
+                  className="text-red-500 font-bold hover:underline cursor-pointer"
                 >
                   مسح التحديد
                 </button>
               </div>
 
-              <div className="max-h-52 overflow-y-auto space-y-1">
+              <div className="max-h-56 overflow-y-auto space-y-1">
                 {allPlates.map((plate) => {
                   const isChecked = selectedPlates.includes(plate);
                   return (
                     <div
                       key={plate}
-                      onClick={() => toggleSelectPlate(plate)}
+                      onClick={() => togglePlate(plate)}
                       className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-xs"
                     >
                       {isChecked ? (
@@ -363,6 +421,31 @@ export default function FleetDataPage() {
         </div>
 
         <FilterSelect
+          label="الشركة"
+          value={companyFilter}
+          onChange={setCompanyFilter}
+          options={[{ value: "الكل", label: "الكل" }, { value: "ترانس جاس", label: "ترانس جاس" }]}
+        />
+
+        <FilterSelect
+          label="المحافظة"
+          value={govFilter}
+          onChange={setGovFilter}
+          options={[{ value: "الكل", label: "الكل" }, { value: "كفر الشيخ", label: "كفر الشيخ" }]}
+        />
+
+        <FilterSelect
+          label="الإدارة"
+          value={deptFilter}
+          onChange={setDeptFilter}
+          options={[
+            { value: "الكل", label: "الكل" },
+            { value: "تشغيل وصيانة", label: "تشغيل وصيانة" },
+            { value: "مشروع قلين", label: "مشروع قلين" }
+          ]}
+        />
+
+        <FilterSelect
           label="الحالة التشغيلية"
           value={statusFilter}
           onChange={setStatusFilter}
@@ -375,7 +458,7 @@ export default function FleetDataPage() {
         />
       </div>
 
-      {/* ── جدول البيانات ── */}
+      {/* ── جدول البيانات الشامل الكامل ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable columns={columns} data={filteredData} loading={loading} />
       </div>
