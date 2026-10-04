@@ -113,7 +113,6 @@ export default function UsersPage() {
                 </div>
               )}
 
-              {/* ✅ الحماية من الانهيار هنا (|| []) */}
               {editing.role !== "owner" && editing.role !== "super_admin" && (
                 <div className="col-span-2 mt-2 pt-3 border-t border-gray-100">
                   <label className="block text-xs font-bold text-gray-700 mb-2">أذونات وصلاحيات الإضافة:</label>
