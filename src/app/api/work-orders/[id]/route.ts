@@ -22,21 +22,39 @@ function toDateOrNull(val: any): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
-// ── GET: جلب الصيانات غير المحذوفة وهمياً ──
-export async function GET(req: NextRequest) {
+// ── GET: جلب أمر صيانة محدد برقم الـ ID ──
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const params = await Promise.resolve(context.params);
+    const id = Number(params?.id);
+
+    if (!id || isNaN(id)) {
+      return NextResponse.json({ error: "معرّف أمر الصيانة غير صالح" }, { status: 400 });
+    }
+
     let raw;
     if (user.role === "super_admin") {
-      raw = await db.execute(sql`SELECT * FROM work_orders WHERE is_deleted = 0 ORDER BY id DESC`);
+      raw = await db.execute(sql`SELECT * FROM work_orders WHERE id = ${id}`);
     } else {
-      raw = await db.execute(sql`SELECT * FROM work_orders WHERE tenant_id = ${user.tenantId || 'master'} AND is_deleted = 0 ORDER BY id DESC`);
+      raw = await db.execute(
+        sql`SELECT * FROM work_orders WHERE id = ${id} AND tenant_id = ${user.tenantId || 'master'}`
+      );
     }
 
     const rows = (raw as any).rows || raw || [];
-    const formatted = rows.map((r: any) => ({
+    const r = rows[0];
+
+    if (!r) {
+      return NextResponse.json({ error: "أمر الصيانة غير موجود" }, { status: 404 });
+    }
+
+    const formatted = {
       ...r,
       orderNumber: r.order_number || r.orderNumber,
       vehicleId: r.vehicle_id || r.vehicleId,
@@ -50,80 +68,184 @@ export async function GET(req: NextRequest) {
       lifespanKm: r.lifespan_km || r.lifespanKm,
       lastMaintenanceDate: r.last_maintenance_date || r.lastMaintenanceDate,
       nextMaintenanceDate: r.next_maintenance_date || r.nextMaintenanceDate,
-    }));
+    };
 
     return NextResponse.json(formatted);
   } catch (error) {
-    console.error("GET Work Orders Error:", error);
-    return NextResponse.json([], { status: 200 });
+    console.error("GET Single Work Order Error:", error);
+    return NextResponse.json({ error: "حدث خطأ أثناء جلب أمر الصيانة" }, { status: 500 });
   }
 }
 
-// ── POST: إضافة أمر صيانة مع الاحترام التام للحالة المحددة ──
-export async function POST(req: NextRequest) {
+// ── DELETE: حذف أمر الصيانة (يدعم النقل لسجل المحذوفات والحذف النهائي) ──
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const b = await req.json().catch(() => ({}));
-    let plateNumber = String(b.plateNumber || b.plate_number || "").trim();
-    let vehicleId = b.vehicleId ? Number(b.vehicleId) : null;
+    const params = await Promise.resolve(context.params);
+    const id = Number(params?.id);
 
-    if (!plateNumber) return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
-
-    // ⚡ قراءة الحالة المحددة من الفورم (قيد التنفيذ / مكتمل / معلق)
-    const selectedStatus = String(b.status || "in_progress");
-    const isSuperAdmin = user.role === "super_admin";
-
-    // لو اليوزر مش Super Admin -> الحالة تكون بانتظار الموافقة
-    const finalStatus = isSuperAdmin ? selectedStatus : "pending_approval";
-
-    const payload = {
-      tenant_id: user.tenantId || 'master',
-      order_number: String(b.orderNumber || `WO-${Date.now()}`),
-      vehicle_id: vehicleId,
-      plate_number: plateNumber,
-      maintenance_type: String(b.maintenanceType || "صيانة ميكانيكا"),
-      status: finalStatus,
-      workshop: String(b.workshop || ""),
-      description: String(b.description || ""),
-      cost: Number(b.cost) || 0,
-      start_date: toDateOrNull(b.startDate || b.start_date),
-      end_date: toDateOrNull(b.endDate || b.end_date),
-      technician_name: String(b.technicianName || b.technician_name || ""),
-      received_by: String(b.receivedBy || b.received_by || ""),
-      lifespan_km: Number(b.lifespanKm || b.lifespan_km) || 0,
-      invoice_url: String(b.invoiceUrl || b.invoice_url || ""),
-      notes: String(b.notes || "")
-    };
-
-    const result = await db.execute(sql`
-      INSERT INTO work_orders (
-        tenant_id, order_number, vehicle_id, plate_number, maintenance_type, status, workshop, 
-        description, cost, start_date, end_date, technician_name, received_by, lifespan_km, 
-        invoice_url, notes
-      ) VALUES (
-        ${payload.tenant_id}, ${payload.order_number}, ${payload.vehicle_id}, ${payload.plate_number}, 
-        ${payload.maintenance_type}, ${payload.status}, ${payload.workshop}, ${payload.description}, 
-        ${payload.cost}, ${payload.start_date}, ${payload.end_date}, ${payload.technician_name}, 
-        ${payload.received_by}, ${payload.lifespan_km}, ${payload.invoice_url}, ${payload.notes}
-      ) RETURNING *
-    `);
-
-    const newRow = (result as any).rows?.[0] || (result as any)[0];
-
-    // ⚡ إذا كان المستخدم غير Super Admin -> إنشاء طلب في جدول الموافقات
-    if (!isSuperAdmin && newRow?.id) {
-      await db.execute(sql`
-        INSERT INTO approvals (tenant_id, module_name, record_id, request_type, status, notes, requested_by)
-        VALUES (${user.tenantId || 'master'}, 'work_orders', ${newRow.id}, 'add', 'pending', ${`طلب إنشاء امر صيانة (${payload.maintenance_type}) بحالة: ${selectedStatus}`}, ${user.username})
-      `);
-      return NextResponse.json({ success: true, data: newRow, message: "تم إرسال أمر الصيانة لـ Super Admin للموافقة." }, { status: 201 });
+    if (!id || isNaN(id)) {
+      return NextResponse.json({ error: "معرّف أمر الصيانة غير صالح" }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, data: newRow }, { status: 201 });
-  } catch (e: any) {
-    console.error("POST Work Order Error:", e);
-    return NextResponse.json({ error: `فشل الحفظ: ${e.message}` }, { status: 500 });
+    const isSuperAdmin = user.role === "super_admin";
+    const tenantId = user.tenantId || "master";
+    const isPermanent = req.nextUrl.searchParams.get("permanent") === "true";
+
+    let result;
+
+    if (isPermanent) {
+      // حذف نهائي من قاعدة البيانات (إذا طُلب ذلك من سلة المهملات)
+      if (isSuperAdmin) {
+        result = await db.execute(sql`DELETE FROM work_orders WHERE id = ${id} RETURNING *`);
+      } else {
+        result = await db.execute(
+          sql`DELETE FROM work_orders WHERE id = ${id} AND tenant_id = ${tenantId} RETURNING *`
+        );
+      }
+    } else {
+      // الحذف الناعم القياسي (نقل إلى سجل المحذوفات والمرفوض)
+      if (isSuperAdmin) {
+        result = await db.execute(sql`
+          UPDATE work_orders 
+          SET is_deleted = 1, status = 'deleted' 
+          WHERE id = ${id} 
+          RETURNING *
+        `);
+      } else {
+        result = await db.execute(sql`
+          UPDATE work_orders 
+          SET is_deleted = 1, status = 'deleted' 
+          WHERE id = ${id} AND tenant_id = ${tenantId} 
+          RETURNING *
+        `);
+      }
+    }
+
+    const rows = (result as any).rows || result || [];
+    const deletedRow = rows[0];
+
+    if (!deletedRow) {
+      return NextResponse.json(
+        { error: "أمر الصيانة غير موجود أو لا تملك صلاحية حذفه" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: isPermanent ? "تم الحذف النهائي لأمر الصيانة بنجاح" : "تم نقل أمر الصيانة إلى سجل المحذوفات بنجاح",
+      data: deletedRow,
+    });
+  } catch (error: any) {
+    console.error("DELETE Work Order Error:", error);
+    return NextResponse.json({ error: `فشل الحذف: ${error.message}` }, { status: 500 });
+  }
+}
+
+// ── PUT: تعديل أمر الصيانة ──
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> | { id: string } }
+) {
+  try {
+    const user = auth(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const params = await Promise.resolve(context.params);
+    const id = Number(params?.id);
+
+    if (!id || isNaN(id)) {
+      return NextResponse.json({ error: "معرّف أمر الصيانة غير صالح" }, { status: 400 });
+    }
+
+    const b = await req.json().catch(() => ({}));
+    const isSuperAdmin = user.role === "super_admin";
+    const tenantId = user.tenantId || "master";
+
+    const vehicleId = b.vehicleId ? Number(b.vehicleId) : null;
+    const plateNumber = String(b.plateNumber || b.plate_number || "").trim();
+    const maintenanceType = String(b.maintenanceType || b.maintenance_type || "صيانة ميكانيكا");
+    const status = String(b.status || "in_progress");
+    const workshop = String(b.workshop || "");
+    const description = String(b.description || "");
+    const cost = Number(b.cost) || 0;
+    const startDate = toDateOrNull(b.startDate || b.start_date);
+    const endDate = toDateOrNull(b.endDate || b.end_date);
+    const technicianName = String(b.technicianName || b.technician_name || "");
+    const receivedBy = String(b.receivedBy || b.received_by || "");
+    const lifespanKm = Number(b.lifespanKm || b.lifespan_km) || 0;
+    const invoiceUrl = String(b.invoiceUrl || b.invoice_url || "");
+    const notes = String(b.notes || "");
+    const isDeleted = b.is_deleted !== undefined ? Number(b.is_deleted) : 0;
+
+    let result;
+    if (isSuperAdmin) {
+      result = await db.execute(sql`
+        UPDATE work_orders SET
+          vehicle_id = ${vehicleId},
+          plate_number = ${plateNumber},
+          maintenance_type = ${maintenanceType},
+          status = ${status},
+          workshop = ${workshop},
+          description = ${description},
+          cost = ${cost},
+          start_date = ${startDate},
+          end_date = ${endDate},
+          technician_name = ${technicianName},
+          received_by = ${receivedBy},
+          lifespan_km = ${lifespanKm},
+          invoice_url = ${invoiceUrl},
+          notes = ${notes},
+          is_deleted = ${isDeleted}
+        WHERE id = ${id}
+        RETURNING *
+      `);
+    } else {
+      result = await db.execute(sql`
+        UPDATE work_orders SET
+          vehicle_id = ${vehicleId},
+          plate_number = ${plateNumber},
+          maintenance_type = ${maintenanceType},
+          status = ${status},
+          workshop = ${workshop},
+          description = ${description},
+          cost = ${cost},
+          start_date = ${startDate},
+          end_date = ${endDate},
+          technician_name = ${technicianName},
+          received_by = ${receivedBy},
+          lifespan_km = ${lifespanKm},
+          invoice_url = ${invoiceUrl},
+          notes = ${notes},
+          is_deleted = ${isDeleted}
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+        RETURNING *
+      `);
+    }
+
+    const rows = (result as any).rows || result || [];
+    const updatedRow = rows[0];
+
+    if (!updatedRow) {
+      return NextResponse.json(
+        { error: "أمر الصيانة غير موجود أو لا تملك صلاحية تعديله" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: updatedRow,
+      message: "تم تعديل أمر الصيانة بنجاح",
+    });
+  } catch (error: any) {
+    console.error("PUT Work Order Error:", error);
+    return NextResponse.json({ error: `فشل التعديل: ${error.message}` }, { status: 500 });
   }
 }
