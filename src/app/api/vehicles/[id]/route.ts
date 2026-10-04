@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { vehicles } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +21,9 @@ function toDateOrNull(val: any): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
-// ── PUT: تعديل بيانات سيارة ──
+const ROLE_POWER: Record<string, number> = { owner: 4, super_admin: 3, admin: 2, user: 1 };
+
+// ── PUT: تعديل بيانات سيارة (مع حماية عزل الفروع) ──
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -34,6 +35,17 @@ export async function PUT(
     const params = await context.params;
     const vehicleId = Number(params.id);
     if (!vehicleId) return NextResponse.json({ error: "معرف السيارة غير صحيح" }, { status: 400 });
+
+    // 🔒 حماية العزل: التأكد أن السيارة تتبع نفس فرع المستخدم (إلا owner/super_admin)
+    const isHighLevel = user.role === "owner" || user.role === "super_admin";
+    if (!isHighLevel) {
+      const check = await db.execute(sql`SELECT tenant_id FROM vehicles WHERE id = ${vehicleId}`);
+      const target = (check as any).rows?.[0] || (check as any)[0];
+      if (!target) return NextResponse.json({ error: "السيارة غير موجودة" }, { status: 404 });
+      if (target.tenant_id !== (user.tenantId || "master")) {
+        return NextResponse.json({ error: "لا تملك صلاحية التعديل على سيارة خارج نطاق فرعك" }, { status: 403 });
+      }
+    }
 
     const body = await req.json().catch(() => ({}));
 
@@ -80,7 +92,7 @@ export async function PUT(
   }
 }
 
-// ── DELETE: الحذف الذكي (Soft Delete للمدير الرئيسي / طلب موافقة للمستويات الأقل) ──
+// ── DELETE: الحذف الذكي حسب التسلسل الهرمي ──
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -93,23 +105,40 @@ export async function DELETE(
     const vehicleId = Number(params.id);
     if (!vehicleId) return NextResponse.json({ error: "معرف السيارة غير صحيح" }, { status: 400 });
 
-    // إذا كان الموظف Super Admin يتم الحذف الوهمي مباشرة (Soft Delete)
-    if (user.role === "super_admin") {
-      await db.execute(sql`UPDATE vehicles SET is_deleted = 1, deleted_by = ${user.username}, deleted_at = NOW() WHERE id = ${vehicleId}`);
-      return NextResponse.json({ success: true, message: "تم أرشفة السيارة بنجاح (Soft Delete)" });
-    } 
-    // إذا كان الموظف بمستوى أقل يُرسل طلب موافقة للمدير
-    else {
-      await db.execute(sql`UPDATE vehicles SET status = 'pending_deletion' WHERE id = ${vehicleId}`);
+    const isHighLevel = user.role === "owner" || user.role === "super_admin";
+    const tenantId = user.tenantId || "master";
+
+    // 🔒 حماية العزل: مدير الفرع لا يحذف سيارة خارج فرعه
+    if (!isHighLevel) {
+      const check = await db.execute(sql`SELECT tenant_id, plate_number FROM vehicles WHERE id = ${vehicleId}`);
+      const target = (check as any).rows?.[0] || (check as any)[0];
+      if (!target) return NextResponse.json({ error: "السيارة غير موجودة" }, { status: 404 });
+      if (target.tenant_id !== tenantId) {
+        return NextResponse.json({ error: "لا تملك صلاحية حذف سيارة خارج نطاق فرعك" }, { status: 403 });
+      }
+
+      // ⚡ إنشاء طلب موافقة (بدون تغيير حالة السيارة نفسها لتفادي تعليقها إذا رُفض الطلب)
       await db.execute(sql`
         INSERT INTO approvals (tenant_id, module_name, record_id, request_type, status, notes, requested_by)
-        VALUES (${user.tenantId || 'master'}, 'vehicles', ${vehicleId}, 'delete', 'pending', 'طلب حذف سيارة من الأسطول', ${user.username})
+        VALUES (${tenantId}, 'vehicles', ${vehicleId}, 'delete', 'pending', ${`طلب حذف السيارة ${target.plate_number} من الأسطول`}, ${user.username})
       `);
 
-      return NextResponse.json({ success: true, message: "تم إرسال طلب الحذف للإدارة الرئيسية للموافقة." });
-    }
-  } catch (error: any) {
-    console.error("DELETE Vehicle Error:", error);
-    return NextResponse.json({ error: error?.message || "فشل إجراء الحذف" }, { status: 500 });
-  }
-}
+      // 🛡️ إشعارات التسلسل الهرمي (محمية: لا تؤثر على نجاح الطلب)
+      try {
+        if (user.role === "user") {
+          await db.execute(sql`
+            INSERT INTO notifications (tenant_id, target_username, title, message, link)
+            SELECT tenant_id, username, 'طلب حذف سيارة بانتظار الاعتماد', ${`طلب من ${user.username} لحذف السيارة ${target.plate_number}`}, '/dashboard/approvals'
+            FROM users WHERE tenant_id = ${tenantId} AND role = 'admin'
+          `);
+        }
+        await db.execute(sql`
+          INSERT INTO notifications (tenant_id, target_username, title, message, link)
+          SELECT tenant_id, username, 'طلب حذف سيارة بانتظار الاعتماد', ${`طلب من ${user.username} لحذف السيارة ${target.plate_number}`}, '/dashboard/approvals'
+          FROM users WHERE role IN ('super_admin', 'owner')
+        `);
+      } catch (notifyErr) {
+        console.error("Notification failed (non-blocking):", notifyErr);
+      }
+
+      return NextResponse.json({ success: true, message: "تم إرسال طلب الحذف للإدارة 
