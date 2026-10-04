@@ -4,6 +4,18 @@ import { useApp } from "@/context/AppContext";
 import { ShieldCheck, Check, X, Loader2, AlertCircle, Clock, CheckCircle2, XCircle } from "lucide-react";
 import DataTable from "@/components/ui/DataTable";
 
+const ROLE_POWER: Record<string, number> = { owner: 4, super_admin: 3, admin: 2, user: 1 };
+
+const MODULE_LABELS: Record<string, string> = {
+  vehicles: "السيارات",
+  work_orders: "أوامر الصيانة",
+  fuel_records: "الوقود",
+  oil_changes: "الزيوت",
+  spare_parts: "المخزون",
+  tires: "الكاوتش",
+  vehicle_inspections: "الفحص",
+};
+
 export default function ApprovalsPage() {
   const { user } = useApp();
   const [approvals, setApprovals] = useState<any[]>([]);
@@ -43,10 +55,18 @@ export default function ApprovalsPage() {
     }
   };
 
-  const isSuperAdmin = user?.role === "super_admin";
+  const myPower = ROLE_POWER[user?.role || "user"] ?? 1;
+
+  const canAct = (r: any) => {
+    if (r.status !== "pending") return false;
+    const reqPower = ROLE_POWER[r.requested_by_role] ?? 1;
+    if (myPower <= reqPower) return false;
+    if (user?.role === "admin" && r.tenant_id !== user?.tenantId) return false;
+    return true;
+  };
 
   const columns = [
-    { key: "module_name", header: "القسم", render: (r:any) => <span className="font-bold text-blue-900">{r.module_name === 'vehicles' ? 'السيارات' : r.module_name}</span> },
+    { key: "module_name", header: "القسم", render: (r:any) => <span className="font-bold text-blue-900">{MODULE_LABELS[r.module_name] || r.module_name}</span> },
     { key: "request_type", header: "نوع الطلب", render: (r:any) => <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${r.request_type === 'delete' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{r.request_type === 'delete' ? 'طلب حذف نهائي' : 'تعديل/إضافة'}</span> },
     { key: "notes", header: "التفاصيل", render: (r:any) => <span className="text-gray-700 font-semibold">{r.notes || "-"}</span> },
     { key: "requested_by", header: "مقدم الطلب", render: (r:any) => <span className="font-bold text-gray-900">{r.requested_by}</span> },
@@ -58,7 +78,7 @@ export default function ApprovalsPage() {
       ) 
     },
     { key: "actions", header: "القرار الإداري", render: (r:any) => (
-      r.status === 'pending' && isSuperAdmin ? (
+      canAct(r) ? (
         <div className="flex gap-2 justify-center">
           <button onClick={() => handleAction(r.id, "approve")} disabled={processing === r.id} className="p-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg flex items-center gap-1 transition-colors" title="موافقة">
             {processing === r.id ? <Loader2 size={16} className="animate-spin"/> : <Check size={18}/>}
@@ -71,14 +91,13 @@ export default function ApprovalsPage() {
     )},
   ];
 
-  if (!user || user.role === "user") {
+  if (!user || (ROLE_POWER[user.role] ?? 1) < ROLE_POWER.admin) {
     return <div className="flex flex-col items-center justify-center h-64 text-red-500 font-bold"><AlertCircle size={40} className="mb-2"/> غير مصرح لك بدخول هذه الصفحة</div>;
   }
 
   return (
     <div className="w-full space-y-6" dir="rtl">
       
-      {/* ── رأس الصفحة ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-xl"><ShieldCheck size={26} /></div>
