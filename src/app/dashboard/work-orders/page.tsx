@@ -22,7 +22,8 @@ import {
   Trash2,
   Paperclip,
   ImageIcon,
-  FileText
+  FileText,
+  UserCheck
 } from "lucide-react";
 
 interface WorkOrder {
@@ -33,6 +34,8 @@ interface WorkOrder {
   maintenanceType: string;
   operationType: string;
   sapNumber?: string;
+  targetUserId?: number;
+  targetUserName?: string;
   status: string;
   workshop: string;
   description: string;
@@ -53,6 +56,13 @@ interface WorkOrder {
 interface Vehicle {
   id: number;
   plateNumber: string;
+}
+
+interface AppUser {
+  id: number;
+  name: string;
+  email?: string;
+  role: string;
 }
 
 const MAINTENANCE_TYPES = [
@@ -77,6 +87,8 @@ const emptyWO: Partial<WorkOrder> = {
   maintenanceType: "صيانة ميكانيكا",
   operationType: "صيانة جديدة",
   sapNumber: "",
+  targetUserId: undefined,
+  targetUserName: "",
   status: "pending_approval",
   workshop: "",
   description: "",
@@ -109,6 +121,7 @@ export default function WorkOrdersPage() {
   const { user } = useApp();
   const [data, setData] = useState<WorkOrder[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [usersList, setUsersList] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"approval" | "invoice">("approval");
@@ -144,7 +157,9 @@ export default function WorkOrdersPage() {
       const mapped = (Array.isArray(d) ? d : []).map((item: any) => ({
         ...item,
         operationType: item.operationType || item.operation_type || "صيانة جديدة",
-        sapNumber: item.sapNumber || item.sap_number || ""
+        sapNumber: item.sapNumber || item.sap_number || "",
+        targetUserId: item.targetUserId || item.target_user_id || undefined,
+        targetUserName: item.targetUserName || item.target_user_name || ""
       }));
 
       setData(mapped);
@@ -160,7 +175,24 @@ export default function WorkOrdersPage() {
     fetch("/api/vehicles")
       .then((r) => r.json())
       .then((d) => setVehicles(Array.isArray(d) ? d : []));
+    
+    // جلب قائمة المستخدمين لاختيار الأدمن / اليوزر أدمن المطلوب للموافقة
+    fetch("/api/users")
+      .then((r) => r.json())
+      .then((d) => setUsersList(Array.isArray(d) ? d : []))
+      .catch((err) => console.error("Failed to load users:", err));
   }, [load]);
+
+  // تصفية المستخدمين الإداريين (أدمن، يوزر أدمن، سوبر أدمن، مالك)
+  const approvers = usersList.filter(
+    (u) =>
+      u.role === "admin" ||
+      u.role === "user_admin" ||
+      u.role === "super_admin" ||
+      u.role === "owner" ||
+      u.role === "manager"
+  );
+  const availableApprovers = approvers.length > 0 ? approvers : usersList;
 
   const activeOrders = data.filter(
     (r) => (r.is_deleted === 0 || !r.is_deleted) && r.status !== "deleted" && r.status !== "rejected"
@@ -173,7 +205,8 @@ export default function WorkOrdersPage() {
       (r.orderNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (r.plateNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (r.workshop || "").toLowerCase().includes(search.toLowerCase()) ||
-      (r.sapNumber || "").toLowerCase().includes(search.toLowerCase());
+      (r.sapNumber || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.targetUserName || "").toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === "الكل" || r.maintenanceType === typeFilter;
     const matchesStatus = statusFilter === "الكل" || r.status === statusFilter;
     return matchesSearch && matchesType && matchesStatus;
@@ -202,29 +235,47 @@ export default function WorkOrdersPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
+
+    if (!editing.targetUserId) {
+      alert("يرجى اختيار الأدمن / اليوزر أدمن المطلوب إرسال الطلب إليه للموافقة.");
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
         ...editing,
         vehicleId: Number(editing.vehicleId) || null,
         cost: safeNum(editing.cost),
-        status: editing.status || (modalMode === "approval" ? "pending_approval" : "completed"),
+        // كلاهما يحفظ بحالة "بانتظار الموافقة" للمراجعة والاعتماد
+        status: isEdit ? editing.status : "pending_approval",
         operationType: editing.operationType || "صيانة جديدة",
         operation_type: editing.operationType || "صيانة جديدة",
         sapNumber: String(editing.sapNumber || "").trim(),
         sap_number: String(editing.sapNumber || "").trim(),
+        targetUserId: Number(editing.targetUserId) || null,
+        target_user_id: Number(editing.targetUserId) || null,
+        targetUserName: editing.targetUserName || "",
+        target_user_name: editing.targetUserName || "",
         startDate: editing.startDate || null,
         endDate: editing.endDate || null,
         invoiceUrl: editing.invoiceUrl || ""
       };
+
       const res = await fetch(isEdit ? `/api/work-orders/${editing.id}` : "/api/work-orders", {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const resData = await res.json().catch(() => ({}));
+
       if (res.ok && resData.success !== false) {
-        if (resData.message) alert(resData.message);
+        alert(
+          resData.message ||
+            (modalMode === "invoice"
+              ? "تم إرسال فاتورة الصيانة للأدمن بنجاح وبانتظار الموافقة."
+              : "تم إرسال طلب موافقة الصيانة للأدمن بنجاح.")
+        );
         setModalOpen(false);
         load();
       } else {
@@ -319,6 +370,7 @@ export default function WorkOrdersPage() {
     "نوع الصيانة": r.maintenanceType,
     "نوع العملية": r.operationType || "صيانة جديدة",
     "رقم SAP": r.sapNumber || "-",
+    "موجه للموافقة إلى": r.targetUserName || "-",
     "الحالة":
       r.status === "completed"
         ? "مكتمل"
@@ -367,6 +419,18 @@ export default function WorkOrdersPage() {
         r.sapNumber ? (
           <span className="font-mono text-xs font-black text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-700">
             {r.sapNumber}
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">-</span>
+        )
+    },
+    {
+      key: "targetUserName",
+      header: "موجه للموافقة إلى",
+      render: (r: WorkOrder) =>
+        r.targetUserName ? (
+          <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
+            {r.targetUserName}
           </span>
         ) : (
           <span className="text-gray-400 text-xs">-</span>
@@ -421,7 +485,7 @@ export default function WorkOrdersPage() {
         <div className="bg-gradient-to-br from-amber-600 to-orange-500 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex justify-between items-start relative z-10">
             <div>
-              <div className="text-amber-100 text-xs font-bold mb-1">أوامر مفتوحة / قيد التنفيذ</div>
+              <div className="text-amber-100 text-xs font-bold mb-1">أوامر مفتوحة / بانتظار الموافقة</div>
               <div className="text-3xl font-black">{openOrdersCount}</div>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl">
@@ -463,9 +527,12 @@ export default function WorkOrdersPage() {
                   setModalMode("approval");
                   setEditing({
                     ...emptyWO,
+                    orderNumber: `WO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`,
                     status: "pending_approval",
                     operationType: "صيانة جديدة",
-                    sapNumber: ""
+                    sapNumber: "",
+                    targetUserId: undefined,
+                    targetUserName: ""
                   });
                   setIsEdit(false);
                   setModalOpen(true);
@@ -476,15 +543,18 @@ export default function WorkOrdersPage() {
                 <span>طلب موافقة صيانة</span>
               </button>
 
-              {/* زر 2: إضافة فاتورة صيانة */}
+              {/* زر 2: إضافة فاتورة صيانة (بانتظار الموافقة) */}
               <button
                 onClick={() => {
                   setModalMode("invoice");
                   setEditing({
                     ...emptyWO,
-                    status: "completed",
+                    orderNumber: `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`,
+                    status: "pending_approval",
                     operationType: "صيانة جديدة",
-                    sapNumber: ""
+                    sapNumber: "",
+                    targetUserId: undefined,
+                    targetUserName: ""
                   });
                   setIsEdit(false);
                   setModalOpen(true);
@@ -548,8 +618,8 @@ export default function WorkOrdersPage() {
           onChange={setStatusFilter}
           options={[
             { value: "الكل", label: "الكل" },
-            { value: "in_progress", label: "قيد التنفيذ" },
             { value: "pending_approval", label: "بانتظار الموافقة" },
+            { value: "in_progress", label: "قيد التنفيذ" },
             { value: "pending", label: "معلق" },
             { value: "completed", label: "مكتمل" }
           ]}
@@ -589,7 +659,7 @@ export default function WorkOrdersPage() {
                   ? "تعديل أمر الصيانة"
                   : modalMode === "approval"
                   ? "طلب موافقة صيانة جديدة"
-                  : "إضافة فاتورة صيانة جديدة"}
+                  : "إضافة فاتورة صيانة (طلب موافقة)"}
               </h2>
               <button onClick={() => setModalOpen(false)} className="hover:text-red-400">
                 <X size={24} />
@@ -639,7 +709,7 @@ export default function WorkOrdersPage() {
                     </select>
                   </Field>
 
-                  {/* استبدال الحالة التشغيلية بـ "نوع العملية" */}
+                  {/* نوع العملية */}
                   <Field label="نوع العملية *">
                     <select
                       required
@@ -650,6 +720,41 @@ export default function WorkOrdersPage() {
                       {OPERATION_TYPES.map((op) => (
                         <option key={op} value={op}>
                           {op}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  {/* اختيار المسؤول المطلوب للموافقة (أدمن أو يوزر أدمن) */}
+                  <Field label="إرسال للموافقة إلى (الأدمن / المسؤول) *">
+                    <select
+                      required
+                      className={`${inputClass} font-bold text-teal-800 dark:text-teal-300 bg-teal-50/50 dark:bg-teal-950/20`}
+                      value={editing.targetUserId || ""}
+                      onChange={(e) => {
+                        const uId = Number(e.target.value);
+                        const selUser = availableApprovers.find((u) => u.id === uId);
+                        setEditing({
+                          ...editing,
+                          targetUserId: uId || undefined,
+                          targetUserName: selUser?.name || ""
+                        });
+                      }}
+                    >
+                      <option value="">-- اختر الأدمن للموافقة --</option>
+                      {availableApprovers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} (
+                          {u.role === "admin"
+                            ? "أدمن"
+                            : u.role === "user_admin"
+                            ? "يوزر أدمن"
+                            : u.role === "super_admin"
+                            ? "سوبر أدمن"
+                            : u.role === "owner"
+                            ? "مالك"
+                            : u.role}
+                          )
                         </option>
                       ))}
                     </select>
@@ -804,7 +909,7 @@ export default function WorkOrdersPage() {
                   ? "حفظ التعديلات"
                   : modalMode === "approval"
                   ? "إرسال طلب موافقة الصيانة"
-                  : "حفظ فاتورة الصيانة"}
+                  : "إرسال فاتورة الصيانة للموافقة"}
               </button>
             </div>
           </div>
