@@ -70,13 +70,13 @@ export async function POST(req: NextRequest) {
     const vehicleId = b.vehicleId ? Number(b.vehicleId) : null;
     if (!plateNumber) return NextResponse.json({ error: "رقم اللوحة مطلوب" }, { status: 400 });
 
-    // ⚡ المالك والمدير الرئيسي: الحالة المختارة تُطبّق فوراً، غيرهم: بانتظار الموافقة
     const isHighLevel = user.role === "owner" || user.role === "super_admin";
     const selectedStatus = String(b.status || "in_progress");
     const finalStatus = isHighLevel ? selectedStatus : "pending_approval";
+    const tenantId = user.tenantId || "master";
 
     const payload = {
-      tenant_id: user.tenantId || "master",
+      tenant_id: tenantId,
       order_number: String(b.orderNumber || `WO-${Date.now()}`),
       vehicle_id: vehicleId,
       plate_number: plateNumber,
@@ -112,30 +112,40 @@ export async function POST(req: NextRequest) {
 
     const row = (result as any).rows?.[0] || (result as any)[0];
 
-    // ⚡ دورة الإشعارات (Workflow Notifications)
-    // 🛡️ محمية بـ try/catch مستقلة: لو فشلت الإشعارات، نجاح حفظ الصيانة نفسه لا يتأثر إطلاقاً
+    // 🛡️ الإشعارات والموافقات: محمية بـ try/catch منفصلة (لا تؤثر على نجاح الحفظ الأساسي)
     try {
       if (!isHighLevel) {
         await db.execute(sql`
           INSERT INTO approvals (tenant_id, module_name, record_id, request_type, status, notes, requested_by)
-          VALUES (${user.tenantId || "master"}, 'work_orders', ${row.id}, 'add', 'pending', ${"طلب إنشاء صيانة: " + payload.maintenance_type}, ${user.username})
+          VALUES (${tenantId}, 'work_orders', ${row.id}, 'add', 'pending', ${"طلب إنشاء صيانة: " + payload.maintenance_type}, ${user.username})
         `);
 
+        // ⚡ استهداف صحيح حسب التسلسل الهرمي:
+        if (user.role === "user") {
+          // مستخدم عادي → يُخطر مدير فرعه (نفس الـ tenant) + المدير الرئيسي + المالك (احتياطاً)
+          await db.execute(sql`
+            INSERT INTO notifications (tenant_id, target_username, title, message, link)
+            SELECT tenant_id, username, 'طلب صيانة جديد بانتظار الاعتماد', ${`طلب من ${user.username} للسيارة ${plateNumber}`}, '/dashboard/approvals'
+            FROM users WHERE tenant_id = ${tenantId} AND role = 'admin'
+          `);
+        }
+        // في كل الأحوال (user أو admin): يُخطر أيضاً المدير الرئيسي والمالك
         await db.execute(sql`
           INSERT INTO notifications (tenant_id, target_username, title, message, link)
           SELECT tenant_id, username, 'طلب صيانة جديد بانتظار الاعتماد', ${`طلب من ${user.username} للسيارة ${plateNumber}`}, '/dashboard/approvals'
           FROM users WHERE role IN ('super_admin', 'owner')
         `);
 
+        // إشعار تطمين لمقدم الطلب نفسه
         await db.execute(sql`
           INSERT INTO notifications (tenant_id, target_username, title, message, link)
-          VALUES (${user.tenantId || "master"}, ${user.username}, 'تم إرسال الطلب', ${`تم إرسال أمر صيانة السيارة ${plateNumber} للإدارة للموافقة`}, '/dashboard/work-orders')
+          VALUES (${tenantId}, ${user.username}, 'تم إرسال الطلب', ${`تم إرسال أمر صيانة السيارة ${plateNumber} للإدارة للموافقة`}, '/dashboard/work-orders')
         `);
       } else {
         await db.execute(sql`
           INSERT INTO notifications (tenant_id, target_username, title, message, link)
           SELECT tenant_id, username, 'بدء صيانة جديدة', ${`الإدارة بدأت صيانة (${payload.maintenance_type}) للسيارة ${plateNumber}`}, '/dashboard/work-orders'
-          FROM users WHERE role IN ('admin', 'user') AND tenant_id = ${user.tenantId || "master"}
+          FROM users WHERE role IN ('admin', 'user') AND tenant_id = ${tenantId}
         `);
       }
     } catch (notifyErr) {
