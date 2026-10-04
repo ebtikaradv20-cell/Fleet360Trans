@@ -99,7 +99,7 @@ export default function UsersPage() {
                 <select className={inputClass} value={editing.role||"user"} onChange={e=>setEditing({...editing, role:e.target.value})}>
                   {isOwner && <option value="owner">المالك (Owner)</option>}
                   {(isOwner || currentUser?.role === "super_admin") && <option value="super_admin">مدير رئيسي</option>}
-                  <option value="admin">مدير فرع</option>
+                  {(isOwner || currentUser?.role === "super_admin") && <option value="admin">مدير فرع</option>}
                   <option value="user">مستخدم عادي</option>
                 </select>
               </div>
