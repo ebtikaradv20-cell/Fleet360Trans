@@ -6,8 +6,10 @@ const JWT_SECRET = process.env.JWT_SECRET || "fleet360-secret-key-2024";
 export interface JWTPayload {
   userId: number;
   username: string;
+  name?: string;
   role: string;
   permissions: string[];
+  tenantId?: string;
 }
 
 export function signToken(payload: JWTPayload): string {
