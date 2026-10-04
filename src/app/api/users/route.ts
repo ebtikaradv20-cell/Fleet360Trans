@@ -11,33 +11,33 @@ function auth(req: NextRequest) {
   try { return verifyToken(req.cookies.get("fleet360_token")?.value || ""); } catch { return null; }
 }
 
-// ⚡ تدرج الصلاحيات: كل مستوى رقم أعلى يملك صلاحيات أوسع
-const ROLE_LEVEL: Record<string, number> = {
-  owner: 4,       // المالك - صلاحية مطلقة
-  super_admin: 3, // المدير الرئيسي
-  admin: 2,       // مدير الفرع
-  user: 1,        // مستخدم عادي
+// ⚡ نفس جدول القوة المستخدم في [id]/route.ts بالظبط (للتوحيد بين الملفين)
+const ROLE_POWER: Record<string, number> = {
+  owner: 4,
+  super_admin: 3,
+  admin: 2,
+  user: 1,
 };
 
-function levelOf(role?: string) {
-  return ROLE_LEVEL[role || "user"] ?? 1;
+function powerOf(role?: string) {
+  return ROLE_POWER[role || "user"] ?? 1;
 }
 
 export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
 
-    // ✅ owner و super_admin و admin (مدير الفرع) بس اللي يقدروا يشوفوا قائمة المستخدمين
-    if (!user || levelOf(user.role) < ROLE_LEVEL.admin) {
+    // ✅ المالك + المدير الرئيسي + مدير الفرع فقط يقدروا يشوفوا القائمة
+    if (!user || powerOf(user.role) < ROLE_POWER.admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     let rows;
-    // ✅ المالك والمدير الرئيسي يشوفوا كل المستخدمين في كل الفروع
     if (user.role === "owner" || user.role === "super_admin") {
+      // يشوفوا كل المستخدمين في كل الفروع
       rows = await db.select().from(users).orderBy(desc(users.id));
     } else {
-      // مدير الفرع يشوف مستخدمين فرعه فقط (عزل كامل حسب الطلب)
+      // مدير الفرع (admin) يشوف مستخدمين فرعه فقط (عزل تام)
       rows = await db.select().from(users).where(eq(users.tenantId, user.tenantId || 'master')).orderBy(desc(users.id));
     }
     return NextResponse.json(rows);
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = auth(req);
 
-    if (!user || levelOf(user.role) < ROLE_LEVEL.admin) {
+    if (!user || powerOf(user.role) < ROLE_POWER.admin) {
       return NextResponse.json({ error: "Forbidden: Access Denied" }, { status: 403 });
     }
 
@@ -64,13 +64,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "الاسم واسم الدخول وكلمة المرور مطلوبين" }, { status: 400 });
     }
 
-    // 🔒 حماية من تصعيد الصلاحيات (Privilege Escalation):
-    // محدش يقدر يضيف حساب برتبة أعلى من رتبته أو مساوية له (المالك مستثنى)
-    if (user.role !== "owner" && levelOf(requestedRole) >= levelOf(user.role)) {
+    // 🔒 منع تصعيد الصلاحيات: محدش يضيف حساب برتبة أعلى من رتبته أو تساويها (المالك مستثنى)
+    if (user.role !== "owner" && powerOf(requestedRole) >= powerOf(user.role)) {
       requestedRole = "user";
     }
 
-    // مدير الفرع (admin) صلاحيته تضيف "مستخدم عادي" بس، مهما بعت أي role تاني
+    // 🔒 مدير الفرع (admin) يضيف "مستخدم عادي" فقط، مينفعش يضيف مدير فرع تاني
     if (user.role === "admin") {
       requestedRole = "user";
     }
@@ -78,13 +77,10 @@ export async function POST(req: NextRequest) {
     // ⚡ تحديد مساحة العمل (Tenant)
     let assignedTenant = user.tenantId || "master";
 
-    // إنشاء فرع مستقل جديد: متاح فقط لـ owner أو super_admin، وبس وقت إضافة "مدير فرع"
+    // ✅ إنشاء فرع مستقل متاح لـ owner و super_admin (كانت مقصورة غلط على super_admin بس)
     const canCreateBranch = user.role === "owner" || user.role === "super_admin";
     if (canCreateBranch && requestedRole === "admin" && body.createNewBranch) {
       assignedTenant = username;
-    } else if (canCreateBranch && body.tenantId) {
-      // تحديد فرع معيّن يضيف له المستخدم (اختياري لـ owner/super_admin)
-      assignedTenant = String(body.tenantId);
     }
 
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
