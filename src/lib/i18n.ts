@@ -153,6 +153,10 @@ export const translations = {
     inspected: "فحص",
     actionDate: "تاريخ الإجراء",
     kmAtAction: "الكيلومتر عند الإجراء",
+    // Sidebar (جديد)
+    oilAndParts: "الزيوت وقطع الغيار",
+    fleetData: "داتا الأسطول الشاملة",
+    approvalsCenter: "الطلبات والموافقات",
   },
   en: {
     // General
@@ -308,6 +312,10 @@ export const translations = {
     inspected: "Inspected",
     actionDate: "Action Date",
     kmAtAction: "KM at Action",
+    // Sidebar (new)
+    oilAndParts: "Oil & Parts",
+    fleetData: "Fleet Data",
+    approvalsCenter: "Approvals",
   },
 } as const;
 
