@@ -49,7 +49,20 @@ interface Personnel {
   is_deleted?: number;
 }
 
-// دالة لمعالجة وتوحيد كافة صيغ تواريخ الإكسيل إلى YYYY-MM-DD
+// دالة لمعالجة وتوحيد كتابة اللوحات بإزالة التشكيل وتوحيد الألف لضمان تحديث الساب
+function normalizePlate(str: any): string {
+  if (!str) return "";
+  return String(str)
+    .replace(/[\s_\-\.\/]/g, "")
+    .replace(/[ًٌٍَُِّْ]/g, "") // إزالة حركات التشكيل كالسكون والفتحة
+    .replace(/[إأآاْ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .trim()
+    .toLowerCase();
+}
+
+// دالة توحيد وتنسيق تواريخ الإكسيل بجميع صيغها
 function normalizeDate(val: any): string {
   if (!val) return "";
   if (val instanceof Date) {
@@ -58,20 +71,17 @@ function normalizeDate(val: any): string {
   const str = String(val).trim();
   if (!str || str === "-") return "";
 
-  // فحص أرقام الإكسيل التسلسلية
   const num = Number(str);
   if (!isNaN(num) && num > 25000 && num < 70000) {
     const d = new Date(Math.round((num - 25569) * 86400 * 1000));
     return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
   }
 
-  // فحص صيغة DD/MM/YYYY
   const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
   if (dmy) {
     return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
   }
 
-  // فحص صيغة YYYY/MM/DD
   const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
   if (ymd) {
     return `${ymd[1]}-${ymd[2].padStart(2, "0")}-${ymd[3].padStart(2, "0")}`;
@@ -80,21 +90,22 @@ function normalizeDate(val: any): string {
   return str;
 }
 
-// دالة لاستخراج الحقول بذكاء مهما تغير اسم العمود في الإكسيل
+// استخراج الحقول بالذكاء الدلالي لأي مسمى عمود في الإكسيل
 function extractField(row: Record<string, any>, keywords: string[]): string {
   for (const [key, val] of Object.entries(row)) {
-    const cleanKey = key.replace(/[\s_\-#/]/g, "").toLowerCase();
+    const cleanKey = key.replace(/[\s_\-#/:\.\(\)]/g, "").toLowerCase();
     for (const kw of keywords) {
       if (cleanKey.includes(kw.toLowerCase())) {
         const res = String(val ?? "").trim();
-        if (res && res !== "-") return res;
+        if (res && res !== "-" && res !== "undefined" && res !== "null") {
+          return res;
+        }
       }
     }
   }
   return "";
 }
 
-// نموذج القالب القياسي للتحميل
 const vehicleTemplateData = [
   {
     "رقم اللوحة": "ل ن ط 7618",
@@ -103,8 +114,8 @@ const vehicleTemplateData = [
     "الماركة والموديل": "نيسان بيك اب - دوبل كابينة",
     "سنة الصنع": "2024",
     "الشركة المالكة": "ترانس جاس",
+    "الفرع / المنطقة": "دسوق",
     "المحافظة": "كفر الشيخ",
-    "المنطقة": "دسوق",
     "الإدارة": "تشغيل وصيانة",
     "نوع الوقود": "سولار و غاز طبيعى",
     "اسم السائق": "احمد صالح، هيثم عجاج",
@@ -197,7 +208,7 @@ export default function VehiclesManagementPage() {
         const list = (Array.isArray(d) ? d : d.data || []).map((v: any) => ({
           ...v,
           plateNumber: v.plateNumber || v.plate_number || "",
-          sapNumber: v.sapNumber || v.sap_number || "",
+          sapNumber: v.sapNumber || v.sap_number || v.sap || v.sap_code || "",
           chassisNumber: v.chassisNumber || v.chassis_number || "",
           company: v.company || "ترانس جاس",
           model: v.model || v.make || "",
@@ -271,7 +282,7 @@ export default function VehiclesManagementPage() {
     return matchesSearch;
   });
 
-  // استيراد ذكي للشيت مع قراءة الساب والترخيص وحفظهما
+  // استيراد وتحديث الشيت مع فحص الساب والترخيص
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -283,7 +294,7 @@ export default function VehiclesManagementPage() {
         const plate = extractField(r, ["لوح", "plate", "عرب"]);
         if (!plate) continue;
 
-        const sap = extractField(r, ["ساب", "sap"]);
+        const sap = extractField(r, ["ساب", "sap", "SAP", "Sap", "أصل", "اصل", "asset", "Asset"]);
         const rawExpiry = extractField(r, ["ترخيص", "رخص", "license", "expiry"]);
         const formattedExpiry = normalizeDate(rawExpiry);
 
@@ -292,13 +303,15 @@ export default function VehiclesManagementPage() {
           plate_number: plate,
           sapNumber: sap,
           sap_number: sap,
+          sap: sap,
+          sap_code: sap,
           chassisNumber: extractField(r, ["شاسي", "chassis"]),
           chassis_number: extractField(r, ["شاسي", "chassis"]),
           model: extractField(r, ["موديل", "مارك", "مركب", "model", "make"]) || "مركبة",
           year: extractField(r, ["صنع", "سنة", "عام", "year"]),
           company: extractField(r, ["شرك", "company"]) || "ترانس جاس",
           governorate: extractField(r, ["محافظ", "gov"]) || "كفر الشيخ",
-          region: extractField(r, ["منطق", "مركز", "region", "area"]),
+          region: extractField(r, ["منطق", "مركز", "فرع", "region", "area"]),
           department: extractField(r, ["إدار", "ادار", "قسم", "dept"]) || "تشغيل وصيانة",
           fuelType: extractField(r, ["وقود", "بنزين", "سولار", "fuel"]) || "سولار و غاز طبيعى",
           fuel_type: extractField(r, ["وقود", "بنزين", "سولار", "fuel"]) || "سولار و غاز طبيعى",
@@ -310,7 +323,10 @@ export default function VehiclesManagementPage() {
           notes: extractField(r, ["ملاحظ", "notes", "note"])
         };
 
-        const existing = vehicles.find((v) => v.plateNumber === plate);
+        const existing = vehicles.find(
+          (v) => normalizePlate(v.plateNumber) === normalizePlate(plate)
+        );
+
         if (existing) {
           await fetch(`/api/vehicles/${existing.id}`, {
             method: "PUT",
@@ -328,7 +344,7 @@ export default function VehiclesManagementPage() {
         }
       }
 
-      alert(`تمت قراءة الشيت بنجاح:\n- تم تحديث: ${updatedCount} سيارة\n- تم تسجيل: ${addedCount} سيارة جديدة`);
+      alert(`تمت قراءة الشيت ومزامنة البيانات بنجاح:\n- تم تحديث: ${updatedCount} سيارة\n- تم تسجيل: ${addedCount} سيارة جديدة`);
       loadData();
     } catch (err) {
       console.error("Import error:", err);
@@ -336,7 +352,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // شيت الملخص المصدر
   const excelSummaryData = [
     ...filteredVehicles.map((v) => ({
       "اللوحة": v.plateNumber,
@@ -345,8 +360,8 @@ export default function VehiclesManagementPage() {
       "سنة الصنع": v.year || "-",
       "الشاسيه": v.chassisNumber || "-",
       "الشركة": v.company || "ترانس جاس",
+      "الفرع / المنطقة": v.region || "-",
       "المحافظة": v.governorate || "-",
-      "المنطقة": v.region || "-",
       "الإدارة": v.department || "-",
       "نوع الوقود": v.fuelType || "-",
       "السائقين": v.driverName || "-",
@@ -361,8 +376,8 @@ export default function VehiclesManagementPage() {
       "سنة الصنع": "",
       "الشاسيه": "",
       "الشركة": "",
+      "الفرع / المنطقة": "",
       "المحافظة": "",
-      "المنطقة": "",
       "الإدارة": "",
       "نوع الوقود": "",
       "السائقين": "",
@@ -461,6 +476,7 @@ export default function VehiclesManagementPage() {
     }
   };
 
+  // أعمدة الجدول
   const vehicleColumns = [
     {
       key: "plateNumber",
@@ -495,13 +511,20 @@ export default function VehiclesManagementPage() {
         </div>
       )
     },
+    // ✅ هنا التعديل: الفرع/المنطقة تظهر بلون قوي في الأعلى، والمحافظة بلون خفيف في الأسفل
     {
       key: "location",
-      header: "المحافظة / المنطقة",
+      header: "الفرع / المحافظة",
       render: (r: Vehicle) => (
         <div>
-          <span className="font-bold text-gray-900 dark:text-white">{r.governorate || "كفر الشيخ"}</span>
-          {r.region && <span className="text-xs text-gray-500 block">({r.region})</span>}
+          <span className="font-bold text-gray-900 dark:text-white block">
+            {r.region || r.governorate || "الفرع الرئيسي"}
+          </span>
+          {r.governorate && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 block mt-0.5">
+              ({r.governorate})
+            </span>
+          )}
         </div>
       )
     },
@@ -613,7 +636,7 @@ export default function VehiclesManagementPage() {
 
   return (
     <div className="w-full space-y-5" dir="rtl">
-      {/* ── الرأس: 3 أزرار إكسيل + إضافة سيارة بمحاذاة متناسقة ── */}
+      {/* ── الرأس: 3 أزرار إكسيل + إضافة سيارة ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 dark:bg-teal-950/50 text-teal-600 rounded-xl">
@@ -720,7 +743,7 @@ export default function VehiclesManagementPage() {
         </button>
       </div>
 
-      {/* ── شريط الفلاتر المضبوط هندسياً دون انكسار في الأسطر ── */}
+      {/* ── شريط الفلاتر المضبوط ── */}
       <div className="bg-white dark:bg-gray-900 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
