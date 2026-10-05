@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
@@ -81,17 +82,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* القائمة الجانبية ممرر لها حالة الطي */}
       <Sidebar collapsed={isSidebarCollapsed} />
 
-      {/* الحاوية الرئيسية مع دفع محتذى وديناميكي تماماً حسب اتجاه اللغة وحالة القائمة */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 w-full min-h-screen transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed
-            ? isRTL ? "mr-20" : "ml-20"
-            : isRTL ? "mr-64" : "ml-64"
-        }`}
-      >
+      {/* الحاوية الرئيسية تبدأ مباشرة بجوار السايدبار دون هوامش مضاعفة */}
+      <div className="flex-1 flex flex-col min-w-0 w-full min-h-screen transition-all duration-300 ease-in-out">
         <Navbar onToggleSidebar={handleToggleSidebar} />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-[1700px] mx-auto space-y-6">
+        {/* مساحة المحتوى الرئيسية بمحاذاة تامة ومسافة أمان قياسية متناسقة */}
+        <main className="flex-1 p-4 md:p-6 w-full max-w-full space-y-6">
           {children}
         </main>
       </div>
