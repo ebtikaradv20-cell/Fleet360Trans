@@ -55,7 +55,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     verifyAuth();
-
     return () => controller.abort();
   }, [user, setUser, router]);
 
@@ -78,16 +77,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex w-full overflow-x-hidden" dir={isRTL ? "rtl" : "ltr"}>
-      {/* القائمة الجانبية ممرر لها حالة الطي */}
+    <div className="h-screen w-screen overflow-hidden flex bg-gray-50 dark:bg-gray-950" dir={isRTL ? "rtl" : "ltr"}>
+      {/* 1. السايدبار: ثابت تماماً في مكانه بارتفاع الشاشة ولا يتحرك */}
       <Sidebar collapsed={isSidebarCollapsed} />
 
-      {/* الحاوية الرئيسية تبدأ مباشرة بجوار السايدبار دون هوامش مضاعفة */}
-      <div className="flex-1 flex flex-col min-w-0 w-full min-h-screen transition-all duration-300 ease-in-out">
+      {/* 2. منطقة العمل: النافبار ثابت في الأعلى، والسكرول داخل المحتوى فقط */}
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
         <Navbar onToggleSidebar={handleToggleSidebar} />
 
-        {/* مساحة المحتوى الرئيسية بمحاذاة تامة ومسافة أمان قياسية متناسقة */}
-        <main className="flex-1 p-4 md:p-6 w-full max-w-full space-y-6">
+        {/* 3. هذا السكشن هو الوحيد القابل للتمرير والسكرول لأعلى ولأسفل */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-6">
           {children}
         </main>
       </div>
