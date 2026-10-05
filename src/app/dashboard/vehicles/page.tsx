@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import DataTable from "@/components/ui/DataTable";
 import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
@@ -13,12 +13,16 @@ import {
   Save,
   X,
   Loader2,
-  Briefcase
+  Briefcase,
+  ChevronDown,
+  CheckSquare,
+  Square
 } from "lucide-react";
 
 interface Vehicle {
   id: number;
   plateNumber: string;
+  sapNumber?: string;
   chassisNumber?: string;
   engineNumber?: string;
   company?: string;
@@ -26,13 +30,13 @@ interface Vehicle {
   model?: string;
   year?: string | number;
   governorate?: string;
+  region?: string;
   department?: string;
   fuelType?: string;
   driverName?: string;
   licenseExpiry?: string;
   insuranceExpiry?: string;
   status?: string;
-  sapNumber?: string;
   notes?: string;
 }
 
@@ -45,13 +49,16 @@ interface Personnel {
   is_deleted?: number;
 }
 
+// أعمدة الشيت المطابقة بنسبة 100% لكارت الإضافة
 const VEHICLE_TEMPLATE_COLUMNS = [
   "رقم اللوحة",
+  "رقم السيارة على الساب",
   "رقم الشاسيه",
-  "الماركة / الموديل",
+  "الماركة والموديل",
   "الشركة المالكة",
   "المحافظة",
-  "القسم / الإدارة",
+  "المنطقة",
+  "الإدارة",
   "نوع الوقود",
   "اسم السائق",
   "تاريخ انتهاء الرخصة",
@@ -59,17 +66,19 @@ const VEHICLE_TEMPLATE_COLUMNS = [
   "ملاحظات"
 ];
 
-// قالب الفورم النموذجي للتحميل والتعبئة
+// قالب الفورم النموذجي للتحميل
 const sampleTemplateData = [
   {
     "رقم اللوحة": "ل ن ط 7618",
+    "رقم السيارة على الساب": "SAP-1045",
     "رقم الشاسيه": "123456",
-    "الماركة / الموديل": "بيك اب دوبل",
+    "الماركة والموديل": "بيك اب دوبل",
     "الشركة المالكة": "ترانس جاس",
     "المحافظة": "كفر الشيخ",
-    "القسم / الإدارة": "تشغيل وصيانة",
+    "المنطقة": "دسوق",
+    "الإدارة": "تشغيل وصيانة",
     "نوع الوقود": "سولار و غاز طبيعى",
-    "اسم السائق": "احمد صالح",
+    "اسم السائق": "احمد صالح، هيثم عجاج",
     "تاريخ انتهاء الرخصة": "2027-04-07",
     "الحالة التشغيلية": "نشطة",
     "ملاحظات": ""
@@ -98,16 +107,22 @@ export default function VehiclesManagementPage() {
   const [isEditVehicle, setIsEditVehicle] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Partial<Vehicle>>({
     plateNumber: "",
+    sapNumber: "",
     chassisNumber: "",
     company: "ترانس جاس",
     model: "",
     governorate: "كفر الشيخ",
+    region: "",
     department: "تشغيل وصيانة",
     fuelType: "سولار و غاز طبيعى",
     driverName: "",
     status: "نشطة",
     licenseExpiry: ""
   });
+
+  // التحكم في قائمة اختيار السائقين المتعددة في المودال
+  const [isDriverDropdownOpen, setIsDriverDropdownOpen] = useState(false);
+  const driverDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── بيانات الفنيين والسائقين ──
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
@@ -134,6 +149,17 @@ export default function VehiclesManagementPage() {
     user?.role === "admin" ||
     user?.permissions?.includes("fleet:write");
 
+  // إغلاق قائمة اختيار السائقين المنسدلة عند النقر بالخارج
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (driverDropdownRef.current && !driverDropdownRef.current.contains(e.target as Node)) {
+        setIsDriverDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // ── جلب البيانات ──
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -148,10 +174,12 @@ export default function VehiclesManagementPage() {
         const list = (Array.isArray(d) ? d : d.data || []).map((v: any) => ({
           ...v,
           plateNumber: v.plateNumber || v.plate_number || "",
+          sapNumber: v.sapNumber || v.sap_number || "",
           chassisNumber: v.chassisNumber || v.chassis_number || "",
           company: v.company || "ترانس جاس",
           model: v.model || v.make || "",
           governorate: v.governorate || "كفر الشيخ",
+          region: v.region || "",
           department: v.department || "تشغيل وصيانة",
           fuelType: v.fuelType || v.fuel_type || "سولار و غاز طبيعى",
           driverName: v.driverName || v.driver_name || "",
@@ -176,12 +204,33 @@ export default function VehiclesManagementPage() {
     loadData();
   }, [loadData]);
 
+  // ── تحويل نص السائقين إلى مصفوفة والعكس لاختيار متعدد ──
+  const selectedDriversList = (editingVehicle.driverName || "")
+    .split("،")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const toggleDriverSelection = (driverName: string) => {
+    let updated: string[];
+    if (selectedDriversList.includes(driverName)) {
+      updated = selectedDriversList.filter((name) => name !== driverName);
+    } else {
+      updated = [...selectedDriversList, driverName];
+    }
+    setEditingVehicle({
+      ...editingVehicle,
+      driverName: updated.join("، ")
+    });
+  };
+
   // ── تصفية السيارات ──
   const filteredVehicles = vehicles.filter((v) => {
     const matchesSearch =
       (v.plateNumber || "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.sapNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.chassisNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.driverName || "").toLowerCase().includes(search.toLowerCase()) ||
+      (v.region || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.model || "").toLowerCase().includes(search.toLowerCase());
 
     const matchesComp = companyFilter === "الكل" || v.company === companyFilter;
@@ -210,15 +259,17 @@ export default function VehiclesManagementPage() {
       for (const r of importedRows) {
         const payload = {
           plateNumber: r["رقم اللوحة"] || r.plateNumber,
+          sapNumber: r["رقم السيارة على الساب"] || r["رقم الساب"] || r.sapNumber || "",
           chassisNumber: r["رقم الشاسيه"] || r.chassisNumber || "",
-          model: r["الماركة / الموديل"] || r["الموديل"] || r.model || "",
+          model: r["الماركة والموديل"] || r["الماركة / الموديل"] || r.model || "",
           company: r["الشركة المالكة"] || r.company || "ترانس جاس",
           governorate: r["المحافظة"] || r.governorate || "كفر الشيخ",
-          department: r["القسم / الإدارة"] || r.department || "تشغيل وصيانة",
+          region: r["المنطقة"] || r.region || "",
+          department: r["الإدارة"] || r["القسم / الإدارة"] || r.department || "تشغيل وصيانة",
           fuelType: r["نوع الوقود"] || r.fuelType || "سولار و غاز طبيعى",
           driverName: r["اسم السائق"] || r.driverName || "",
           licenseExpiry: r["تاريخ انتهاء الرخصة"] || r["تاريخ الترخيص"] || r.licenseExpiry || "",
-          status: "نشطة",
+          status: r["الحالة التشغيلية"] || "نشطة",
           notes: r["ملاحظات"] || r.notes || ""
         };
 
@@ -329,17 +380,21 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── إكسل السيارات ──
+  // ── إكسل السيارات المطابق ──
   const excelVehicleData = filteredVehicles.map((v) => ({
-    "اللوحة": v.plateNumber,
-    "الشاسيه": v.chassisNumber || "-",
+    "رقم اللوحة": v.plateNumber,
+    "رقم السيارة على الساب": v.sapNumber || "-",
+    "رقم الشاسيه": v.chassisNumber || "-",
+    "الماركة والموديل": v.model || "-",
     "الشركة المالكة": v.company || "ترانس جاس",
-    "الماركة / الموديل": v.model || "-",
     "المحافظة": v.governorate || "-",
+    "المنطقة": v.region || "-",
+    "الإدارة": v.department || "-",
     "نوع الوقود": v.fuelType || "-",
     "اسم السائق": v.driverName || "-",
-    "تاريخ الترخيص": v.licenseExpiry || "-",
-    "الحالة": v.status || "نشطة"
+    "تاريخ انتهاء الرخصة": v.licenseExpiry || "-",
+    "الحالة التشغيلية": v.status || "نشطة",
+    "ملاحظات": v.notes || ""
   }));
 
   // ── إكسل الكوادر ──
@@ -362,9 +417,30 @@ export default function VehiclesManagementPage() {
         </div>
       )
     },
+    {
+      key: "sapNumber",
+      header: "رقم SAP",
+      render: (r: Vehicle) =>
+        r.sapNumber ? (
+          <span className="font-mono text-xs font-black text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+            {r.sapNumber}
+          </span>
+        ) : (
+          <span className="text-gray-400 text-xs">-</span>
+        )
+    },
     { key: "company", header: "الشركة المالكة", render: (r: Vehicle) => r.company || "ترانس جاس" },
     { key: "model", header: "الماركة / الموديل", render: (r: Vehicle) => r.model || "-" },
-    { key: "governorate", header: "المحافظة", render: (r: Vehicle) => r.governorate || "كفر الشيخ" },
+    {
+      key: "location",
+      header: "المحافظة / المنطقة",
+      render: (r: Vehicle) => (
+        <div>
+          <span className="font-bold">{r.governorate || "كفر الشيخ"}</span>
+          {r.region && <span className="text-xs text-gray-500 block">({r.region})</span>}
+        </div>
+      )
+    },
     {
       key: "fuelType",
       header: "نوع الوقود",
@@ -384,9 +460,9 @@ export default function VehiclesManagementPage() {
     },
     {
       key: "driverName",
-      header: "اسم السائق",
+      header: "السائقين المسندين",
       render: (r: Vehicle) => (
-        <span className="font-bold text-gray-800 dark:text-gray-200">
+        <span className="font-bold text-gray-800 dark:text-gray-200 text-xs">
           {r.driverName || <span className="text-gray-400 text-xs">غير محدد</span>}
         </span>
       )
@@ -431,7 +507,7 @@ export default function VehiclesManagementPage() {
       key: "assignedVehicles",
       header: "السيارات المسندة إليه",
       render: (r: Personnel) => {
-        const assigned = vehicles.filter((v) => v.driverName === r.name);
+        const assigned = vehicles.filter((v) => (v.driverName || "").includes(r.name));
         return assigned.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {assigned.map((v) => (
@@ -454,7 +530,7 @@ export default function VehiclesManagementPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── الرأس الأصلي الكامل مع أزرار الشيت والقالب والإضافة ── */}
+      {/* ── الرأس والإجراءات ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -479,7 +555,7 @@ export default function VehiclesManagementPage() {
             fileName={activeTab === "vehicles" ? "أسطول_السيارات" : "الفنيين_والسائقين"}
           />
 
-          {/* 2. زر قالب Excel (شيت فورم التحميل) */}
+          {/* 2. قالب Excel */}
           {activeTab === "vehicles" && (
             <ExportExcelButton
               data={sampleTemplateData}
@@ -488,7 +564,7 @@ export default function VehiclesManagementPage() {
             />
           )}
 
-          {/* 3. زر استيراد وتحديث الشيت (رفع الشيت) */}
+          {/* 3. استيراد وتحديث الشيت */}
           {canWrite && activeTab === "vehicles" && (
             <ImportExcelButton
               templateColumns={VEHICLE_TEMPLATE_COLUMNS}
@@ -497,16 +573,18 @@ export default function VehiclesManagementPage() {
             />
           )}
 
-          {/* 4. زر إضافة سيارة البرتقالي اليدوي */}
+          {/* 4. زر إضافة سيارة اليدوي */}
           {canWrite && activeTab === "vehicles" && (
             <button
               onClick={() => {
                 setEditingVehicle({
                   plateNumber: "",
+                  sapNumber: "",
                   chassisNumber: "",
                   company: "ترانس جاس",
                   model: "",
                   governorate: "كفر الشيخ",
+                  region: "",
                   department: "تشغيل وصيانة",
                   fuelType: "سولار و غاز طبيعى",
                   driverName: "",
@@ -574,7 +652,7 @@ export default function VehiclesManagementPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث باللوحة، الشاسيه، السائق..."
+            placeholder="ابحث باللوحة، SAP، الشاسيه، المنطقة..."
             className="border dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs dark:bg-gray-800 dark:text-white outline-none w-56 focus:border-teal-500"
           />
         </div>
@@ -669,7 +747,7 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── نافذة إضافة / تعديل السيارة ── */}
+      {/* ── نافذة إضافة / تعديل السيارة المحدثة ── */}
       {vehicleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
@@ -695,6 +773,16 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
+                {/* حقل رقم السيارة على الساب */}
+                <Field label="رقم السيارة على الساب (SAP)">
+                  <input
+                    className={`${inputClass} font-mono font-bold text-blue-900 dark:text-blue-300`}
+                    value={editingVehicle.sapNumber || ""}
+                    onChange={(e) => setEditingVehicle({ ...editingVehicle, sapNumber: e.target.value })}
+                    placeholder="مثال: SAP-1045"
+                  />
+                </Field>
+
                 <Field label="رقم الشاسيه">
                   <input
                     className={inputClass}
@@ -713,26 +801,67 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                <Field label="اسم السائق (اختيار من القائمة)">
-                  <select
-                    className={`${inputClass} font-bold text-teal-800 dark:text-teal-300`}
-                    value={editingVehicle.driverName || ""}
-                    onChange={(e) => setEditingVehicle({ ...editingVehicle, driverName: e.target.value })}
+                {/* اختيار أكثر من سائق للسيارة عبر القائمة المنسدلة */}
+                <div className="relative" ref={driverDropdownRef}>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    السائقين المسندين (اختيار متعدد)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsDriverDropdownOpen(!isDriverDropdownOpen)}
+                    className={`${inputClass} text-right flex items-center justify-between cursor-pointer`}
                   >
-                    <option value="">-- اختر السائق من المسجلين --</option>
-                    {personnelList.map((p) => (
-                      <option key={p.id} value={p.name}>
-                        {p.name} ({p.role})
-                      </option>
-                    ))}
-                    {editingVehicle.driverName &&
-                      !personnelList.some((p) => p.name === editingVehicle.driverName) && (
-                        <option value={editingVehicle.driverName}>
-                          {editingVehicle.driverName} (محدد يدوياً)
-                        </option>
-                      )}
-                  </select>
-                </Field>
+                    <span className="truncate">
+                      {selectedDriversList.length === 0
+                        ? "-- اختر السائقين --"
+                        : `${selectedDriversList.length} سائقين محددين: (${selectedDriversList.join("، ")})`}
+                    </span>
+                    <ChevronDown size={14} className="text-gray-400 shrink-0" />
+                  </button>
+
+                  {isDriverDropdownOpen && (
+                    <div className="absolute z-50 top-full mt-1.5 right-0 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-2.5 max-h-48 overflow-y-auto space-y-1">
+                      {personnelList.map((p) => {
+                        const isChecked = selectedDriversList.includes(p.name);
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => toggleDriverSelection(p.name)}
+                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-xs"
+                          >
+                            {isChecked ? (
+                              <CheckSquare size={16} className="text-teal-600 shrink-0" />
+                            ) : (
+                              <Square size={16} className="text-gray-400 shrink-0" />
+                            )}
+                            <span className="font-bold text-gray-800 dark:text-gray-200">
+                              {p.name} ({p.role})
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* عرض السائقين المختارين على شكل Badges */}
+                  {selectedDriversList.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {selectedDriversList.map((name) => (
+                        <span
+                          key={name}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800"
+                        >
+                          {name}
+                          <X
+                            size={12}
+                            className="cursor-pointer hover:text-red-500"
+                            onClick={() => toggleDriverSelection(name)}
+                          />
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <Field label="الشركة المالكة">
                   <input
@@ -747,6 +876,16 @@ export default function VehiclesManagementPage() {
                     className={inputClass}
                     value={editingVehicle.governorate || "كفر الشيخ"}
                     onChange={(e) => setEditingVehicle({ ...editingVehicle, governorate: e.target.value })}
+                  />
+                </Field>
+
+                {/* حقل المنطقة المضاف */}
+                <Field label="المنطقة">
+                  <input
+                    className={inputClass}
+                    value={editingVehicle.region || ""}
+                    onChange={(e) => setEditingVehicle({ ...editingVehicle, region: e.target.value })}
+                    placeholder="مثال: دسوق / قلين / الحامول"
                   />
                 </Field>
 
@@ -796,14 +935,14 @@ export default function VehiclesManagementPage() {
                 <button
                   type="button"
                   onClick={() => setVehicleModalOpen(false)}
-                  className="flex-1 py-2.5 bg-white border text-gray-700 font-bold rounded-xl hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300"
+                  className="flex-1 py-2.5 bg-white border text-gray-700 font-bold rounded-xl hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 py-2.5 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-xl flex justify-center items-center gap-2"
+                  className="flex-1 py-2.5 bg-blue-900 hover:bg-blue-800 text-white font-bold rounded-xl flex justify-center items-center gap-2 cursor-pointer"
                 >
                   {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                   <span>{isEditVehicle ? "حفظ التعديلات" : "إضافة السيارة"}</span>
@@ -881,14 +1020,14 @@ export default function VehiclesManagementPage() {
                 <button
                   type="button"
                   onClick={() => setPersonnelModalOpen(false)}
-                  className="flex-1 py-2.5 bg-white border text-gray-700 font-bold rounded-xl hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300"
+                  className="flex-1 py-2.5 bg-white border text-gray-700 font-bold rounded-xl hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex justify-center items-center gap-2"
+                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 cursor-pointer"
                 >
                   {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                   <span>{isEditPersonnel ? "تحديث البيانات" : "حفظ الفرد"}</span>
