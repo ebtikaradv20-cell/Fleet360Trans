@@ -15,28 +15,28 @@
   "icons": [
     {
       "src": "/logo.png",
-      "sizes": "192x192",
+      "sizes": "1448x1448",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/logo.png",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
       "src": "/logo.png",
-      "sizes": "512x512",
+      "sizes": "1448x1448",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Fleet360 Mobile"
     },
     {
       "src": "/logo.png",
-      "sizes": "512x512",
+      "sizes": "1448x1448",
       "type": "image/png",
       "form_factor": "wide",
       "label": "Fleet360 Dashboard"
