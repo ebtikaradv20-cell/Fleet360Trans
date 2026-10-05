@@ -19,8 +19,7 @@ import {
   ChevronDown,
   CheckSquare,
   Square,
-  ExternalLink,
-  Car
+  ExternalLink
 } from "lucide-react";
 
 interface FleetRecord {
@@ -54,6 +53,7 @@ const FLEET_EXCEL_COLUMNS = [
   "التكلفة"
 ];
 
+// قالب الإكسيل النموذجي
 const sampleTemplateData = [
   {
     "رقم اوردر الساب": "SAP-9012",
@@ -70,6 +70,14 @@ const sampleTemplateData = [
     "القسم": "وقود",
     "وصف العملية": "تفويل سولار 60 لتر",
     "التكلفة": 850
+  },
+  {
+    "رقم اوردر الساب": "SAP-9014",
+    "رقم العربية": "ل ن ط 7618",
+    "التاريخ": "2026-10-03",
+    "القسم": "زيوت",
+    "وصف العملية": "غيار زيت 10,000 كم مع فلتر",
+    "التكلفة": 1200
   }
 ];
 
@@ -87,13 +95,13 @@ export default function FleetDataPage() {
   const [allRecords, setAllRecords] = useState<FleetRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── الفلاتر العلوية (بحث واختيار سيارة فقط) ──
+  // الفلاتر العلوية
   const [search, setSearch] = useState("");
   const [selectedPlates, setSelectedPlates] = useState<string[]>([]);
   const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false);
   const vehicleMenuRef = useRef<HTMLDivElement>(null);
 
-  // ── البار السفلي للأقسام (سجل مجمع / صيانة / زيوت / كاوتش / وقود / فحص) ──
+  // بار السكاشن
   const [activeSection, setActiveSection] = useState<
     "all" | "work-orders" | "oil" | "tires" | "fuel" | "inspection"
   >("all");
@@ -104,7 +112,6 @@ export default function FleetDataPage() {
     user?.role === "admin" ||
     user?.permissions?.includes("fleet:write");
 
-  // إغلاق قائمة اختيار السيارات عند النقر خارجها
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (vehicleMenuRef.current && !vehicleMenuRef.current.contains(e.target as Node)) {
@@ -115,7 +122,6 @@ export default function FleetDataPage() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // ── جلب وتوحيد داتا الأسطول من كل الشاشات ──
   const loadFleetData = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,13 +136,11 @@ export default function FleetDataPage() {
 
       const list: FleetRecord[] = [];
 
-      // 1. السيارات
       if (vehRes && vehRes.ok) {
         const vd = await vehRes.json();
         setVehicles(Array.isArray(vd) ? vd : vd.data || []);
       }
 
-      // 2. أوامر الصيانة
       if (woRes && woRes.ok) {
         const wod = await woRes.json();
         const woList = Array.isArray(wod) ? wod : wod.data || [];
@@ -160,7 +164,6 @@ export default function FleetDataPage() {
           });
       }
 
-      // 3. الزيوت والفلاتر
       if (oilRes && oilRes.ok) {
         const oild = await oilRes.json();
         const oilList = Array.isArray(oild) ? oild : oild.data || [];
@@ -183,7 +186,6 @@ export default function FleetDataPage() {
           });
       }
 
-      // 4. الكاوتش
       if (tireRes && tireRes.ok) {
         const tired = await tireRes.json();
         const tireList = Array.isArray(tired) ? tired : tired.data || [];
@@ -206,7 +208,6 @@ export default function FleetDataPage() {
           });
       }
 
-      // 5. الوقود
       if (fuelRes && fuelRes.ok) {
         const fueld = await fuelRes.json();
         const fuelList = Array.isArray(fueld) ? fueld : fueld.data || [];
@@ -229,7 +230,6 @@ export default function FleetDataPage() {
           });
       }
 
-      // 6. فحص السيارات
       if (inspRes && inspRes.ok) {
         const inspd = await inspRes.json();
         const inspList = Array.isArray(inspd) ? inspd : inspd.data || [];
@@ -277,7 +277,6 @@ export default function FleetDataPage() {
     );
   };
 
-  // ── تصفية السجلات حسب البحث والسيارات والقسم المختار ──
   const filteredRecords = useMemo(() => {
     return allRecords.filter((row) => {
       const matchesSearch =
@@ -301,12 +300,10 @@ export default function FleetDataPage() {
     });
   }, [allRecords, search, selectedPlates, activeSection]);
 
-  // إحصائيات العمليات المعروضة
   const totalCost = filteredRecords.reduce((acc, r) => acc + safeNum(r.cost), 0);
   const maintenanceCount = filteredRecords.filter((r) => r.section === "صيانة").length;
   const fuelCount = filteredRecords.filter((r) => r.section === "وقود").length;
 
-  // شيت إكسل للتصدير
   const excelData = filteredRecords.map((row) => ({
     "رقم اوردر الساب": row.sapNumber,
     "رقم العربية": row.plateNumber,
@@ -316,59 +313,150 @@ export default function FleetDataPage() {
     "التكلفة": safeNum(row.cost)
   }));
 
-  // استيراد الشيت
+  // ── الاستيراد الذكي (Upsert: تعديل إذا كان مسجلاً أو إضافة جديد + فرز تلقائي بالكلمات الدلالية) ──
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
+
     try {
-      let count = 0;
+      let updatedCount = 0;
+      let addedCount = 0;
+
       for (const row of importedRows) {
         const sap = String(row["رقم اوردر الساب"] || row["رقم الساب"] || "").trim();
         const plate = String(row["رقم العربية"] || row["رقم اللوحة"] || "").trim();
         const d = row["التاريخ"] || new Date().toISOString().slice(0, 10);
-        const sectionType = String(row["القسم"] || "").trim();
+        const section = String(row["القسم"] || row["النوع"] || "").trim();
         const desc = String(row["وصف العملية"] || row["وصف الصيانه او العملية"] || "").trim();
         const costVal = safeNum(row["التكلفة"]);
 
-        if (sectionType.includes("وقود")) {
-          await fetch("/api/fuel", {
-            method: "POST",
+        if (!plate) continue;
+
+        // التحقق إن كانت المعاملة مسجلة مسبقاً بنفس رقم الساب للتحديث (Update) بدلاً من الإضافة
+        const existingRecord = allRecords.find(
+          (r) =>
+            (sap && sap !== "-" && r.sapNumber === sap) ||
+            (r.plateNumber === plate && r.date === d && r.description === desc)
+        );
+
+        // 1. قسم الوقود (أو بالكلمات الدلالية)
+        if (
+          section.includes("وقود") ||
+          desc.includes("سولار") ||
+          desc.includes("بنزين") ||
+          desc.includes("تفويل")
+        ) {
+          const method = existingRecord && existingRecord.sectionKey === "fuel" ? "PUT" : "POST";
+          const url = method === "PUT" ? `/api/fuel/${existingRecord.rawId}` : "/api/fuel";
+
+          await fetch(url, {
+            method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              id: existingRecord?.rawId,
               sapNumber: sap,
               plateNumber: plate,
               date: d,
               notes: desc,
               cost: costVal,
-              fuelType: "سولار",
+              fuelType: desc.includes("بنزين") ? "بنزين" : "سولار",
               liters: 0
             })
           });
-        } else {
-          await fetch("/api/work-orders", {
-            method: "POST",
+
+          if (method === "PUT") updatedCount++;
+          else addedCount++;
+
+        // 2. قسم الزيوت
+        } else if (
+          section.includes("زيت") ||
+          desc.includes("زيت") ||
+          desc.includes("فلتر")
+        ) {
+          const method = existingRecord && existingRecord.sectionKey === "oil" ? "PUT" : "POST";
+          const url = method === "PUT" ? `/api/oil-changes/${existingRecord.rawId}` : "/api/oil-changes";
+
+          await fetch(url, {
+            method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              id: existingRecord?.rawId,
+              plateNumber: plate,
+              oilType: desc || "غيار زيت",
+              changeDate: d,
+              cost: costVal,
+              filterChanged: desc.includes("فلتر"),
+              notes: `رقم SAP: ${sap}`
+            })
+          });
+
+          if (method === "PUT") updatedCount++;
+          else addedCount++;
+
+        // 3. قسم الكاوتش
+        } else if (
+          section.includes("كاوتش") ||
+          section.includes("إطار") ||
+          desc.includes("كاوتش") ||
+          desc.includes("إطار")
+        ) {
+          const method = existingRecord && existingRecord.sectionKey === "tires" ? "PUT" : "POST";
+          const url = method === "PUT" ? `/api/tires/${existingRecord.rawId}` : "/api/tires";
+
+          await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: existingRecord?.rawId,
+              plateNumber: plate,
+              brand: desc || "إطارات جديدة",
+              size: "-",
+              cost: costVal,
+              installDate: d,
+              notes: `رقم SAP: ${sap}`
+            })
+          });
+
+          if (method === "PUT") updatedCount++;
+          else addedCount++;
+
+        // 4. قسم أوامر الصيانة (الافتراضي لباقي الأعمال)
+        } else {
+          const method = existingRecord && existingRecord.sectionKey === "work-orders" ? "PUT" : "POST";
+          const url = method === "PUT" ? `/api/work-orders/${existingRecord.rawId}` : "/api/work-orders";
+
+          await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: existingRecord?.rawId,
               sapNumber: sap,
               plateNumber: plate,
               startDate: d,
-              maintenanceType: "صيانة ميكانيكا",
+              maintenanceType: desc.length < 30 ? desc : "صيانة ميكانيكا",
               description: desc,
               cost: costVal,
-              status: "completed"
+              status: "completed",
+              operationType: "صيانة دورية"
             })
           });
+
+          if (method === "PUT") updatedCount++;
+          else addedCount++;
         }
-        count++;
       }
-      alert(`تم استيراد ${count} عملية وتحديث داتا الأسطول بنجاح.`);
+
+      alert(
+        `اكتملت مزامنة الشيت بنجاح:\n` +
+        `- تم تحديث وتعديل: ${updatedCount} معاملة موجودة\n` +
+        `- تم تسجيل وإضافة: ${addedCount} معاملة جديدة`
+      );
       loadFleetData();
     } catch (err) {
-      console.error("Bulk sync error:", err);
-      alert("حدث خطأ أثناء معالجة الشيت.");
+      console.error("Sync error:", err);
+      alert("حدث خطأ أثناء مزامنة بيانات الشيت.");
     }
   };
 
-  // ── أعمدة الجدول المجمع مع ميزة النقر والتحويل المباشر ──
   const columns = [
     {
       key: "sapNumber",
@@ -453,7 +541,7 @@ export default function FleetDataPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── 1. البارات الإحصائية العلوية ── */}
+      {/* ── 1. البارات العلوية ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex justify-between items-start relative z-10">
@@ -494,7 +582,7 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── 2. الهيدر وأزرار الشيت الثلاثة (تصدير، قالب، استيراد) ── */}
+      {/* ── 2. الهيدر (زر تصدير واحد فقط + قالب + استيراد) ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -510,7 +598,7 @@ export default function FleetDataPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* تصدير Excel */}
+          {/* زر تصدير واحد فقط */}
           <ExportExcelButton data={excelData} fileName="داتا_الأسطول_الشاملة" />
 
           {/* قالب Excel */}
@@ -531,7 +619,7 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── 3. شريط الفلاتر الأصلي (بحث + اختيار سيارة فقط) ── */}
+      {/* ── 3. شريط الفلاتر (بحث + اختيار سيارة فقط) ── */}
       <FilterBar>
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500 dark:text-gray-400">بحث:</label>
@@ -544,7 +632,6 @@ export default function FleetDataPage() {
           />
         </div>
 
-        {/* اختيار السيارة أو أكثر من سيارة */}
         <div className="relative flex items-center gap-2" ref={vehicleMenuRef}>
           <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
             السيارة:
@@ -607,7 +694,7 @@ export default function FleetDataPage() {
         </div>
       </FilterBar>
 
-      {/* ── 4. بار السكاشن المجمع (التبديل بين أقسام ومعاملات السيارة) ── */}
+      {/* ── 4. بار السكاشن ── */}
       <div className="flex gap-2 p-1.5 bg-white dark:bg-gray-900 rounded-xl w-fit border border-gray-200 dark:border-gray-800 shadow-sm overflow-x-auto max-w-full">
         <button
           onClick={() => setActiveSection("all")}
@@ -682,7 +769,7 @@ export default function FleetDataPage() {
         </button>
       </div>
 
-      {/* ── 5. الجدول المجمع الشامل ── */}
+      {/* ── 5. الجدول المجمع ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable
           columns={columns}
