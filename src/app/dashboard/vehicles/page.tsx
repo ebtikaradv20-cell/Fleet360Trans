@@ -16,7 +16,9 @@ import {
   ChevronDown,
   CheckSquare,
   Square,
-  Search
+  Search,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface Vehicle {
@@ -49,10 +51,16 @@ interface Personnel {
   is_deleted?: number;
 }
 
-// دالة لمعالجة وتوحيد كتابة اللوحات بإزالة التشكيل وتوحيد الألف لضمان تحديث الساب
+// دالة تطبيع اللوحات وتحويل الأرقام المشرقية (٠-٩) إلى أرقام إنجليزية (0-9) مع إزالة التشكيل
 function normalizePlate(str: any): string {
   if (!str) return "";
-  return String(str)
+  const easternDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+  let cleaned = String(str);
+  easternDigits.forEach((d, idx) => {
+    cleaned = cleaned.replace(new RegExp(d, "g"), String(idx));
+  });
+
+  return cleaned
     .replace(/[\s_\-\.\/]/g, "")
     .replace(/[ًٌٍَُِّْ]/g, "") // إزالة حركات التشكيل كالسكون والفتحة
     .replace(/[إأآاْ]/g, "ا")
@@ -62,7 +70,6 @@ function normalizePlate(str: any): string {
     .toLowerCase();
 }
 
-// دالة توحيد وتنسيق تواريخ الإكسيل بجميع صيغها
 function normalizeDate(val: any): string {
   if (!val) return "";
   if (val instanceof Date) {
@@ -90,12 +97,15 @@ function normalizeDate(val: any): string {
   return str;
 }
 
-// استخراج الحقول بالذكاء الدلالي لأي مسمى عمود في الإكسيل
+// دالة استخراج الحقول - تدعم الأرقام الخالصة بالكامل دون فقد
 function extractField(row: Record<string, any>, keywords: string[]): string {
   for (const [key, val] of Object.entries(row)) {
     const cleanKey = key.replace(/[\s_\-#/:\.\(\)]/g, "").toLowerCase();
     for (const kw of keywords) {
       if (cleanKey.includes(kw.toLowerCase())) {
+        if (typeof val === "number") {
+          return String(val); // قراءة الأرقام الخالصة مباشرة
+        }
         const res = String(val ?? "").trim();
         if (res && res !== "-" && res !== "undefined" && res !== "null") {
           return res;
@@ -109,7 +119,7 @@ function extractField(row: Record<string, any>, keywords: string[]): string {
 const vehicleTemplateData = [
   {
     "رقم اللوحة": "ل ن ط 7618",
-    "رقم SAP": "SAP-1045",
+    "رقم SAP": "1045",
     "رقم الشاسيه": "123456",
     "الماركة والموديل": "نيسان بيك اب - دوبل كابينة",
     "سنة الصنع": "2024",
@@ -174,10 +184,15 @@ export default function VehiclesManagementPage() {
     notes: ""
   });
 
+  // الفلاتر
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("الكل");
   const [govFilter, setGovFilter] = useState("الكل");
   const [deptFilter, setDeptFilter] = useState("الكل");
+
+  // ── إعدادات تقسيم الصفحات (Pagination) ──
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const canWrite =
     user?.role === "owner" ||
@@ -275,6 +290,19 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesComp && matchesGov && matchesDept;
   });
 
+  // إعادة الصفحة إلى 1 عند أي تغيير في البحث أو الفلاتر
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, companyFilter, govFilter, deptFilter]);
+
+  // حساب الصفحات
+  const totalVehicles = filteredVehicles.length;
+  const totalPages = Math.ceil(totalVehicles / pageSize) || 1;
+  const paginatedVehicles = filteredVehicles.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   const filteredPersonnel = personnelList.filter((p) => {
     const matchesSearch =
       (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -282,7 +310,7 @@ export default function VehiclesManagementPage() {
     return matchesSearch;
   });
 
-  // استيراد وتحديث الشيت مع فحص الساب والترخيص
+  // استيراد وتحديث الشيت مع قراءة الساب والترخيص بدقة
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -294,6 +322,7 @@ export default function VehiclesManagementPage() {
         const plate = extractField(r, ["لوح", "plate", "عرب"]);
         if (!plate) continue;
 
+        // استخراج رقم الساب حتى لو كان عدداً خالصاً
         const sap = extractField(r, ["ساب", "sap", "SAP", "Sap", "أصل", "اصل", "asset", "Asset"]);
         const rawExpiry = extractField(r, ["ترخيص", "رخص", "license", "expiry"]);
         const formattedExpiry = normalizeDate(rawExpiry);
@@ -344,7 +373,7 @@ export default function VehiclesManagementPage() {
         }
       }
 
-      alert(`تمت قراءة الشيت ومزامنة البيانات بنجاح:\n- تم تحديث: ${updatedCount} سيارة\n- تم تسجيل: ${addedCount} سيارة جديدة`);
+      alert(`تمت قراءة الشيت وتحديث البيانات بنجاح:\n- تم تحديث: ${updatedCount} سيارة\n- تم تسجيل: ${addedCount} سيارة جديدة`);
       loadData();
     } catch (err) {
       console.error("Import error:", err);
@@ -416,51 +445,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  const handleSavePersonnel = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saving) return;
-    if (!editingPerson.name?.trim()) {
-      alert("يرجى إدخال الاسم");
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await fetch("/api/drivers", {
-        method: isEditPersonnel ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingPerson)
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success !== false) {
-        alert(isEditPersonnel ? "تم تحديث بيانات الفرد بنجاح" : "تمت إضافة الفرد بنجاح");
-        setPersonnelModalOpen(false);
-        loadData();
-      } else {
-        alert(data.error || "حدث خطأ أثناء الحفظ");
-      }
-    } catch {
-      alert("تعذر الاتصال بالخادم.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeletePersonnel = async (id: number) => {
-    if (!confirm("هل أنت متأكد من حذف هذا الفرد من القائمة؟")) return;
-    try {
-      const res = await fetch(`/api/drivers?id=${id}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success !== false) {
-        setPersonnelList((prev) => prev.filter((p) => p.id !== id));
-        alert("تم الحذف بنجاح");
-      } else {
-        alert(data.error || "فشل الحذف");
-      }
-    } catch {
-      alert("تعذر الاتصال بالخادم");
-    }
-  };
-
   const handleDeleteVehicle = async (id: number) => {
     if (!confirm("هل أنت متأكد من حذف هذه السيارة؟")) return;
     try {
@@ -476,7 +460,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // أعمدة الجدول
   const vehicleColumns = [
     {
       key: "plateNumber",
@@ -511,7 +494,7 @@ export default function VehiclesManagementPage() {
         </div>
       )
     },
-    // ✅ هنا التعديل: الفرع/المنطقة تظهر بلون قوي في الأعلى، والمحافظة بلون خفيف في الأسفل
+    // الفرع في الأعلى بخط واضح والمحافظة تحتها بلون خفيف
     {
       key: "location",
       header: "الفرع / المحافظة",
@@ -635,8 +618,8 @@ export default function VehiclesManagementPage() {
   ];
 
   return (
-    <div className="w-full space-y-5" dir="rtl">
-      {/* ── الرأس: 3 أزرار إكسيل + إضافة سيارة ── */}
+    <div className="w-full space-y-4" dir="rtl">
+      {/* ── الرأس: أزرار متناسقة ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 dark:bg-teal-950/50 text-teal-600 rounded-xl">
@@ -700,20 +683,6 @@ export default function VehiclesManagementPage() {
               <span>إضافة سيارة</span>
             </button>
           )}
-
-          {canWrite && activeTab === "personnel" && (
-            <button
-              onClick={() => {
-                setEditingPerson({ name: "", role: "سائق", phone: "", notes: "" });
-                setIsEditPersonnel(false);
-                setPersonnelModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
-            >
-              <Plus size={15} />
-              <span>إضافة فرد</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -743,7 +712,7 @@ export default function VehiclesManagementPage() {
         </button>
       </div>
 
-      {/* ── شريط الفلاتر المضبوط ── */}
+      {/* ── شريط الفلاتر ── */}
       <div className="bg-white dark:bg-gray-900 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
@@ -799,24 +768,85 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── جدول البيانات ── */}
+      {/* ── جدول البيانات المقسم لصفحات (Pagination) ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         {activeTab === "vehicles" ? (
-          <DataTable
-            columns={vehicleColumns}
-            data={filteredVehicles}
-            loading={loading}
-            onEdit={
-              canWrite
-                ? (r: Vehicle) => {
-                    setEditingVehicle(r);
-                    setIsEditVehicle(true);
-                    setVehicleModalOpen(true);
-                  }
-                : undefined
-            }
-            onDelete={canWrite ? (r: Vehicle) => handleDeleteVehicle(r.id) : undefined}
-          />
+          <>
+            <DataTable
+              columns={vehicleColumns}
+              data={paginatedVehicles}
+              loading={loading}
+              onEdit={
+                canWrite
+                  ? (r: Vehicle) => {
+                      setEditingVehicle(r);
+                      setIsEditVehicle(true);
+                      setVehicleModalOpen(true);
+                    }
+                  : undefined
+              }
+              onDelete={canWrite ? (r: Vehicle) => handleDeleteVehicle(r.id) : undefined}
+            />
+
+            {/* شريط التحكم بالصفحات أسفل الجدول */}
+            <div className="p-3 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-gray-50/50 dark:bg-gray-900/50">
+              <div className="flex items-center gap-2 text-gray-500">
+                <span>عرض</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={36}>36 (الكل)</option>
+                </select>
+                <span>
+                  من إجمالي <strong className="text-gray-900 dark:text-white">{totalVehicles}</strong> سيارة
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+                  title="الصفحة السابقة"
+                >
+                  <ChevronRight size={15} />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-7 h-7 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                      currentPage === pageNum
+                        ? "bg-teal-600 text-white shadow-xs"
+                        : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 disabled:opacity-40 hover:bg-gray-50 cursor-pointer"
+                  title="الصفحة التالية"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+              </div>
+            </div>
+          </>
         ) : (
           <DataTable
             columns={personnelColumns}
@@ -831,7 +861,6 @@ export default function VehiclesManagementPage() {
                   }
                 : undefined
             }
-            onDelete={canWrite ? (r: Personnel) => handleDeletePersonnel(r.id) : undefined}
           />
         )}
       </div>
@@ -867,7 +896,7 @@ export default function VehiclesManagementPage() {
                     className={`${inputClass} font-mono font-bold text-blue-900 dark:text-blue-300`}
                     value={editingVehicle.sapNumber || ""}
                     onChange={(e) => setEditingVehicle({ ...editingVehicle, sapNumber: e.target.value })}
-                    placeholder="مثال: SAP-1045"
+                    placeholder="مثال: 1045"
                   />
                 </Field>
 
@@ -971,12 +1000,12 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                <Field label="المنطقة">
+                <Field label="المنطقة / الفرع">
                   <input
                     className={inputClass}
                     value={editingVehicle.region || ""}
                     onChange={(e) => setEditingVehicle({ ...editingVehicle, region: e.target.value })}
-                    placeholder="مثال: دسوق / بيلا / مطوبس"
+                    placeholder="مثال: دسوق / بيلا / قلين"
                   />
                 </Field>
 
@@ -1051,91 +1080,6 @@ export default function VehiclesManagementPage() {
                 >
                   {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
                   <span>{isEditVehicle ? "حفظ التعديلات" : "إضافة السيارة"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── نافذة إضافة / تعديل الفنيين والسائقين ── */}
-      {personnelModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center bg-teal-700 text-white p-4 rounded-t-2xl shrink-0">
-              <h2 className="text-base font-black flex items-center gap-2">
-                <Briefcase size={18} />
-                {isEditPersonnel ? "تعديل بيانات الفرد" : "إضافة فرد جديد (سائق / فني / مهندس)"}
-              </h2>
-              <button onClick={() => setPersonnelModalOpen(false)} className="hover:text-red-300">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePersonnel} className="p-5 space-y-3.5">
-              <Field label="الاسم بالكامل *">
-                <input
-                  required
-                  className={inputClass}
-                  value={editingPerson.name || ""}
-                  onChange={(e) => setEditingPerson({ ...editingPerson, name: e.target.value })}
-                  placeholder="مثال: أحمد صالح"
-                />
-              </Field>
-
-              <Field label="التصنيف الوظيفي *">
-                <select
-                  required
-                  className={inputClass}
-                  value={editingPerson.role || "سائق"}
-                  onChange={(e) =>
-                    setEditingPerson({
-                      ...editingPerson,
-                      role: e.target.value as "سائق" | "فني" | "مهندس"
-                    })
-                  }
-                >
-                  <option value="سائق">سائق</option>
-                  <option value="فني">فني</option>
-                  <option value="مهندس">مهندس</option>
-                </select>
-              </Field>
-
-              <Field label="رقم الهاتف">
-                <input
-                  type="tel"
-                  className={inputClass}
-                  value={editingPerson.phone || ""}
-                  onChange={(e) => setEditingPerson({ ...editingPerson, phone: e.target.value })}
-                  placeholder="01xxxxxxxxx"
-                />
-              </Field>
-
-              <Field label="ملاحظات">
-                <textarea
-                  className={inputClass}
-                  rows={2}
-                  value={editingPerson.notes || ""}
-                  onChange={(e) => setEditingPerson({ ...editingPerson, notes: e.target.value })}
-                  placeholder="أي ملاحظات..."
-                />
-              </Field>
-
-              <div className="flex gap-2.5 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  type="button"
-                  onClick={() => setPersonnelModalOpen(false)}
-                  className="flex-1 py-2 bg-white border text-gray-700 font-bold rounded-xl hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 text-xs cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex justify-center items-center gap-1.5 text-xs cursor-pointer"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
-                  <span>{isEditPersonnel ? "تحديث البيانات" : "حفظ الفرد"}</span>
                 </button>
               </div>
             </form>
