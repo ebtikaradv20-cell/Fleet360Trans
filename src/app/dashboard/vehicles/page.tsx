@@ -49,7 +49,6 @@ interface Personnel {
   is_deleted?: number;
 }
 
-// أعمدة الشيت المطابقة تماماً لكارت الإضافة
 const VEHICLE_TEMPLATE_COLUMNS = [
   "رقم اللوحة",
   "رقم السيارة على الساب",
@@ -67,7 +66,6 @@ const VEHICLE_TEMPLATE_COLUMNS = [
   "ملاحظات"
 ];
 
-// قالب الفورم النموذجي للتحميل
 const sampleTemplateData = [
   {
     "رقم اللوحة": "ل ن ط 7618",
@@ -83,7 +81,7 @@ const sampleTemplateData = [
     "اسم السائق": "احمد صالح، هيثم عجاج",
     "تاريخ انتهاء الرخصة": "2027-04-07",
     "الحالة التشغيلية": "نشطة",
-    "ملاحظات": "سيارة بحالة ممتازة"
+    "ملاحظات": "سيارة بحالة جيدة"
   }
 ];
 
@@ -103,7 +101,6 @@ export default function VehiclesManagementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // ── بيانات السيارات ──
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
   const [isEditVehicle, setIsEditVehicle] = useState(false);
@@ -124,11 +121,9 @@ export default function VehiclesManagementPage() {
     notes: ""
   });
 
-  // التحكم في قائمة اختيار السائقين المتعددة
   const [isDriverDropdownOpen, setIsDriverDropdownOpen] = useState(false);
   const driverDropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── بيانات الفنيين والسائقين ──
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
   const [personnelModalOpen, setPersonnelModalOpen] = useState(false);
   const [isEditPersonnel, setIsEditPersonnel] = useState(false);
@@ -139,7 +134,6 @@ export default function VehiclesManagementPage() {
     notes: ""
   });
 
-  // ── الفلاتر ──
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("الكل");
   const [govFilter, setGovFilter] = useState("الكل");
@@ -153,7 +147,6 @@ export default function VehiclesManagementPage() {
     user?.role === "admin" ||
     user?.permissions?.includes("fleet:write");
 
-  // إغلاق قائمة اختيار السائقين عند النقر بالخارج
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (driverDropdownRef.current && !driverDropdownRef.current.contains(e.target as Node)) {
@@ -164,7 +157,6 @@ export default function VehiclesManagementPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ── جلب البيانات ──
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -210,7 +202,6 @@ export default function VehiclesManagementPage() {
     loadData();
   }, [loadData]);
 
-  // قائمة السائقين المختارين
   const selectedDriversList = (editingVehicle.driverName || "")
     .split("،")
     .map((s) => s.trim())
@@ -229,7 +220,6 @@ export default function VehiclesManagementPage() {
     });
   };
 
-  // ── تصفية السيارات ──
   const filteredVehicles = vehicles.filter((v) => {
     const matchesSearch =
       (v.plateNumber || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -248,7 +238,6 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesComp && matchesGov && matchesDept && matchesFuel;
   });
 
-  // ── تصفية الكوادر ──
   const filteredPersonnel = personnelList.filter((p) => {
     const matchesSearch =
       (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -257,49 +246,49 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesRole;
   });
 
-  // ── استيراد شيت السيارات ──
+  // معالجة مرنة وشاملة للشيت تستوعب أي صيغ وتحدّث الأسطول
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
     try {
       let count = 0;
       for (const r of importedRows) {
+        const plate = String(r["رقم اللوحة"] || r["اللوحة"] || r.plateNumber || "").trim();
+        if (!plate) continue;
+
         const payload = {
-          plateNumber: r["رقم اللوحة"] || r.plateNumber,
-          sapNumber: r["رقم السيارة على الساب"] || r["رقم الساب"] || r.sapNumber || "",
-          chassisNumber: r["رقم الشاسيه"] || r.chassisNumber || "",
-          model: r["الماركة والموديل"] || r["الماركة / الموديل"] || r.model || "",
-          year: r["سنة الصنع"] || r.year || "",
-          company: r["الشركة المالكة"] || r.company || "ترانس جاس",
-          governorate: r["المحافظة"] || r.governorate || "كفر الشيخ",
-          region: r["المنطقة"] || r.region || "",
-          department: r["الإدارة"] || r["القسم / الإدارة"] || r.department || "تشغيل وصيانة",
-          fuelType: r["نوع الوقود"] || r.fuelType || "سولار و غاز طبيعى",
-          driverName: r["اسم السائق"] || r.driverName || "",
-          licenseExpiry: r["تاريخ انتهاء الرخصة"] || r["تاريخ الترخيص"] || r.licenseExpiry || "",
-          status: r["الحالة التشغيلية"] || "نشطة",
-          notes: r["ملاحظات"] || r.notes || ""
+          plateNumber: plate,
+          sapNumber: String(r["رقم السيارة على الساب"] || r["رقم الساب"] || r["رقم SAP"] || r.sapNumber || "").trim(),
+          chassisNumber: String(r["رقم الشاسيه"] || r["الشاسيه"] || r.chassisNumber || "").trim(),
+          model: String(r["الماركة والموديل"] || r["الماركة / الموديل"] || r["الموديل"] || r.model || "").trim(),
+          year: String(r["سنة الصنع"] || r["الموديل:"] || r.year || "").trim(),
+          company: String(r["الشركة المالكة"] || r["الشركة"] || r.company || "ترانس جاس").trim(),
+          governorate: String(r["المحافظة"] || r.governorate || "كفر الشيخ").trim(),
+          region: String(r["المنطقة"] || r.region || "").trim(),
+          department: String(r["الإدارة"] || r["القسم / الإدارة"] || r.department || "تشغيل وصيانة").trim(),
+          fuelType: String(r["نوع الوقود"] || r["الوقود"] || r.fuelType || "سولار و غاز طبيعى").trim(),
+          driverName: String(r["اسم السائق"] || r["السائق"] || r.driverName || "").trim(),
+          licenseExpiry: String(r["تاريخ انتهاء الرخصة"] || r["تاريخ الترخيص"] || r.licenseExpiry || "").trim(),
+          status: String(r["الحالة التشغيلية"] || r["الحالة"] || r.status || "نشطة").trim(),
+          notes: String(r["ملاحظات"] || r.notes || "").trim()
         };
 
-        if (payload.plateNumber) {
-          await fetch("/api/vehicles", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          }).catch(() => {});
-          count++;
-        }
+        await fetch("/api/vehicles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+        count++;
       }
 
-      alert(`تم استيراد ${count} سيارة وتحديث الأسطول بنجاح.`);
+      alert(`تم استيراد وتحديث ${count} سيارة بنجاح.`);
       loadData();
     } catch (err) {
       console.error("Import error:", err);
-      alert("حدث خطأ أثناء معالجة شيت السيارات.");
+      alert("حدث خطأ أثناء معالجة بيانات شيت السيارات.");
     }
   };
 
-  // ── حفظ / تعديل السيارة ──
   const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -325,7 +314,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── حفظ / تعديل فرد ──
   const handleSavePersonnel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -355,7 +343,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── حذف فرد ──
   const handleDeletePersonnel = async (id: number) => {
     if (!confirm("هل أنت متأكد من حذف هذا الفرد من القائمة؟")) return;
     try {
@@ -372,7 +359,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── حذف سيارة ──
   const handleDeleteVehicle = async (id: number) => {
     if (!confirm("هل أنت متأكد من حذف هذه السيارة؟")) return;
     try {
@@ -388,7 +374,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── إكسل السيارات ──
   const excelVehicleData = filteredVehicles.map((v) => ({
     "رقم اللوحة": v.plateNumber,
     "رقم السيارة على الساب": v.sapNumber || "-",
@@ -406,7 +391,6 @@ export default function VehiclesManagementPage() {
     "ملاحظات": v.notes || ""
   }));
 
-  // ── إكسل الكوادر ──
   const excelPersonnelData = filteredPersonnel.map((p) => ({
     "الاسم": p.name,
     "الوظيفة / التصنيف": p.role,
@@ -414,7 +398,6 @@ export default function VehiclesManagementPage() {
     "ملاحظات": p.notes || ""
   }));
 
-  // ── أعمدة جدول السيارات ──
   const vehicleColumns = [
     {
       key: "plateNumber",
@@ -497,7 +480,6 @@ export default function VehiclesManagementPage() {
     }
   ];
 
-  // ── أعمدة جدول الفنيين والسائقين ──
   const personnelColumns = [
     {
       key: "name",
@@ -548,7 +530,7 @@ export default function VehiclesManagementPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── الرأس والإجراءات ── */}
+      {/* ── الرأس الأصلي الكامل مع 4 أزرار فقط دون تكرار ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -567,13 +549,13 @@ export default function VehiclesManagementPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* 1. تصدير Excel */}
+          {/* 1. تصدير Excel (أخضر واحد فقط) */}
           <ExportExcelButton
             data={activeTab === "vehicles" ? excelVehicleData : excelPersonnelData}
             fileName={activeTab === "vehicles" ? "أسطول_السيارات" : "الفنيين_والسائقين"}
           />
 
-          {/* 2. قالب Excel */}
+          {/* 2. قالب Excel المحدث */}
           {activeTab === "vehicles" && (
             <ExportExcelButton
               data={sampleTemplateData}
@@ -591,7 +573,7 @@ export default function VehiclesManagementPage() {
             />
           )}
 
-          {/* 4. إضافة سيارة */}
+          {/* 4. إضافة سيارة (البرتقالي) */}
           {canWrite && activeTab === "vehicles" && (
             <button
               onClick={() => {
@@ -621,7 +603,6 @@ export default function VehiclesManagementPage() {
             </button>
           )}
 
-          {/* إضافة فرد */}
           {canWrite && activeTab === "personnel" && (
             <button
               onClick={() => {
@@ -638,7 +619,7 @@ export default function VehiclesManagementPage() {
         </div>
       </div>
 
-      {/* ── التبويبات الرئيسية ── */}
+      {/* ── التبويبات ── */}
       <div className="flex gap-2 p-1.5 bg-white dark:bg-gray-900 rounded-xl w-fit border border-gray-200 dark:border-gray-800 shadow-sm">
         <button
           onClick={() => setActiveTab("vehicles")}
@@ -664,7 +645,7 @@ export default function VehiclesManagementPage() {
         </button>
       </div>
 
-      {/* ── شريط الفلاتر ── */}
+      {/* ── الفلاتر ── */}
       <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-wrap items-center gap-4 shadow-sm">
         <div className="flex items-center gap-2">
           <label className="text-xs font-bold text-gray-500 dark:text-gray-400">البحث الشامل:</label>
@@ -730,7 +711,7 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── جدول العرض ── */}
+      {/* ── جدول البيانات ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         {activeTab === "vehicles" ? (
           <DataTable
@@ -767,7 +748,7 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── نافذة إضافة / تعديل السيارة المتكاملة ── */}
+      {/* ── نافذة إضافة / تعديل السيارة ── */}
       {vehicleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
@@ -820,7 +801,6 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                {/* ✅ حقل سنة الصنع الجديد المضاف */}
                 <Field label="سنة الصنع">
                   <input
                     type="text"
@@ -831,7 +811,6 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                {/* اختيار أكثر من سائق للسيارة */}
                 <div className="relative" ref={driverDropdownRef}>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     السائقين المسندين (اختيار متعدد)
@@ -959,7 +938,6 @@ export default function VehiclesManagementPage() {
                 </Field>
               </div>
 
-              {/* ✅ خانة الملاحظات في الأسفل بعرض كامل */}
               <div className="pt-2">
                 <Field label="ملاحظات">
                   <textarea
