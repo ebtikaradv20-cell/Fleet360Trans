@@ -1,162 +1,288 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useApp } from "@/context/AppContext";
 import {
-  LayoutDashboard,
-  Car,
-  Fuel,
-  Wrench,
+  Search,
+  Bell,
+  Moon,
+  Sun,
+  LogOut,
+  AlertTriangle,
+  FileCheck,
   Droplets,
   ClipboardCheck,
-  Layers,
-  CheckSquare,
-  Users,
-  ChevronRight,
-  ChevronLeft,
-  Menu,
   X
 } from "lucide-react";
 
-interface SidebarProps {
-  collapsed?: boolean;
-}
+export default function Navbar() {
+  const router = useRouter();
+  const appContext = useApp() as any;
+  const { user, isRTL } = appContext || {};
 
-const navigationItems = [
-  { name: "لوحة التحكم", href: "/dashboard", icon: LayoutDashboard },
-  { name: "السيارات", href: "/dashboard/vehicles", icon: Car },
-  { name: "الوقود", href: "/dashboard/fuel", icon: Fuel },
-  { name: "الصيانة", href: "/dashboard/work-orders", icon: Wrench },
-  { name: "الزيوت وقطع الغيار", href: "/dashboard/oil-changes", icon: Droplets },
-  { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: ClipboardCheck },
-  { name: "داتا الأسطول الشاملة", href: "/dashboard/fleet-data", icon: Layers },
-  { name: "الطلبات والموافقات", href: "/dashboard/approvals", icon: CheckSquare },
-  { name: "المستخدمون", href: "/dashboard/users", icon: Users },
-];
+  const [darkMode, setDarkMode] = useState(false);
+  const [currentLang, setCurrentLang] = useState("ar");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
-export default function Sidebar({ collapsed: propCollapsed }: SidebarProps) {
-  const pathname = usePathname();
-  const [internalCollapsed, setInternalCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const notifications = [
+    {
+      id: 1,
+      title: "تراخيص منتهية / قاربت على الانتهاء",
+      desc: "سيارات تتطلب تجديد الرخصة فوراً بالأولوية",
+      icon: AlertTriangle,
+      color: "text-rose-500 bg-rose-50 dark:bg-rose-950/40",
+      link: "/dashboard/vehicles",
+      time: "اليوم"
+    },
+    {
+      id: 2,
+      title: "أوامر صيانة وموافقات معلقة",
+      desc: "يوجد طلبات صيانة بانتظار الاعتماد المالي",
+      icon: FileCheck,
+      color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40",
+      link: "/dashboard/approvals",
+      time: "منذ ساعتين"
+    },
+    {
+      id: 3,
+      title: "غيار زيوت وفلاتر مستحق",
+      desc: "سيارات تجاوزت عداد الـ 10,000 كم",
+      icon: Droplets,
+      color: "text-teal-500 bg-teal-50 dark:bg-teal-950/40",
+      link: "/dashboard/oil-changes",
+      time: "أمس"
+    },
+    {
+      id: 4,
+      title: "فحص دوري مطلوب للمركبات",
+      desc: "فحص ربع سنوي لقسم السلامة والجودة",
+      icon: ClipboardCheck,
+      color: "text-blue-500 bg-blue-50 dark:bg-blue-950/40",
+      link: "/dashboard/vehicle-inspection",
+      time: "منذ يومين"
+    }
+  ];
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("sidebar_collapsed");
-      if (saved !== null) {
-        setInternalCollapsed(saved === "true");
-      }
+      const isDark =
+        localStorage.getItem("fleet360_dark") === "true" ||
+        localStorage.getItem("fleet360_theme") === "dark" ||
+        document.documentElement.classList.contains("dark");
+      setDarkMode(isDark);
+
+      const savedLang =
+        localStorage.getItem("fleet360_lang") ||
+        localStorage.getItem("lang") ||
+        (isRTL === false ? "en" : "ar");
+      setCurrentLang(savedLang);
     } catch (e) {}
+  }, [isRTL]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const collapsed = propCollapsed !== undefined ? propCollapsed : internalCollapsed;
-
-  const toggleCollapsed = () => {
-    const nextState = !collapsed;
-    setInternalCollapsed(nextState);
+  const toggleDark = () => {
+    const nextMode = !darkMode;
+    setDarkMode(nextMode);
+    if (nextMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
     try {
-      localStorage.setItem("sidebar_collapsed", String(nextState));
+      localStorage.setItem("fleet360_dark", String(nextMode));
+      localStorage.setItem("fleet360_theme", nextMode ? "dark" : "light");
     } catch (e) {}
   };
 
+  const handleToggleLanguage = () => {
+    const nextLang = currentLang === "ar" ? "en" : "ar";
+    const nextDir = nextLang === "ar" ? "rtl" : "ltr";
+    const nextIsRTL = nextLang === "ar";
+
+    setCurrentLang(nextLang);
+    document.documentElement.setAttribute("lang", nextLang);
+    document.documentElement.setAttribute("dir", nextDir);
+
+    try {
+      localStorage.setItem("fleet360_lang", nextLang);
+      localStorage.setItem("lang", nextLang);
+      localStorage.setItem("language", nextLang);
+      localStorage.setItem("fleet360_is_rtl", String(nextIsRTL));
+      localStorage.setItem("isRTL", String(nextIsRTL));
+    } catch (e) {}
+
+    if (typeof appContext?.toggleLanguage === "function") {
+      appContext.toggleLanguage();
+    } else if (typeof appContext?.setIsRTL === "function") {
+      appContext.setIsRTL(nextIsRTL);
+    }
+
+    window.location.reload();
+  };
+
+  const handleNotificationClick = (link: string) => {
+    setIsNotifOpen(false);
+    router.push(link);
+  };
+
+  const handleLogout = async () => {
+    if (!confirm("هل أنت متأكد من رغبتك في تسجيل الخروج؟")) return;
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {}
+    try {
+      localStorage.removeItem("fleet360_token");
+      document.cookie =
+        "fleet360_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    } catch (e) {}
+    router.push("/login");
+  };
+
+  const displayName = user?.name || "مدير النظام الرئيسي";
+  const displayRole = user?.role || "owner";
+  const firstLetter = displayName.trim().charAt(0) || "م";
+
   return (
-    <>
-      {/* ── زر القائمة للموبايل ── */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl bg-[#0B1A3B] text-white shadow-lg border border-slate-700 cursor-pointer"
-        aria-label="فتح القائمة"
-      >
-        <Menu size={22} />
-      </button>
-
-      {/* ── خلفية معتمة للهواتف ── */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity"
-        />
-      )}
-
-      {/* ── الشريط الجانبي الرئيسي الكحلي ── */}
-      <aside
-        className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-xl shrink-0 ${
-          collapsed ? "w-20" : "w-64"
-        } ${
-          mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
-        }`}
-      >
-        {/* ── الترويسة: اللوجو كبير في المنتصف + الاسم والشركة ── */}
-        <div className="relative border-b border-slate-800/80 p-5 flex flex-col items-center justify-center text-center shrink-0">
-          {/* زر السهم التفاعلي لتقليص وتوسيع البار */}
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            title={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
-            className="hidden md:flex absolute top-3 left-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
-          >
-            {collapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
-
-          {/* زر الإغلاق في الموبايل */}
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            className="md:hidden absolute top-3 left-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 cursor-pointer"
-          >
-            <X size={20} />
-          </button>
-
-          {/* اللوجو بحجم كبير ومتوسط */}
-          <div
-            className={`transition-all duration-300 flex items-center justify-center ${
-              collapsed ? "w-12 h-12 mb-1" : "w-20 h-20 mb-3"
-            } rounded-2xl bg-teal-500/10 border border-teal-500/20 shadow-md shadow-teal-950/20`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.png"
-              alt="TAQA Gas Logo"
-              className={`${collapsed ? "w-8 h-8" : "w-14 h-14"} object-contain transition-all duration-300`}
+    <header className="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 md:px-6 py-2.5 transition-colors">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center flex-1 max-w-md">
+          <div className="relative w-full">
+            <Search
+              size={16}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="البحث الشامل..."
+              className="w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-xs rounded-xl pr-9 pl-3 py-2 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition-all"
             />
           </div>
-
-          {!collapsed && (
-            <div className="flex flex-col items-center">
-              <h1 className="font-black text-lg tracking-wider text-white">FLEET 360</h1>
-              <p className="text-[11px] font-bold text-teal-400 tracking-wide mt-0.5">
-                TAQA GAS COMPANY
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* ── قائمة الصفحات: أيقونات كبيرة واضحة (size 22) ── */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2 scrollbar-thin scrollbar-thumb-slate-700">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={handleToggleLanguage}
+            title="تغيير لغة المنظومة"
+            className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+          >
+            {currentLang === "ar" ? "EN" : "عربي"}
+          </button>
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? item.name : undefined}
-                className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl font-bold transition-all ${
-                  isActive
-                    ? "bg-teal-600 text-white shadow-md shadow-teal-900/30"
-                    : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
-                } ${collapsed ? "justify-center px-0 py-3" : "text-sm"}`}
-              >
-                <Icon size={22} className="shrink-0" />
-                {!collapsed && <span className="truncate">{item.name}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-    </>
+          <button
+            type="button"
+            onClick={toggleDark}
+            title={darkMode ? "الوضع النهاري" : "الوضع الليلي"}
+            className="p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+          >
+            {darkMode ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} />}
+          </button>
+
+          {/* قائمة التنبيهات المستقلة */}
+          <div className="relative" ref={notifRef}>
+            <button
+              type="button"
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              title="الإشعارات والتنبيهات"
+              className="relative p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+            >
+              <Bell size={17} />
+              {notifications.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+              )}
+            </button>
+
+            {isNotifOpen && (
+              <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                <div className="p-3.5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/70 dark:bg-gray-800/50">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-xs text-gray-900 dark:text-white">
+                      مركز التنبيهات والإشعارات
+                    </span>
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 rounded-full">
+                      {notifications.length} جديدة
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsNotifOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800/60 max-h-80 overflow-y-auto">
+                  {notifications.map((n) => {
+                    const Icon = n.icon;
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n.link)}
+                        className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors cursor-pointer flex items-start gap-3"
+                      >
+                        <div className={`p-2.5 rounded-xl shrink-0 ${n.color}`}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-xs text-gray-900 dark:text-white truncate">
+                            {n.title}
+                          </div>
+                          <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
+                            {n.desc}
+                          </div>
+                          <span className="text-[9px] text-gray-400 mt-1 block">
+                            {n.time}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="h-5 w-px bg-gray-200 dark:bg-gray-800 mx-1 hidden sm:block" />
+
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-teal-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm">
+              {firstLetter}
+            </div>
+            <div className="hidden sm:block text-right">
+              <div className="text-xs font-black text-gray-900 dark:text-white leading-tight">
+                {displayName}
+              </div>
+              <div className="text-[10px] text-teal-600 dark:text-teal-400 font-mono font-bold leading-tight">
+                {displayRole}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="تسجيل الخروج"
+            className="flex items-center gap-1.5 p-2 md:px-3 md:py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-600 dark:hover:text-white transition-all cursor-pointer shadow-xs border border-rose-100 dark:border-rose-900/50"
+          >
+            <LogOut size={15} />
+            <span className="hidden md:inline">تسجيل الخروج</span>
+          </button>
+        </div>
+      </div>
+    </header>
   );
 }
