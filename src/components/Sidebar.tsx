@@ -33,13 +33,9 @@ const navigationItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-
-  // حالة تقليص / توسيع البار على الديسكتوب
   const [collapsed, setCollapsed] = useState(false);
-  // حالة فتح البار كـ Drawer على الموبايل
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // استرجاع حالة الانكماش المحفوظة في المتصفح
   useEffect(() => {
     try {
       const saved = localStorage.getItem("fleet360_sidebar_collapsed");
@@ -59,17 +55,17 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── زر القائمة للشاشات الصغيرة (الموبايل فقط) ── */}
+      {/* ── زر القائمة للموبايل ── */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 right-3 z-40 p-2 rounded-xl bg-[#0B1A3B] text-white shadow-lg border border-slate-700 cursor-pointer"
+        className="md:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl bg-[#0B1A3B] text-white shadow-lg border border-slate-700 cursor-pointer"
         aria-label="فتح القائمة"
       >
-        <Menu size={20} />
+        <Menu size={22} />
       </button>
 
-      {/* ── خلفية معتمة عند فتح القائمة على الموبايل ── */}
+      {/* ── خلفية معتمة عند الفتح في الموبايل ── */}
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -85,45 +81,53 @@ export default function Sidebar() {
           mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        {/* ── الترويسة: اللوجو + زر السهم التفاعلي ── */}
-        <div className="h-16 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="TAQA Logo" className="w-7 h-7 object-contain" />
+        {/* ── ترويسة السايدبار: اللوجو كبير في المنتصف وتحته الاسم والشركة ── */}
+        <div className="relative border-b border-slate-800/80 p-5 flex flex-col items-center justify-center text-center shrink-0">
+          {/* زر السهم لتقليص / توسيع البار في الزاوية */}
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            title={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
+            className="hidden md:flex absolute top-3 left-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+          >
+            {collapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
+
+          {/* زر إغلاق القائمة في الموبايل */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden absolute top-3 left-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 cursor-pointer"
+          >
+            <X size={20} />
+          </button>
+
+          {/* اللوجو بحجم كبير وفي المنتصف */}
+          <div
+            className={`transition-all duration-300 flex items-center justify-center ${
+              collapsed ? "w-12 h-12 mb-1" : "w-20 h-20 mb-3"
+            } rounded-2xl bg-teal-500/10 border border-teal-500/20 shadow-md shadow-teal-950/20`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="TAQA Gas Logo"
+              className={`${collapsed ? "w-8 h-8" : "w-14 h-14"} object-contain transition-all duration-300`}
+            />
+          </div>
+
+          {!collapsed && (
+            <div className="flex flex-col items-center">
+              <h1 className="font-black text-lg tracking-wider text-white">FLEET 360</h1>
+              <p className="text-[11px] font-bold text-teal-400 tracking-wide mt-0.5">
+                TAQA GAS COMPANY
+              </p>
             </div>
-            {!collapsed && (
-              <div className="truncate">
-                <h1 className="font-black text-sm tracking-wide text-white leading-tight">FLEET 360</h1>
-                <p className="text-[10px] text-teal-400 font-medium leading-tight">TAQA GAS COMPANY</p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center">
-            {/* زر السهم التفاعلي لتقليص وتوسيع البار */}
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              title={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
-              className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
-            >
-              {collapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-            </button>
-
-            {/* زر إغلاق القائمة في الموبايل */}
-            <button
-              type="button"
-              onClick={() => setMobileOpen(false)}
-              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* ── قائمة الروابط والصفحات ── */}
-        <nav className="flex-1 overflow-y-auto px-2.5 py-4 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
+        {/* ── قائمة الروابط: أيقونات بحجم أكبر ومريح (size 22) وتجاوب عالي للهاتف ── */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2 scrollbar-thin scrollbar-thumb-slate-700">
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -134,13 +138,13 @@ export default function Sidebar() {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 title={collapsed ? item.name : undefined}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl font-bold transition-all ${
                   isActive
                     ? "bg-teal-600 text-white shadow-md shadow-teal-900/30"
-                    : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
-                } ${collapsed ? "justify-center px-0" : ""}`}
+                    : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
+                } ${collapsed ? "justify-center px-0 py-3" : "text-sm"}`}
               >
-                <Icon size={18} className="shrink-0" />
+                <Icon size={22} className="shrink-0" />
                 {!collapsed && <span className="truncate">{item.name}</span>}
               </Link>
             );
