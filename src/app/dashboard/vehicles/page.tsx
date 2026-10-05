@@ -9,15 +9,10 @@ import ImportExcelButton from "@/components/ImportExcelButton";
 import {
   Car,
   Users,
-  Search,
   Plus,
   Save,
   X,
   Loader2,
-  Pencil,
-  Trash2,
-  FileSpreadsheet,
-  CheckCircle2,
   Briefcase
 } from "lucide-react";
 
@@ -50,11 +45,36 @@ interface Personnel {
   is_deleted?: number;
 }
 
-const safeNum = (val: any): number => {
-  if (val === null || val === undefined) return 0;
-  const n = parseFloat(String(val).replace(/[^0-9.-]/g, ""));
-  return isNaN(n) ? 0 : n;
-};
+const VEHICLE_TEMPLATE_COLUMNS = [
+  "رقم اللوحة",
+  "رقم الشاسيه",
+  "الماركة / الموديل",
+  "الشركة المالكة",
+  "المحافظة",
+  "القسم / الإدارة",
+  "نوع الوقود",
+  "اسم السائق",
+  "تاريخ انتهاء الرخصة",
+  "الحالة التشغيلية",
+  "ملاحظات"
+];
+
+// قالب الفورم النموذجي للتحميل والتعبئة
+const sampleTemplateData = [
+  {
+    "رقم اللوحة": "ل ن ط 7618",
+    "رقم الشاسيه": "123456",
+    "الماركة / الموديل": "بيك اب دوبل",
+    "الشركة المالكة": "ترانس جاس",
+    "المحافظة": "كفر الشيخ",
+    "القسم / الإدارة": "تشغيل وصيانة",
+    "نوع الوقود": "سولار و غاز طبيعى",
+    "اسم السائق": "احمد صالح",
+    "تاريخ انتهاء الرخصة": "2027-04-07",
+    "الحالة التشغيلية": "نشطة",
+    "ملاحظات": ""
+  }
+];
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
@@ -136,7 +156,7 @@ export default function VehiclesManagementPage() {
           fuelType: v.fuelType || v.fuel_type || "سولار و غاز طبيعى",
           driverName: v.driverName || v.driver_name || "",
           licenseExpiry: v.licenseExpiry || v.license_expiry || "",
-          status: v.status || "نشطة"
+          status: v.status === "active" || v.status === "نشط" ? "نشطة" : v.status || "نشطة"
         }));
         setVehicles(list);
       }
@@ -181,6 +201,45 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesRole;
   });
 
+  // ── استيراد شيت السيارات ورفعها تلقائياً ──
+  const handleImportVehicles = async (importedRows: any[]) => {
+    if (!importedRows || importedRows.length === 0) return;
+
+    try {
+      let count = 0;
+      for (const r of importedRows) {
+        const payload = {
+          plateNumber: r["رقم اللوحة"] || r.plateNumber,
+          chassisNumber: r["رقم الشاسيه"] || r.chassisNumber || "",
+          model: r["الماركة / الموديل"] || r["الموديل"] || r.model || "",
+          company: r["الشركة المالكة"] || r.company || "ترانس جاس",
+          governorate: r["المحافظة"] || r.governorate || "كفر الشيخ",
+          department: r["القسم / الإدارة"] || r.department || "تشغيل وصيانة",
+          fuelType: r["نوع الوقود"] || r.fuelType || "سولار و غاز طبيعى",
+          driverName: r["اسم السائق"] || r.driverName || "",
+          licenseExpiry: r["تاريخ انتهاء الرخصة"] || r["تاريخ الترخيص"] || r.licenseExpiry || "",
+          status: "نشطة",
+          notes: r["ملاحظات"] || r.notes || ""
+        };
+
+        if (payload.plateNumber) {
+          await fetch("/api/vehicles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }).catch(() => {});
+          count++;
+        }
+      }
+
+      alert(`تم استيراد ${count} سيارة وتحديث الأسطول بنجاح.`);
+      loadData();
+    } catch (err) {
+      console.error("Import error:", err);
+      alert("حدث خطأ أثناء معالجة شيت السيارات.");
+    }
+  };
+
   // ── حفظ / تعديل السيارة ──
   const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,7 +266,7 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── حفظ / تعديل فرد في قائمة الكوادر ──
+  // ── حفظ / تعديل فرد ──
   const handleSavePersonnel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -270,7 +329,7 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── تجهيز إكسل السيارات ──
+  // ── إكسل السيارات ──
   const excelVehicleData = filteredVehicles.map((v) => ({
     "اللوحة": v.plateNumber,
     "الشاسيه": v.chassisNumber || "-",
@@ -283,7 +342,7 @@ export default function VehiclesManagementPage() {
     "الحالة": v.status || "نشطة"
   }));
 
-  // ── تجهيز إكسل الكوادر ──
+  // ── إكسل الكوادر ──
   const excelPersonnelData = filteredPersonnel.map((p) => ({
     "الاسم": p.name,
     "الوظيفة / التصنيف": p.role,
@@ -337,8 +396,8 @@ export default function VehiclesManagementPage() {
       key: "status",
       header: "الحالة",
       render: (r: Vehicle) => (
-        <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800">
-          {r.status || "نشطة"}
+        <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+          {r.status === "active" || r.status === "نشط" ? "نشطة" : r.status || "نشطة"}
         </span>
       )
     }
@@ -395,7 +454,7 @@ export default function VehiclesManagementPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── الرأس والإجراءات ── */}
+      {/* ── الرأس الأصلي الكامل مع أزرار الشيت والقالب والإضافة ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -414,11 +473,31 @@ export default function VehiclesManagementPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {/* 1. تصدير Excel */}
           <ExportExcelButton
             data={activeTab === "vehicles" ? excelVehicleData : excelPersonnelData}
             fileName={activeTab === "vehicles" ? "أسطول_السيارات" : "الفنيين_والسائقين"}
           />
 
+          {/* 2. زر قالب Excel (شيت فورم التحميل) */}
+          {activeTab === "vehicles" && (
+            <ExportExcelButton
+              data={sampleTemplateData}
+              fileName="قالب_شيت_السيارات"
+              buttonText="قالب Excel"
+            />
+          )}
+
+          {/* 3. زر استيراد وتحديث الشيت (رفع الشيت) */}
+          {canWrite && activeTab === "vehicles" && (
+            <ImportExcelButton
+              templateColumns={VEHICLE_TEMPLATE_COLUMNS}
+              onImport={handleImportVehicles}
+              buttonText="استيراد وتحديث الشيت"
+            />
+          )}
+
+          {/* 4. زر إضافة سيارة البرتقالي اليدوي */}
           {canWrite && activeTab === "vehicles" && (
             <button
               onClick={() => {
@@ -444,6 +523,7 @@ export default function VehiclesManagementPage() {
             </button>
           )}
 
+          {/* زر إضافة فرد */}
           {canWrite && activeTab === "personnel" && (
             <button
               onClick={() => {
@@ -494,7 +574,7 @@ export default function VehiclesManagementPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={activeTab === "vehicles" ? "ابحث باللوحة، الشاسيه، السائق..." : "ابحث بالاسم أو الهاتف..."}
+            placeholder="ابحث باللوحة، الشاسيه، السائق..."
             className="border dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs dark:bg-gray-800 dark:text-white outline-none w-56 focus:border-teal-500"
           />
         </div>
@@ -589,7 +669,7 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── نافذة إضافة / تعديل السيارة (متصلة بقائمة السائقين) ── */}
+      {/* ── نافذة إضافة / تعديل السيارة ── */}
       {vehicleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
@@ -629,12 +709,11 @@ export default function VehiclesManagementPage() {
                     className={inputClass}
                     value={editingVehicle.model || ""}
                     onChange={(e) => setEditingVehicle({ ...editingVehicle, model: e.target.value })}
-                    placeholder="مثال: نيسان بيك اب - دوبل كابينة"
+                    placeholder="مثال: بيك اب دوبل"
                   />
                 </Field>
 
-                {/* ── اختيار اسم السائق من القائمة المدارة ديناميكياً ── */}
-                <Field label="اسم السائق (اختيار من القائمة) *">
+                <Field label="اسم السائق (اختيار من القائمة)">
                   <select
                     className={`${inputClass} font-bold text-teal-800 dark:text-teal-300`}
                     value={editingVehicle.driverName || ""}
@@ -646,7 +725,6 @@ export default function VehiclesManagementPage() {
                         {p.name} ({p.role})
                       </option>
                     ))}
-                    {/* خيار الحفاظ على الاسم الحالي إن كان غير مسجل بالقائمة بعد */}
                     {editingVehicle.driverName &&
                       !personnelList.some((p) => p.name === editingVehicle.driverName) && (
                         <option value={editingVehicle.driverName}>
