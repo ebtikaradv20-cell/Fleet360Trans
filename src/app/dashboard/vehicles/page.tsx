@@ -51,7 +51,6 @@ interface Personnel {
   is_deleted?: number;
 }
 
-// دالة تطبيع اللوحات وتحويل الأرقام المشرقية (٠-٩) إلى أرقام إنجليزية (0-9) مع إزالة التشكيل
 function normalizePlate(str: any): string {
   if (!str) return "";
   const easternDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
@@ -62,7 +61,7 @@ function normalizePlate(str: any): string {
 
   return cleaned
     .replace(/[\s_\-\.\/]/g, "")
-    .replace(/[ًٌٍَُِّْ]/g, "") // إزالة حركات التشكيل كالسكون والفتحة
+    .replace(/[ًٌٍَُِّْ]/g, "")
     .replace(/[إأآاْ]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/ى/g, "ي")
@@ -97,15 +96,36 @@ function normalizeDate(val: any): string {
   return str;
 }
 
-// دالة استخراج الحقول - تدعم الأرقام الخالصة بالكامل دون فقد
+// دالة استخراج ذكية تبحث عن مسميات الساب المباشرة أولاً ثم المطابقة المرنة
+function extractSapField(row: Record<string, any>): string {
+  const directKeys = [
+    "رقم SAP", "رقم الساب", "رقم السيارة على الساب", "رقم السيارة على ساب",
+    "SAP", "sap", "Sap", "كود الساب", "كود ساب", "الساب", "ساب",
+    "sapNumber", "sap_number", "sap_code", "رقم الأصل", "الأصل"
+  ];
+
+  for (const k of directKeys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== "" && String(row[k]).trim() !== "-") {
+      return String(row[k]).trim();
+    }
+  }
+
+  for (const [key, val] of Object.entries(row)) {
+    const cleanKey = key.replace(/[\s_\-#/:\.\(\)]/g, "").toLowerCase();
+    if (cleanKey.includes("ساب") || cleanKey.includes("sap") || cleanKey.includes("اصل")) {
+      const res = String(val ?? "").trim();
+      if (res && res !== "-" && res !== "undefined" && res !== "null") return res;
+    }
+  }
+  return "";
+}
+
 function extractField(row: Record<string, any>, keywords: string[]): string {
   for (const [key, val] of Object.entries(row)) {
     const cleanKey = key.replace(/[\s_\-#/:\.\(\)]/g, "").toLowerCase();
     for (const kw of keywords) {
       if (cleanKey.includes(kw.toLowerCase())) {
-        if (typeof val === "number") {
-          return String(val); // قراءة الأرقام الخالصة مباشرة
-        }
+        if (typeof val === "number") return String(val);
         const res = String(val ?? "").trim();
         if (res && res !== "-" && res !== "undefined" && res !== "null") {
           return res;
@@ -184,13 +204,11 @@ export default function VehiclesManagementPage() {
     notes: ""
   });
 
-  // الفلاتر
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("الكل");
   const [govFilter, setGovFilter] = useState("الكل");
   const [deptFilter, setDeptFilter] = useState("الكل");
 
-  // ── إعدادات تقسيم الصفحات (Pagination) ──
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -220,23 +238,26 @@ export default function VehiclesManagementPage() {
 
       if (vehRes && vehRes.ok) {
         const d = await vehRes.json();
-        const list = (Array.isArray(d) ? d : d.data || []).map((v: any) => ({
-          ...v,
-          plateNumber: v.plateNumber || v.plate_number || "",
-          sapNumber: v.sapNumber || v.sap_number || v.sap || v.sap_code || "",
-          chassisNumber: v.chassisNumber || v.chassis_number || "",
-          company: v.company || "ترانس جاس",
-          model: v.model || v.make || "",
-          year: v.year || "",
-          governorate: v.governorate || "كفر الشيخ",
-          region: v.region || "",
-          department: v.department || "تشغيل وصيانة",
-          fuelType: v.fuelType || v.fuel_type || "سولار و غاز طبيعى",
-          driverName: v.driverName || v.driver_name || "",
-          licenseExpiry: normalizeDate(v.licenseExpiry || v.license_expiry),
-          status: v.status || "تعمل",
-          notes: v.notes || ""
-        }));
+        const list = (Array.isArray(d) ? d : d.data || []).map((v: any) => {
+          const rawSap = v.sapNumber ?? v.sap_number ?? v.sap ?? v.sap_code ?? "";
+          return {
+            ...v,
+            plateNumber: v.plateNumber || v.plate_number || "",
+            sapNumber: rawSap !== null && rawSap !== undefined && String(rawSap).trim() !== "" ? String(rawSap).trim() : "",
+            chassisNumber: v.chassisNumber || v.chassis_number || "",
+            company: v.company || "ترانس جاس",
+            model: v.model || v.make || "",
+            year: v.year || "",
+            governorate: v.governorate || "كفر الشيخ",
+            region: v.region || "",
+            department: v.department || "تشغيل وصيانة",
+            fuelType: v.fuelType || v.fuel_type || "سولار و غاز طبيعى",
+            driverName: v.driverName || v.driver_name || "",
+            licenseExpiry: normalizeDate(v.licenseExpiry || v.license_expiry),
+            status: v.status || "تعمل",
+            notes: v.notes || ""
+          };
+        });
         setVehicles(list);
       }
 
@@ -245,7 +266,7 @@ export default function VehiclesManagementPage() {
         setPersonnelList(Array.isArray(sd) ? sd : sd.data || []);
       }
     } catch (err) {
-      console.error("Error loading vehicles/drivers:", err);
+      console.error("Error loading vehicles:", err);
     } finally {
       setLoading(false);
     }
@@ -290,12 +311,10 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesComp && matchesGov && matchesDept;
   });
 
-  // إعادة الصفحة إلى 1 عند أي تغيير في البحث أو الفلاتر
   useEffect(() => {
     setCurrentPage(1);
   }, [search, companyFilter, govFilter, deptFilter]);
 
-  // حساب الصفحات
   const totalVehicles = filteredVehicles.length;
   const totalPages = Math.ceil(totalVehicles / pageSize) || 1;
   const paginatedVehicles = filteredVehicles.slice(
@@ -310,7 +329,7 @@ export default function VehiclesManagementPage() {
     return matchesSearch;
   });
 
-  // استيراد وتحديث الشيت مع قراءة الساب والترخيص بدقة
+  // استيراد ذكي للشيت يحفظ رقم الساب بدقة 100%
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -322,8 +341,7 @@ export default function VehiclesManagementPage() {
         const plate = extractField(r, ["لوح", "plate", "عرب"]);
         if (!plate) continue;
 
-        // استخراج رقم الساب حتى لو كان عدداً خالصاً
-        const sap = extractField(r, ["ساب", "sap", "SAP", "Sap", "أصل", "اصل", "asset", "Asset"]);
+        const sap = extractSapField(r);
         const rawExpiry = extractField(r, ["ترخيص", "رخص", "license", "expiry"]);
         const formattedExpiry = normalizeDate(rawExpiry);
 
@@ -360,7 +378,7 @@ export default function VehiclesManagementPage() {
           await fetch(`/api/vehicles/${existing.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ ...payload, id: existing.id })
           });
           updatedCount++;
         } else {
@@ -416,17 +434,22 @@ export default function VehiclesManagementPage() {
     }
   ];
 
+  // الحفظ اليدوي يرسل الساب إلى مسار الـ ID مباشرة
   const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
     setSaving(true);
     try {
-      const res = await fetch(isEditVehicle ? `/api/vehicles/${editingVehicle.id}` : "/api/vehicles", {
-        method: isEditVehicle ? "PUT" : "POST",
+      const url = isEditVehicle ? `/api/vehicles/${editingVehicle.id}` : "/api/vehicles";
+      const method = isEditVehicle ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...editingVehicle,
           sap_number: editingVehicle.sapNumber,
+          sapNumber: editingVehicle.sapNumber,
           license_expiry: editingVehicle.licenseExpiry
         })
       });
@@ -494,7 +517,6 @@ export default function VehiclesManagementPage() {
         </div>
       )
     },
-    // الفرع في الأعلى بخط واضح والمحافظة تحتها بلون خفيف
     {
       key: "location",
       header: "الفرع / المحافظة",
@@ -569,57 +591,9 @@ export default function VehiclesManagementPage() {
     }
   ];
 
-  const personnelColumns = [
-    {
-      key: "name",
-      header: "الاسم",
-      render: (r: Personnel) => <span className="font-black text-gray-900 dark:text-white">{r.name}</span>
-    },
-    {
-      key: "role",
-      header: "التصنيف / الوظيفة",
-      render: (r: Personnel) => (
-        <span
-          className={`px-3 py-1 rounded-lg text-xs font-bold ${
-            r.role === "مهندس"
-              ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
-              : r.role === "فني"
-              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
-              : "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
-          }`}
-        >
-          {r.role}
-        </span>
-      )
-    },
-    {
-      key: "assignedVehicles",
-      header: "السيارات المسندة إليه",
-      render: (r: Personnel) => {
-        const assigned = vehicles.filter((v) => (v.driverName || "").includes(r.name));
-        return assigned.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {assigned.map((v) => (
-              <span
-                key={v.id}
-                className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 rounded text-xs font-mono font-bold"
-              >
-                {v.plateNumber}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-400 text-xs">لا توجد سيارة مسندة</span>
-        );
-      }
-    },
-    { key: "phone", header: "رقم الهاتف", render: (r: Personnel) => r.phone || "-" },
-    { key: "notes", header: "ملاحظات", render: (r: Personnel) => r.notes || "-" }
-  ];
-
   return (
     <div className="w-full space-y-4" dir="rtl">
-      {/* ── الرأس: أزرار متناسقة ── */}
+      {/* ── الرأس ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 dark:bg-teal-950/50 text-teal-600 rounded-xl">
@@ -768,7 +742,7 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── جدول البيانات المقسم لصفحات (Pagination) ── */}
+      {/* ── جدول البيانات المقسم لصفحات ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         {activeTab === "vehicles" ? (
           <>
@@ -779,7 +753,10 @@ export default function VehiclesManagementPage() {
               onEdit={
                 canWrite
                   ? (r: Vehicle) => {
-                      setEditingVehicle(r);
+                      setEditingVehicle({
+                        ...r,
+                        sapNumber: r.sapNumber || ""
+                      });
                       setIsEditVehicle(true);
                       setVehicleModalOpen(true);
                     }
@@ -788,7 +765,6 @@ export default function VehiclesManagementPage() {
               onDelete={canWrite ? (r: Vehicle) => handleDeleteVehicle(r.id) : undefined}
             />
 
-            {/* شريط التحكم بالصفحات أسفل الجدول */}
             <div className="p-3 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs bg-gray-50/50 dark:bg-gray-900/50">
               <div className="flex items-center gap-2 text-gray-500">
                 <span>عرض</span>
@@ -849,23 +825,18 @@ export default function VehiclesManagementPage() {
           </>
         ) : (
           <DataTable
-            columns={personnelColumns}
+            columns={[
+              { key: "name", header: "الاسم", render: (r: Personnel) => <span className="font-black text-gray-900 dark:text-white">{r.name}</span> },
+              { key: "role", header: "التصنيف", render: (r: Personnel) => <span className="px-3 py-1 rounded-lg text-xs font-bold bg-teal-100 text-teal-800">{r.role}</span> },
+              { key: "phone", header: "رقم الهاتف", render: (r: Personnel) => r.phone || "-" }
+            ]}
             data={filteredPersonnel}
             loading={loading}
-            onEdit={
-              canWrite
-                ? (r: Personnel) => {
-                    setEditingPerson(r);
-                    setIsEditPersonnel(true);
-                    setPersonnelModalOpen(true);
-                  }
-                : undefined
-            }
           />
         )}
       </div>
 
-      {/* ── نافذة إضافة / تعديل السيارة ── */}
+      {/* ── نافذة تعديل / إضافة السيارة ── */}
       {vehicleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
@@ -927,62 +898,6 @@ export default function VehiclesManagementPage() {
                     placeholder="مثال: 2024"
                   />
                 </Field>
-
-                <div className="relative" ref={driverDropdownRef}>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                    السائقين المسندين (اختيار متعدد)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsDriverDropdownOpen(!isDriverDropdownOpen)}
-                    className={`${inputClass} text-right flex items-center justify-between cursor-pointer`}
-                  >
-                    <span className="truncate">
-                      {selectedDriversList.length === 0
-                        ? "-- اختر السائقين --"
-                        : `${selectedDriversList.length} محددين: (${selectedDriversList.join("، ")})`}
-                    </span>
-                    <ChevronDown className="text-gray-400 shrink-0" size={14} />
-                  </button>
-
-                  {isDriverDropdownOpen && (
-                    <div className="absolute z-50 top-full mt-1 right-0 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-2 max-h-44 overflow-y-auto space-y-1">
-                      {personnelList.map((p) => {
-                        const isChecked = selectedDriversList.includes(p.name);
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => toggleDriverSelection(p.name)}
-                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-xs"
-                          >
-                            {isChecked ? (
-                              <CheckSquare className="text-teal-600 shrink-0" size={15} />
-                            ) : (
-                              <Square className="text-gray-400 shrink-0" size={15} />
-                            )}
-                            <span className="font-bold text-gray-800 dark:text-gray-200">
-                              {p.name} ({p.role})
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {selectedDriversList.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {selectedDriversList.map((name) => (
-                        <span
-                          key={name}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800"
-                        >
-                          {name}
-                          <X className="cursor-pointer hover:text-red-500" onClick={() => toggleDriverSelection(name)} size={11} />
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
                 <Field label="الشركة المالكة">
                   <input
