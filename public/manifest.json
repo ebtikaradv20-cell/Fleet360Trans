@@ -6,12 +6,14 @@
   "start_url": "/dashboard/vehicles",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait-primary",
   "background_color": "#0B1A3B",
   "theme_color": "#0B1A3B",
   "lang": "ar",
   "dir": "rtl",
   "categories": ["business", "productivity", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/logo.png",
