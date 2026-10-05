@@ -49,12 +49,13 @@ interface Personnel {
   is_deleted?: number;
 }
 
-// أعمدة الشيت المطابقة بنسبة 100% لكارت الإضافة
+// أعمدة الشيت المطابقة تماماً لكارت الإضافة
 const VEHICLE_TEMPLATE_COLUMNS = [
   "رقم اللوحة",
   "رقم السيارة على الساب",
   "رقم الشاسيه",
   "الماركة والموديل",
+  "سنة الصنع",
   "الشركة المالكة",
   "المحافظة",
   "المنطقة",
@@ -73,6 +74,7 @@ const sampleTemplateData = [
     "رقم السيارة على الساب": "SAP-1045",
     "رقم الشاسيه": "123456",
     "الماركة والموديل": "بيك اب دوبل",
+    "سنة الصنع": "2024",
     "الشركة المالكة": "ترانس جاس",
     "المحافظة": "كفر الشيخ",
     "المنطقة": "دسوق",
@@ -81,7 +83,7 @@ const sampleTemplateData = [
     "اسم السائق": "احمد صالح، هيثم عجاج",
     "تاريخ انتهاء الرخصة": "2027-04-07",
     "الحالة التشغيلية": "نشطة",
-    "ملاحظات": ""
+    "ملاحظات": "سيارة بحالة ممتازة"
   }
 ];
 
@@ -111,16 +113,18 @@ export default function VehiclesManagementPage() {
     chassisNumber: "",
     company: "ترانس جاس",
     model: "",
+    year: "",
     governorate: "كفر الشيخ",
     region: "",
     department: "تشغيل وصيانة",
     fuelType: "سولار و غاز طبيعى",
     driverName: "",
     status: "نشطة",
-    licenseExpiry: ""
+    licenseExpiry: "",
+    notes: ""
   });
 
-  // التحكم في قائمة اختيار السائقين المتعددة في المودال
+  // التحكم في قائمة اختيار السائقين المتعددة
   const [isDriverDropdownOpen, setIsDriverDropdownOpen] = useState(false);
   const driverDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +153,7 @@ export default function VehiclesManagementPage() {
     user?.role === "admin" ||
     user?.permissions?.includes("fleet:write");
 
-  // إغلاق قائمة اختيار السائقين المنسدلة عند النقر بالخارج
+  // إغلاق قائمة اختيار السائقين عند النقر بالخارج
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (driverDropdownRef.current && !driverDropdownRef.current.contains(e.target as Node)) {
@@ -178,13 +182,15 @@ export default function VehiclesManagementPage() {
           chassisNumber: v.chassisNumber || v.chassis_number || "",
           company: v.company || "ترانس جاس",
           model: v.model || v.make || "",
+          year: v.year || "",
           governorate: v.governorate || "كفر الشيخ",
           region: v.region || "",
           department: v.department || "تشغيل وصيانة",
           fuelType: v.fuelType || v.fuel_type || "سولار و غاز طبيعى",
           driverName: v.driverName || v.driver_name || "",
           licenseExpiry: v.licenseExpiry || v.license_expiry || "",
-          status: v.status === "active" || v.status === "نشط" ? "نشطة" : v.status || "نشطة"
+          status: v.status === "active" || v.status === "نشط" ? "نشطة" : v.status || "نشطة",
+          notes: v.notes || ""
         }));
         setVehicles(list);
       }
@@ -204,7 +210,7 @@ export default function VehiclesManagementPage() {
     loadData();
   }, [loadData]);
 
-  // ── تحويل نص السائقين إلى مصفوفة والعكس لاختيار متعدد ──
+  // قائمة السائقين المختارين
   const selectedDriversList = (editingVehicle.driverName || "")
     .split("،")
     .map((s) => s.trim())
@@ -231,7 +237,8 @@ export default function VehiclesManagementPage() {
       (v.chassisNumber || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.driverName || "").toLowerCase().includes(search.toLowerCase()) ||
       (v.region || "").toLowerCase().includes(search.toLowerCase()) ||
-      (v.model || "").toLowerCase().includes(search.toLowerCase());
+      (v.model || "").toLowerCase().includes(search.toLowerCase()) ||
+      String(v.year || "").includes(search);
 
     const matchesComp = companyFilter === "الكل" || v.company === companyFilter;
     const matchesGov = govFilter === "الكل" || v.governorate === govFilter;
@@ -250,7 +257,7 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesRole;
   });
 
-  // ── استيراد شيت السيارات ورفعها تلقائياً ──
+  // ── استيراد شيت السيارات ──
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -262,6 +269,7 @@ export default function VehiclesManagementPage() {
           sapNumber: r["رقم السيارة على الساب"] || r["رقم الساب"] || r.sapNumber || "",
           chassisNumber: r["رقم الشاسيه"] || r.chassisNumber || "",
           model: r["الماركة والموديل"] || r["الماركة / الموديل"] || r.model || "",
+          year: r["سنة الصنع"] || r.year || "",
           company: r["الشركة المالكة"] || r.company || "ترانس جاس",
           governorate: r["المحافظة"] || r.governorate || "كفر الشيخ",
           region: r["المنطقة"] || r.region || "",
@@ -380,12 +388,13 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  // ── إكسل السيارات المطابق ──
+  // ── إكسل السيارات ──
   const excelVehicleData = filteredVehicles.map((v) => ({
     "رقم اللوحة": v.plateNumber,
     "رقم السيارة على الساب": v.sapNumber || "-",
     "رقم الشاسيه": v.chassisNumber || "-",
     "الماركة والموديل": v.model || "-",
+    "سنة الصنع": v.year || "-",
     "الشركة المالكة": v.company || "ترانس جاس",
     "المحافظة": v.governorate || "-",
     "المنطقة": v.region || "-",
@@ -430,7 +439,16 @@ export default function VehiclesManagementPage() {
         )
     },
     { key: "company", header: "الشركة المالكة", render: (r: Vehicle) => r.company || "ترانس جاس" },
-    { key: "model", header: "الماركة / الموديل", render: (r: Vehicle) => r.model || "-" },
+    {
+      key: "model",
+      header: "الماركة / الموديل",
+      render: (r: Vehicle) => (
+        <div>
+          <span className="font-bold">{r.model || "-"}</span>
+          {r.year && <span className="text-xs text-gray-400 block font-mono">موديل: {r.year}</span>}
+        </div>
+      )
+    },
     {
       key: "location",
       header: "المحافظة / المنطقة",
@@ -573,7 +591,7 @@ export default function VehiclesManagementPage() {
             />
           )}
 
-          {/* 4. زر إضافة سيارة اليدوي */}
+          {/* 4. إضافة سيارة */}
           {canWrite && activeTab === "vehicles" && (
             <button
               onClick={() => {
@@ -583,13 +601,15 @@ export default function VehiclesManagementPage() {
                   chassisNumber: "",
                   company: "ترانس جاس",
                   model: "",
+                  year: "",
                   governorate: "كفر الشيخ",
                   region: "",
                   department: "تشغيل وصيانة",
                   fuelType: "سولار و غاز طبيعى",
                   driverName: "",
                   status: "نشطة",
-                  licenseExpiry: ""
+                  licenseExpiry: "",
+                  notes: ""
                 });
                 setIsEditVehicle(false);
                 setVehicleModalOpen(true);
@@ -601,7 +621,7 @@ export default function VehiclesManagementPage() {
             </button>
           )}
 
-          {/* زر إضافة فرد */}
+          {/* إضافة فرد */}
           {canWrite && activeTab === "personnel" && (
             <button
               onClick={() => {
@@ -747,7 +767,7 @@ export default function VehiclesManagementPage() {
         )}
       </div>
 
-      {/* ── نافذة إضافة / تعديل السيارة المحدثة ── */}
+      {/* ── نافذة إضافة / تعديل السيارة المتكاملة ── */}
       {vehicleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
@@ -773,7 +793,6 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                {/* حقل رقم السيارة على الساب */}
                 <Field label="رقم السيارة على الساب (SAP)">
                   <input
                     className={`${inputClass} font-mono font-bold text-blue-900 dark:text-blue-300`}
@@ -801,7 +820,18 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                {/* اختيار أكثر من سائق للسيارة عبر القائمة المنسدلة */}
+                {/* ✅ حقل سنة الصنع الجديد المضاف */}
+                <Field label="سنة الصنع">
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={editingVehicle.year || ""}
+                    onChange={(e) => setEditingVehicle({ ...editingVehicle, year: e.target.value })}
+                    placeholder="مثال: 2024"
+                  />
+                </Field>
+
+                {/* اختيار أكثر من سائق للسيارة */}
                 <div className="relative" ref={driverDropdownRef}>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                     السائقين المسندين (اختيار متعدد)
@@ -843,7 +873,6 @@ export default function VehiclesManagementPage() {
                     </div>
                   )}
 
-                  {/* عرض السائقين المختارين على شكل Badges */}
                   {selectedDriversList.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {selectedDriversList.map((name) => (
@@ -879,7 +908,6 @@ export default function VehiclesManagementPage() {
                   />
                 </Field>
 
-                {/* حقل المنطقة المضاف */}
                 <Field label="المنطقة">
                   <input
                     className={inputClass}
@@ -928,6 +956,19 @@ export default function VehiclesManagementPage() {
                     <option value="تحت الصيانة">تحت الصيانة</option>
                     <option value="معطلة">معطلة</option>
                   </select>
+                </Field>
+              </div>
+
+              {/* ✅ خانة الملاحظات في الأسفل بعرض كامل */}
+              <div className="pt-2">
+                <Field label="ملاحظات">
+                  <textarea
+                    rows={2}
+                    className={inputClass}
+                    value={editingVehicle.notes || ""}
+                    onChange={(e) => setEditingVehicle({ ...editingVehicle, notes: e.target.value })}
+                    placeholder="أي ملاحظات أو بيانات إضافية عن المركبة..."
+                  />
                 </Field>
               </div>
 
