@@ -12,7 +12,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
         <title>Fleet360 - Trans Gas / TAQA ARABIA</title>
-        
+
         {/* إعدادات الشاشة والهاتف لتطبيق الـ APK */}
         <meta
           name="viewport"
@@ -35,7 +35,7 @@ export default function RootLayout({
         <link rel="shortcut icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
 
-        {/* سكريبت ضبط اللغة والوضع الليلي اللحظي لمنع الوميض */}
+        {/* سكريبت ضبط اللغة والوضع الليلي اللحظي وتسجيل Service Worker */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -49,6 +49,12 @@ export default function RootLayout({
                   document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
                   document.documentElement.setAttribute('lang', lang);
                 } catch(e){}
+
+                if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function(){});
+                  });
+                }
               })();
             `,
           }}
