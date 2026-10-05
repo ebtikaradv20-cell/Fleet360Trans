@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useApp } from "@/context/AppContext";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Car,
@@ -14,8 +13,8 @@ import {
   Layers,
   CheckSquare,
   Users,
-  LogOut,
-  MoreVertical,
+  ChevronRight,
+  ChevronLeft,
   Menu,
   X
 } from "lucide-react";
@@ -34,15 +33,13 @@ const navigationItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user } = useApp();
 
-  // حالة انكماش / توسع الشريط الجانبي (على الديسكتوب)
+  // حالة تقليص / توسيع البار على الديسكتوب
   const [collapsed, setCollapsed] = useState(false);
-  // حالة فتح / إغلاق الشريط الجانبي (على الموبايل)
+  // حالة فتح البار كـ Drawer على الموبايل
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // استرجاع حالة الانكماش المحفوظة
+  // استرجاع حالة الانكماش المحفوظة في المتصفح
   useEffect(() => {
     try {
       const saved = localStorage.getItem("fleet360_sidebar_collapsed");
@@ -60,24 +57,13 @@ export default function Sidebar() {
     } catch (e) {}
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch (err) {}
-    try {
-      localStorage.removeItem("fleet360_token");
-      document.cookie = "fleet360_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-    } catch (e) {}
-    router.push("/login");
-  };
-
   return (
     <>
-      {/* ── زر فتح القائمة الجانبية في الموبايل (يظهر أعلى يمين الشاشة في الهاتف) ── */}
+      {/* ── زر القائمة للشاشات الصغيرة (الموبايل فقط) ── */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl bg-slate-900 text-white shadow-lg border border-slate-700 focus:outline-none cursor-pointer"
+        className="md:hidden fixed top-3 right-3 z-40 p-2 rounded-xl bg-[#0B1A3B] text-white shadow-lg border border-slate-700 cursor-pointer"
         aria-label="فتح القائمة"
       >
         <Menu size={20} />
@@ -91,41 +77,41 @@ export default function Sidebar() {
         />
       )}
 
-      {/* ── الشريط الجانبي الرئيسي ── */}
+      {/* ── الشريط الجانبي الأساسي ── */}
       <aside
-        className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col justify-between border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-2xl ${
+        className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-xl shrink-0 ${
           collapsed ? "w-20" : "w-64"
         } ${
           mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        {/* ── الجزء العلوي: اللوجو وزر الـ 3 نُقط ── */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+        {/* ── الترويسة: اللوجو + زر السهم التفاعلي ── */}
+        <div className="h-16 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="TAQA Gas Logo" className="w-7 h-7 object-contain" />
+              <img src="/logo.png" alt="TAQA Logo" className="w-7 h-7 object-contain" />
             </div>
             {!collapsed && (
               <div className="truncate">
-                <h1 className="font-black text-sm tracking-wide text-white">FLEET 360</h1>
-                <p className="text-[10px] text-teal-400 font-medium">TAQA GAS COMPANY</p>
+                <h1 className="font-black text-sm tracking-wide text-white leading-tight">FLEET 360</h1>
+                <p className="text-[10px] text-teal-400 font-medium leading-tight">TAQA GAS COMPANY</p>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* زر الـ 3 نُقط للتقليص والتوسيع على الديسكتوب */}
+          <div className="flex items-center">
+            {/* زر السهم التفاعلي لتقليص وتوسيع البار */}
             <button
               type="button"
               onClick={toggleCollapsed}
-              title={collapsed ? "توسيع القائمة" : "تقليص القائمة"}
+              title={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
               className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
             >
-              <MoreVertical size={18} />
+              {collapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
             </button>
 
-            {/* زر إغلاق القائمة في شاشات الموبايل */}
+            {/* زر إغلاق القائمة في الموبايل */}
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
@@ -136,8 +122,8 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* ── القائمة والروابط (قابلة للتمرير الداخلي لمنع دفع زر الخروج) ── */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 px-2.5 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
+        {/* ── قائمة الروابط والصفحات ── */}
+        <nav className="flex-1 overflow-y-auto px-2.5 py-4 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -160,21 +146,6 @@ export default function Sidebar() {
             );
           })}
         </nav>
-
-        {/* ── الجزء السفلي: زر تسجيل الخروج (مُثبت دائماً وظاهر في التطبيق والموبايل) ── */}
-        <div className="p-3 border-t border-slate-800 shrink-0 pb-8 md:pb-4 bg-[#091530]">
-          <button
-            type="button"
-            onClick={handleLogout}
-            title={collapsed ? "تسجيل الخروج" : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 transition-all cursor-pointer ${
-              collapsed ? "justify-center px-0" : ""
-            }`}
-          >
-            <LogOut size={18} className="shrink-0" />
-            {!collapsed && <span>تسجيل الخروج</span>}
-          </button>
-        </div>
       </aside>
     </>
   );
