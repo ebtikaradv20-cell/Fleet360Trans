@@ -49,23 +49,6 @@ interface Personnel {
   is_deleted?: number;
 }
 
-const VEHICLE_TEMPLATE_COLUMNS = [
-  "رقم اللوحة",
-  "رقم السيارة على الساب",
-  "رقم الشاسيه",
-  "الماركة والموديل",
-  "سنة الصنع",
-  "الشركة المالكة",
-  "المحافظة",
-  "المنطقة",
-  "الإدارة",
-  "نوع الوقود",
-  "اسم السائق",
-  "تاريخ انتهاء الرخصة",
-  "الحالة التشغيلية",
-  "ملاحظات"
-];
-
 const sampleTemplateData = [
   {
     "رقم اللوحة": "ل ن ط 7618",
@@ -246,7 +229,6 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesRole;
   });
 
-  // معالجة مرنة وشاملة للشيت تستوعب أي صيغ وتحدّث الأسطول
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -530,7 +512,7 @@ export default function VehiclesManagementPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── الرأس الأصلي الكامل مع 4 أزرار فقط دون تكرار ── */}
+      {/* ── الرأس: 4 أزرار فقط وبدون تكرار ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -549,13 +531,13 @@ export default function VehiclesManagementPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* 1. تصدير Excel (أخضر واحد فقط) */}
+          {/* 1. تصدير Excel */}
           <ExportExcelButton
             data={activeTab === "vehicles" ? excelVehicleData : excelPersonnelData}
             fileName={activeTab === "vehicles" ? "أسطول_السيارات" : "الفنيين_والسائقين"}
           />
 
-          {/* 2. قالب Excel المحدث */}
+          {/* 2. قالب Excel (واحد فقط) */}
           {activeTab === "vehicles" && (
             <ExportExcelButton
               data={sampleTemplateData}
@@ -567,13 +549,12 @@ export default function VehiclesManagementPage() {
           {/* 3. استيراد وتحديث الشيت */}
           {canWrite && activeTab === "vehicles" && (
             <ImportExcelButton
-              templateColumns={VEHICLE_TEMPLATE_COLUMNS}
               onImport={handleImportVehicles}
               buttonText="استيراد وتحديث الشيت"
             />
           )}
 
-          {/* 4. إضافة سيارة (البرتقالي) */}
+          {/* 4. إضافة سيارة */}
           {canWrite && activeTab === "vehicles" && (
             <button
               onClick={() => {
@@ -603,6 +584,7 @@ export default function VehiclesManagementPage() {
             </button>
           )}
 
+          {/* إضافة فرد */}
           {canWrite && activeTab === "personnel" && (
             <button
               onClick={() => {
