@@ -44,16 +44,7 @@ interface Vehicle {
   model?: string;
 }
 
-const FLEET_EXCEL_COLUMNS = [
-  "رقم اوردر الساب",
-  "رقم العربية",
-  "التاريخ",
-  "القسم",
-  "وصف العملية",
-  "التكلفة"
-];
-
-// قالب الإكسيل النموذجي
+// 1. بيانات القالب النموذجي
 const sampleTemplateData = [
   {
     "رقم اوردر الساب": "SAP-9012",
@@ -76,7 +67,7 @@ const sampleTemplateData = [
     "رقم العربية": "ل ن ط 7618",
     "التاريخ": "2026-10-03",
     "القسم": "زيوت",
-    "وصف العملية": "غيار زيت 10,000 كم مع فلتر",
+    "وصف العملية": "غيار زيت وفلتر 10000 كم",
     "التكلفة": 1200
   }
 ];
@@ -95,13 +86,11 @@ export default function FleetDataPage() {
   const [allRecords, setAllRecords] = useState<FleetRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // الفلاتر العلوية
   const [search, setSearch] = useState("");
   const [selectedPlates, setSelectedPlates] = useState<string[]>([]);
   const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false);
   const vehicleMenuRef = useRef<HTMLDivElement>(null);
 
-  // بار السكاشن
   const [activeSection, setActiveSection] = useState<
     "all" | "work-orders" | "oil" | "tires" | "fuel" | "inspection"
   >("all");
@@ -303,17 +292,9 @@ export default function FleetDataPage() {
   const totalCost = filteredRecords.reduce((acc, r) => acc + safeNum(r.cost), 0);
   const maintenanceCount = filteredRecords.filter((r) => r.section === "صيانة").length;
   const fuelCount = filteredRecords.filter((r) => r.section === "وقود").length;
+  const oilCount = filteredRecords.filter((r) => r.section === "زيوت").length;
 
-  const excelData = filteredRecords.map((row) => ({
-    "رقم اوردر الساب": row.sapNumber,
-    "رقم العربية": row.plateNumber,
-    "التاريخ": row.date,
-    "القسم": row.section,
-    "وصف العملية": `${row.title} - ${row.description}`,
-    "التكلفة": safeNum(row.cost)
-  }));
-
-  // ── الاستيراد الذكي (Upsert: تعديل إذا كان مسجلاً أو إضافة جديد + فرز تلقائي بالكلمات الدلالية) ──
+  // 2. دالة استيراد وتحديث البيانات ومعالجة المعادلات الحسابية
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -325,20 +306,18 @@ export default function FleetDataPage() {
         const sap = String(row["رقم اوردر الساب"] || row["رقم الساب"] || "").trim();
         const plate = String(row["رقم العربية"] || row["رقم اللوحة"] || "").trim();
         const d = row["التاريخ"] || new Date().toISOString().slice(0, 10);
-        const section = String(row["القسم"] || row["النوع"] || "").trim();
+        const section = String(row["القسم"] || "").trim();
         const desc = String(row["وصف العملية"] || row["وصف الصيانه او العملية"] || "").trim();
         const costVal = safeNum(row["التكلفة"]);
 
         if (!plate) continue;
 
-        // التحقق إن كانت المعاملة مسجلة مسبقاً بنفس رقم الساب للتحديث (Update) بدلاً من الإضافة
         const existingRecord = allRecords.find(
           (r) =>
             (sap && sap !== "-" && r.sapNumber === sap) ||
             (r.plateNumber === plate && r.date === d && r.description === desc)
         );
 
-        // 1. قسم الوقود (أو بالكلمات الدلالية)
         if (
           section.includes("وقود") ||
           desc.includes("سولار") ||
@@ -362,11 +341,7 @@ export default function FleetDataPage() {
               liters: 0
             })
           });
-
-          if (method === "PUT") updatedCount++;
-          else addedCount++;
-
-        // 2. قسم الزيوت
+          if (method === "PUT") updatedCount++; else addedCount++;
         } else if (
           section.includes("زيت") ||
           desc.includes("زيت") ||
@@ -388,11 +363,7 @@ export default function FleetDataPage() {
               notes: `رقم SAP: ${sap}`
             })
           });
-
-          if (method === "PUT") updatedCount++;
-          else addedCount++;
-
-        // 3. قسم الكاوتش
+          if (method === "PUT") updatedCount++; else addedCount++;
         } else if (
           section.includes("كاوتش") ||
           section.includes("إطار") ||
@@ -415,11 +386,7 @@ export default function FleetDataPage() {
               notes: `رقم SAP: ${sap}`
             })
           });
-
-          if (method === "PUT") updatedCount++;
-          else addedCount++;
-
-        // 4. قسم أوامر الصيانة (الافتراضي لباقي الأعمال)
+          if (method === "PUT") updatedCount++; else addedCount++;
         } else {
           const method = existingRecord && existingRecord.sectionKey === "work-orders" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/work-orders/${existingRecord.rawId}` : "/api/work-orders";
@@ -439,23 +406,38 @@ export default function FleetDataPage() {
               operationType: "صيانة دورية"
             })
           });
-
-          if (method === "PUT") updatedCount++;
-          else addedCount++;
+          if (method === "PUT") updatedCount++; else addedCount++;
         }
       }
 
-      alert(
-        `اكتملت مزامنة الشيت بنجاح:\n` +
-        `- تم تحديث وتعديل: ${updatedCount} معاملة موجودة\n` +
-        `- تم تسجيل وإضافة: ${addedCount} معاملة جديدة`
-      );
+      alert(`تمت مزامنة الشيت بنجاح:\n- تم تحديث: ${updatedCount} معاملة\n- تم تسجيل: ${addedCount} معاملة جديدة`);
       loadFleetData();
     } catch (err) {
       console.error("Sync error:", err);
       alert("حدث خطأ أثناء مزامنة بيانات الشيت.");
     }
   };
+
+  // 3. شيت الملخص المحسوب شاملاً المعادلات والإجماليات
+  const excelSummaryData = [
+    ...filteredRecords.map((row) => ({
+      "رقم اوردر الساب": row.sapNumber,
+      "رقم العربية": row.plateNumber,
+      "التاريخ": row.date,
+      "القسم": row.section,
+      "وصف العملية": `${row.title} - ${row.description}`,
+      "التكلفة (ج.م)": safeNum(row.cost)
+    })),
+    // سطر الإجمالي المحسوب في نهاية الشيت
+    {
+      "رقم اوردر الساب": "المجموع الكلي",
+      "رقم العربية": `إجمالي العمليات: ${filteredRecords.length}`,
+      "التاريخ": `صيانة: ${maintenanceCount}`,
+      "القسم": `وقود: ${fuelCount} | زيوت: ${oilCount}`,
+      "وصف العملية": "إجمالي مبالغ المعاملات المنفذة",
+      "التكلفة (ج.م)": totalCost
+    }
+  ];
 
   const columns = [
     {
@@ -525,12 +507,11 @@ export default function FleetDataPage() {
     },
     {
       key: "action",
-      header: "فتح الأمر",
+      header: "عرض",
       render: (r: FleetRecord) => (
         <button
           onClick={() => router.push(r.routeUrl)}
           className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-700 hover:text-white bg-teal-50 hover:bg-teal-600 dark:bg-teal-950/50 dark:text-teal-300 dark:hover:bg-teal-600 rounded-lg transition-colors cursor-pointer"
-          title="الانتقال إلى شاشة الأمر"
         >
           <span>عرض</span>
           <ExternalLink size={12} />
@@ -541,7 +522,7 @@ export default function FleetDataPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── 1. البارات العلوية ── */}
+      {/* ── 1. البطاقات الإحصائية ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex justify-between items-start relative z-10">
@@ -582,7 +563,7 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── 2. الهيدر (زر تصدير واحد فقط + قالب + استيراد) ── */}
+      {/* ── 2. الهيدر: 3 أزرار إكسيل رئيسية فقط ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -591,35 +572,37 @@ export default function FleetDataPage() {
           <div>
             <h1 className="text-xl font-black text-gray-900 dark:text-white">داتا الأسطول الشاملة</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              عرض {filteredRecords.length} عملية
-              {selectedPlates.length > 0 ? ` لـ (${selectedPlates.length}) سيارة محددة` : " لكافة السيارات"}
+              عرض {filteredRecords.length} عملية مسجلة
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* زر تصدير واحد فقط */}
-          <ExportExcelButton data={excelData} fileName="داتا_الأسطول_الشاملة" />
-
-          {/* قالب Excel */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* 1. زر تحميل القالب */}
           <ExportExcelButton
             data={sampleTemplateData}
             fileName="قالب_داتا_الأسطول"
-            buttonText="قالب Excel"
+            buttonText="تحميل قالب"
           />
 
-          {/* استيراد وتحديث الشيت */}
+          {/* 2. زر استيراد وتحديث البيانات */}
           {canWrite && (
             <ImportExcelButton
-              templateColumns={FLEET_EXCEL_COLUMNS}
               onImport={handleImport}
-              buttonText="استيراد وتحديث الشيت"
+              buttonText="استيراد وتحديث"
             />
           )}
+
+          {/* 3. زر تحميل شيت ملخص بالمعادلات */}
+          <ExportExcelButton
+            data={excelSummaryData}
+            fileName="ملخص_معاملات_الأسطول"
+            buttonText="تحميل شيت ملخص"
+          />
         </div>
       </div>
 
-      {/* ── 3. شريط الفلاتر (بحث + اختيار سيارة فقط) ── */}
+      {/* ── 3. شريط الفلاتر ── */}
       <FilterBar>
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500 dark:text-gray-400">بحث:</label>
@@ -769,7 +752,7 @@ export default function FleetDataPage() {
         </button>
       </div>
 
-      {/* ── 5. الجدول المجمع ── */}
+      {/* ── 5. جدول البيانات ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable
           columns={columns}
