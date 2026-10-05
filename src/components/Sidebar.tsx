@@ -1,92 +1,181 @@
 "use client";
-import React from "react";
+
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { translations } from "@/lib/i18n";
-import { LayoutDashboard, Car, Fuel, Wrench, Droplet, ClipboardCheck, Database, Users, LogOut, ShieldCheck } from "lucide-react";
+import {
+  LayoutDashboard,
+  Car,
+  Fuel,
+  Wrench,
+  Droplets,
+  ClipboardCheck,
+  Layers,
+  CheckSquare,
+  Users,
+  LogOut,
+  MoreVertical,
+  Menu,
+  X
+} from "lucide-react";
 
-interface SidebarProps { collapsed?: boolean; }
+const navigationItems = [
+  { name: "لوحة التحكم", href: "/dashboard", icon: LayoutDashboard },
+  { name: "السيارات", href: "/dashboard/vehicles", icon: Car },
+  { name: "الوقود", href: "/dashboard/fuel", icon: Fuel },
+  { name: "الصيانة", href: "/dashboard/work-orders", icon: Wrench },
+  { name: "الزيوت وقطع الغيار", href: "/dashboard/oil-changes", icon: Droplets },
+  { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: ClipboardCheck },
+  { name: "داتا الأسطول الشاملة", href: "/dashboard/fleet-data", icon: Layers },
+  { name: "الطلبات والموافقات", href: "/dashboard/approvals", icon: CheckSquare },
+  { name: "المستخدمون", href: "/dashboard/users", icon: Users },
+];
 
-export default function Sidebar({ collapsed = false }: SidebarProps) {
+export default function Sidebar() {
   const pathname = usePathname();
-  const { isRTL, user, lang } = useApp();
-  const t = translations[lang] || translations["ar"];
+  const router = useRouter();
+  const { user } = useApp();
 
-  const menuItems = [
-    { name: t.dashboard, href: "/dashboard", icon: <LayoutDashboard size={22} /> },
-    { name: t.vehicles, href: "/dashboard/vehicles", icon: <Car size={22} /> },
-    { name: t.fuel, href: "/dashboard/fuel", icon: <Fuel size={22} /> },
-    { name: t.maintenance, href: "/dashboard/work-orders", icon: <Wrench size={22} /> },
-    { name: t.oilAndParts, href: "/dashboard/oil-changes", icon: <Droplet size={22} /> },
-    { name: t.vehicleInspection, href: "/dashboard/vehicle-inspection", icon: <ClipboardCheck size={22} /> },
-    { name: t.fleetData, href: "/dashboard/fleet-data", icon: <Database size={22} /> },
-    { name: t.approvalsCenter, href: "/dashboard/approvals", icon: <ShieldCheck size={22} /> },
-    { name: t.users, href: "/dashboard/users", icon: <Users size={22} /> },
-  ];
+  // حالة انكماش / توسع الشريط الجانبي (على الديسكتوب)
+  const [collapsed, setCollapsed] = useState(false);
+  // حالة فتح / إغلاق الشريط الجانبي (على الموبايل)
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const filteredMenu = menuItems.filter(item => {
-    if (user?.role === "user" && (item.href.includes("users") || item.href.includes("approvals"))) return false;
-    return true;
-  });
+  // استرجاع حالة الانكماش المحفوظة
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("fleet360_sidebar_collapsed");
+      if (saved !== null) {
+        setCollapsed(saved === "true");
+      }
+    } catch (e) {}
+  }, []);
+
+  const toggleCollapsed = () => {
+    const newState = !collapsed;
+    setCollapsed(newState);
+    try {
+      localStorage.setItem("fleet360_sidebar_collapsed", String(newState));
+    } catch (e) {}
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {}
+    try {
+      localStorage.removeItem("fleet360_token");
+      document.cookie = "fleet360_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    } catch (e) {}
+    router.push("/login");
+  };
 
   return (
-    <aside
-      className={`
-        ${collapsed ? "w-20" : "w-64"}
-        bg-gradient-to-b from-[#0B1A3B] via-[#09152B] to-[#040A18] text-white
-        ${isRTL ? "right-0 border-l" : "left-0 border-r"} 
-        border-white/5 flex flex-col h-screen fixed top-0 z-40 transition-all duration-300 shadow-2xl
-      `}
-      dir={isRTL ? "rtl" : "ltr"}
-    >
-      <div className={`pt-8 pb-6 px-2 border-b border-white/5 flex flex-col items-center justify-center text-center transition-all duration-300 relative overflow-hidden`}>
-        
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-blue-500/10 rounded-full blur-[40px] pointer-events-none" />
+    <>
+      {/* ── زر فتح القائمة الجانبية في الموبايل (يظهر أعلى يمين الشاشة في الهاتف) ── */}
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl bg-slate-900 text-white shadow-lg border border-slate-700 focus:outline-none cursor-pointer"
+        aria-label="فتح القائمة"
+      >
+        <Menu size={20} />
+      </button>
 
-        <img 
-          src="/logo.png" alt="TAQA Gas Logo" 
-          className={`${collapsed ? "w-14 h-14" : "w-36 h-36"} object-contain filter drop-shadow-2xl transition-all duration-300 -mb-5 relative z-10 transform hover:scale-105`}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+      {/* ── خلفية معتمة عند فتح القائمة على الموبايل ── */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity"
         />
-        {!collapsed && (
-          <div className="transition-all duration-300 flex flex-col items-center leading-none mt-1 relative z-10">
-            <h1 className="text-2xl font-black text-white tracking-wide drop-shadow-lg" dir="ltr">
-              FLEET <span className="text-emerald-400">360</span>
-            </h1>
-            <p className="text-[10px] text-emerald-200/80 font-extrabold tracking-widest mt-1.5 uppercase drop-shadow-sm">
-              TAQA Gas Company
-            </p>
+      )}
+
+      {/* ── الشريط الجانبي الرئيسي ── */}
+      <aside
+        className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col justify-between border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-2xl ${
+          collapsed ? "w-20" : "w-64"
+        } ${
+          mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* ── الجزء العلوي: اللوجو وزر الـ 3 نُقط ── */}
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="TAQA Gas Logo" className="w-7 h-7 object-contain" />
+            </div>
+            {!collapsed && (
+              <div className="truncate">
+                <h1 className="font-black text-sm tracking-wide text-white">FLEET 360</h1>
+                <p className="text-[10px] text-teal-400 font-medium">TAQA GAS COMPANY</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto overflow-x-hidden scrollbar-hide relative z-10">
-        {filteredMenu.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link key={item.href} href={item.href} title={collapsed ? item.name : undefined}
-              className={`
-                flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all group 
-                ${collapsed ? "justify-center" : "justify-start"} 
-                ${isActive 
-                  ? "bg-gradient-to-l from-[#040A18]/80 to-[#12234B] shadow-lg border-s-4 border-emerald-400 text-emerald-400" 
-                  : "text-gray-400 hover:bg-white/5 hover:text-white"
-                }
-              `}>
-              <span className={`flex-shrink-0 transition-transform group-hover:scale-110 ${isActive ? "text-emerald-400 drop-shadow-md" : "text-gray-500 group-hover:text-white"}`}>{item.icon}</span>
-              {!collapsed && <span className="truncate">{item.name}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+          <div className="flex items-center gap-1">
+            {/* زر الـ 3 نُقط للتقليص والتوسيع على الديسكتوب */}
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title={collapsed ? "توسيع القائمة" : "تقليص القائمة"}
+              className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+            >
+              <MoreVertical size={18} />
+            </button>
 
-      <div className="p-4 border-t border-white/5 relative z-10">
-        <Link href="/login" title={collapsed ? t.logout : undefined} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-400 hover:text-white hover:bg-red-500/80 transition-all ${collapsed ? "justify-center" : "justify-start"}`}>
-          <span className="flex-shrink-0"><LogOut size={20} /></span>
-          {!collapsed && <span className="truncate">{t.logout}</span>}
-        </Link>
-      </div>
-    </aside>
+            {/* زر إغلاق القائمة في شاشات الموبايل */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── القائمة والروابط (قابلة للتمرير الداخلي لمنع دفع زر الخروج) ── */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 px-2.5 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? item.name : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                  isActive
+                    ? "bg-teal-600 text-white shadow-md shadow-teal-900/30"
+                    : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                } ${collapsed ? "justify-center px-0" : ""}`}
+              >
+                <Icon size={18} className="shrink-0" />
+                {!collapsed && <span className="truncate">{item.name}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* ── الجزء السفلي: زر تسجيل الخروج (مُثبت دائماً وظاهر في التطبيق والموبايل) ── */}
+        <div className="p-3 border-t border-slate-800 shrink-0 pb-8 md:pb-4 bg-[#091530]">
+          <button
+            type="button"
+            onClick={handleLogout}
+            title={collapsed ? "تسجيل الخروج" : undefined}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 transition-all cursor-pointer ${
+              collapsed ? "justify-center px-0" : ""
+            }`}
+          >
+            <LogOut size={18} className="shrink-0" />
+            {!collapsed && <span>تسجيل الخروج</span>}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
