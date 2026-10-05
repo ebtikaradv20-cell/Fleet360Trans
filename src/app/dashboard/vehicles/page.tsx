@@ -49,7 +49,8 @@ interface Personnel {
   is_deleted?: number;
 }
 
-const sampleTemplateData = [
+// 1. بيانات القالب النموذجي للتحميل
+const vehicleTemplateData = [
   {
     "رقم اللوحة": "ل ن ط 7618",
     "رقم السيارة على الساب": "SAP-1045",
@@ -76,7 +77,7 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
 );
 
 const inputClass =
-  "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50";
+  "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50";
 
 export default function VehiclesManagementPage() {
   const { user } = useApp();
@@ -229,11 +230,14 @@ export default function VehiclesManagementPage() {
     return matchesSearch && matchesRole;
   });
 
+  // 2. دالة استيراد البيانات وتحديثها (تفحص وتحدث القائم وتدرج الجديد)
   const handleImportVehicles = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
     try {
-      let count = 0;
+      let updatedCount = 0;
+      let addedCount = 0;
+
       for (const r of importedRows) {
         const plate = String(r["رقم اللوحة"] || r["اللوحة"] || r.plateNumber || "").trim();
         if (!plate) continue;
@@ -243,7 +247,7 @@ export default function VehiclesManagementPage() {
           sapNumber: String(r["رقم السيارة على الساب"] || r["رقم الساب"] || r["رقم SAP"] || r.sapNumber || "").trim(),
           chassisNumber: String(r["رقم الشاسيه"] || r["الشاسيه"] || r.chassisNumber || "").trim(),
           model: String(r["الماركة والموديل"] || r["الماركة / الموديل"] || r["الموديل"] || r.model || "").trim(),
-          year: String(r["سنة الصنع"] || r["الموديل:"] || r.year || "").trim(),
+          year: String(r["سنة الصنع"] || r.year || "").trim(),
           company: String(r["الشركة المالكة"] || r["الشركة"] || r.company || "ترانس جاس").trim(),
           governorate: String(r["المحافظة"] || r.governorate || "كفر الشيخ").trim(),
           region: String(r["المنطقة"] || r.region || "").trim(),
@@ -255,21 +259,68 @@ export default function VehiclesManagementPage() {
           notes: String(r["ملاحظات"] || r.notes || "").trim()
         };
 
-        await fetch("/api/vehicles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        }).catch(() => {});
-        count++;
+        const existing = vehicles.find((v) => v.plateNumber === plate);
+        if (existing) {
+          await fetch(`/api/vehicles/${existing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          updatedCount++;
+        } else {
+          await fetch("/api/vehicles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          addedCount++;
+        }
       }
 
-      alert(`تم استيراد وتحديث ${count} سيارة بنجاح.`);
+      alert(`تمت معالجة الشيت بنجاح:\n- تم تحديث: ${updatedCount} سيارة مسجلة\n- تم إضافة: ${addedCount} سيارة جديدة`);
       loadData();
     } catch (err) {
       console.error("Import error:", err);
-      alert("حدث خطأ أثناء معالجة بيانات شيت السيارات.");
+      alert("حدث خطأ أثناء معالجة شيت السيارات.");
     }
   };
+
+  // 3. تجهيز شيت الملخص المحسوب للتصدير
+  const excelSummaryData = [
+    ...filteredVehicles.map((v) => ({
+      "رقم اللوحة": v.plateNumber,
+      "رقم SAP": v.sapNumber || "-",
+      "الماركة والموديل": v.model || "-",
+      "سنة الصنع": v.year || "-",
+      "رقم الشاسيه": v.chassisNumber || "-",
+      "الشركة": v.company || "ترانس جاس",
+      "المحافظة": v.governorate || "-",
+      "المنطقة": v.region || "-",
+      "الإدارة": v.department || "-",
+      "نوع الوقود": v.fuelType || "-",
+      "السائق المسند": v.driverName || "-",
+      "انتهاء الرخصة": v.licenseExpiry || "-",
+      "الحالة": v.status || "نشطة",
+      "ملاحظات": v.notes || ""
+    })),
+    // سطر ملخص الحسابات في نهاية الشيت
+    {
+      "رقم اللوحة": `الإجمالي: ${filteredVehicles.length} سيارة`,
+      "رقم SAP": `نشطة: ${filteredVehicles.filter(v => v.status === "نشطة").length}`,
+      "الماركة والموديل": `تحت الصيانة: ${filteredVehicles.filter(v => v.status === "تحت الصيانة").length}`,
+      "سنة الصنع": "",
+      "رقم الشاسيه": "",
+      "الشركة": "",
+      "المحافظة": "",
+      "المنطقة": "",
+      "الإدارة": "",
+      "نوع الوقود": "",
+      "السائق المسند": "",
+      "انتهاء الرخصة": "",
+      "الحالة": "",
+      "ملاحظات": "ملخص شامل ومحدث"
+    }
+  ];
 
   const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,30 +407,6 @@ export default function VehiclesManagementPage() {
     }
   };
 
-  const excelVehicleData = filteredVehicles.map((v) => ({
-    "رقم اللوحة": v.plateNumber,
-    "رقم السيارة على الساب": v.sapNumber || "-",
-    "رقم الشاسيه": v.chassisNumber || "-",
-    "الماركة والموديل": v.model || "-",
-    "سنة الصنع": v.year || "-",
-    "الشركة المالكة": v.company || "ترانس جاس",
-    "المحافظة": v.governorate || "-",
-    "المنطقة": v.region || "-",
-    "الإدارة": v.department || "-",
-    "نوع الوقود": v.fuelType || "-",
-    "اسم السائق": v.driverName || "-",
-    "تاريخ انتهاء الرخصة": v.licenseExpiry || "-",
-    "الحالة التشغيلية": v.status || "نشطة",
-    "ملاحظات": v.notes || ""
-  }));
-
-  const excelPersonnelData = filteredPersonnel.map((p) => ({
-    "الاسم": p.name,
-    "الوظيفة / التصنيف": p.role,
-    "رقم الهاتف": p.phone || "-",
-    "ملاحظات": p.notes || ""
-  }));
-
   const vehicleColumns = [
     {
       key: "plateNumber",
@@ -456,63 +483,15 @@ export default function VehiclesManagementPage() {
       header: "الحالة",
       render: (r: Vehicle) => (
         <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-          {r.status === "active" || r.status === "نشط" ? "نشطة" : r.status || "نشطة"}
+          {r.status || "نشطة"}
         </span>
       )
     }
   ];
 
-  const personnelColumns = [
-    {
-      key: "name",
-      header: "الاسم",
-      render: (r: Personnel) => <span className="font-black text-gray-900 dark:text-white">{r.name}</span>
-    },
-    {
-      key: "role",
-      header: "التصنيف / الوظيفة",
-      render: (r: Personnel) => (
-        <span
-          className={`px-3 py-1 rounded-lg text-xs font-bold ${
-            r.role === "مهندس"
-              ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
-              : r.role === "فني"
-              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
-              : "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300"
-          }`}
-        >
-          {r.role}
-        </span>
-      )
-    },
-    {
-      key: "assignedVehicles",
-      header: "السيارات المسندة إليه",
-      render: (r: Personnel) => {
-        const assigned = vehicles.filter((v) => (v.driverName || "").includes(r.name));
-        return assigned.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {assigned.map((v) => (
-              <span
-                key={v.id}
-                className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 rounded text-xs font-mono font-bold"
-              >
-                {v.plateNumber}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-400 text-xs">لا توجد سيارة مسندة</span>
-        );
-      }
-    },
-    { key: "phone", header: "رقم الهاتف", render: (r: Personnel) => r.phone || "-" },
-    { key: "notes", header: "ملاحظات", render: (r: Personnel) => r.notes || "-" }
-  ];
-
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── الرأس: 4 أزرار فقط وبدون تكرار ── */}
+      {/* ── الرأس: 3 أزرار إكسيل فقط + إضافة سيارة ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -530,31 +509,32 @@ export default function VehiclesManagementPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* 1. تصدير Excel */}
-          <ExportExcelButton
-            data={activeTab === "vehicles" ? excelVehicleData : excelPersonnelData}
-            fileName={activeTab === "vehicles" ? "أسطول_السيارات" : "الفنيين_والسائقين"}
-          />
-
-          {/* 2. قالب Excel (واحد فقط) */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* 1. زر تحميل القالب */}
           {activeTab === "vehicles" && (
             <ExportExcelButton
-              data={sampleTemplateData}
+              data={vehicleTemplateData}
               fileName="قالب_شيت_السيارات"
-              buttonText="قالب Excel"
+              buttonText="تحميل قالب"
             />
           )}
 
-          {/* 3. استيراد وتحديث الشيت */}
+          {/* 2. زر استيراد وتحديث البيانات */}
           {canWrite && activeTab === "vehicles" && (
             <ImportExcelButton
               onImport={handleImportVehicles}
-              buttonText="استيراد وتحديث الشيت"
+              buttonText="استيراد وتحديث"
             />
           )}
 
-          {/* 4. إضافة سيارة */}
+          {/* 3. زر تحميل شيت الإكسيل بالملخص */}
+          <ExportExcelButton
+            data={excelSummaryData}
+            fileName="ملخص_أسطول_السيارات"
+            buttonText="تحميل شيت ملخص"
+          />
+
+          {/* زر إضافة سيارة اليدوي */}
           {canWrite && activeTab === "vehicles" && (
             <button
               onClick={() => {
@@ -577,14 +557,13 @@ export default function VehiclesManagementPage() {
                 setIsEditVehicle(false);
                 setVehicleModalOpen(true);
               }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
             >
-              <Plus size={18} />
+              <Plus size={16} />
               <span>إضافة سيارة</span>
             </button>
           )}
 
-          {/* إضافة فرد */}
           {canWrite && activeTab === "personnel" && (
             <button
               onClick={() => {
@@ -592,55 +571,55 @@ export default function VehiclesManagementPage() {
                 setIsEditPersonnel(false);
                 setPersonnelModalOpen(true);
               }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
             >
-              <Plus size={18} />
-              <span>إضافة فرد (سائق / فني / مهندس)</span>
+              <Plus size={16} />
+              <span>إضافة فرد</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* ── التبويبات ── */}
+      {/* ── تبويبات التبديل ── */}
       <div className="flex gap-2 p-1.5 bg-white dark:bg-gray-900 rounded-xl w-fit border border-gray-200 dark:border-gray-800 shadow-sm">
         <button
           onClick={() => setActiveTab("vehicles")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === "vehicles"
               ? "bg-teal-600 text-white shadow-md"
               : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
           }`}
         >
-          <Car size={16} />
+          <Car size={15} />
           <span>أسطول السيارات ({vehicles.length})</span>
         </button>
         <button
           onClick={() => setActiveTab("personnel")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeTab === "personnel"
               ? "bg-slate-800 text-white shadow-md"
               : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
           }`}
         >
-          <Users size={16} />
+          <Users size={15} />
           <span>الفنيين والسائقين ({personnelList.length})</span>
         </button>
       </div>
 
-      {/* ── الفلاتر ── */}
-      <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-wrap items-center gap-4 shadow-sm">
+      {/* ── شريط الفلاتر ── */}
+      <FilterBar>
         <div className="flex items-center gap-2">
           <label className="text-xs font-bold text-gray-500 dark:text-gray-400">البحث الشامل:</label>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث باللوحة، SAP، الشاسيه، المنطقة..."
-            className="border dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs dark:bg-gray-800 dark:text-white outline-none w-56 focus:border-teal-500"
+            placeholder="ابحث باللوحة، SAP، المنطقة..."
+            className="border dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-xs dark:bg-gray-800 dark:text-white outline-none w-48 focus:border-teal-500"
           />
         </div>
 
-        {activeTab === "vehicles" ? (
+        {activeTab === "vehicles" && (
           <>
             <FilterSelect
               label="الشركة"
@@ -661,73 +640,30 @@ export default function VehiclesManagementPage() {
               options={[
                 { value: "الكل", label: "الكل" },
                 { value: "تشغيل وصيانة", label: "تشغيل وصيانة" },
-                { value: "مشروع قلين", label: "مشروع قلين" },
-                { value: "طوارئ", label: "طوارئ" },
-                { value: "خدمة العملاء", label: "خدمة العملاء" }
-              ]}
-            />
-            <FilterSelect
-              label="الوقود"
-              value={fuelFilter}
-              onChange={setFuelFilter}
-              options={[
-                { value: "الكل", label: "الكل" },
-                { value: "سولار و غاز طبيعى", label: "سولار و غاز طبيعى" },
-                { value: "بنزين فقط", label: "بنزين فقط" },
-                { value: "سولار فقط", label: "سولار فقط" }
+                { value: "مشروع قلين", label: "مشروع قلين" }
               ]}
             />
           </>
-        ) : (
-          <FilterSelect
-            label="الوظيفة / التصنيف"
-            value={personnelRoleFilter}
-            onChange={setPersonnelRoleFilter}
-            options={[
-              { value: "الكل", label: "الكل" },
-              { value: "سائق", label: "سائق" },
-              { value: "فني", label: "فني" },
-              { value: "مهندس", label: "مهندس" }
-            ]}
-          />
         )}
-      </div>
+      </FilterBar>
 
       {/* ── جدول البيانات ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-        {activeTab === "vehicles" ? (
-          <DataTable
-            columns={vehicleColumns}
-            data={filteredVehicles}
-            loading={loading}
-            onEdit={
-              canWrite
-                ? (r: Vehicle) => {
-                    setEditingVehicle(r);
-                    setIsEditVehicle(true);
-                    setVehicleModalOpen(true);
-                  }
-                : undefined
-            }
-            onDelete={canWrite ? (r: Vehicle) => handleDeleteVehicle(r.id) : undefined}
-          />
-        ) : (
-          <DataTable
-            columns={personnelColumns}
-            data={filteredPersonnel}
-            loading={loading}
-            onEdit={
-              canWrite
-                ? (r: Personnel) => {
-                    setEditingPerson(r);
-                    setIsEditPersonnel(true);
-                    setPersonnelModalOpen(true);
-                  }
-                : undefined
-            }
-            onDelete={canWrite ? (r: Personnel) => handleDeletePersonnel(r.id) : undefined}
-          />
-        )}
+        <DataTable
+          columns={vehicleColumns}
+          data={filteredVehicles}
+          loading={loading}
+          onEdit={
+            canWrite
+              ? (r: Vehicle) => {
+                  setEditingVehicle(r);
+                  setIsEditVehicle(true);
+                  setVehicleModalOpen(true);
+                }
+              : undefined
+          }
+          onDelete={canWrite ? (r: Vehicle) => handleDeleteVehicle(r.id) : undefined}
+        />
       </div>
 
       {/* ── نافذة إضافة / تعديل السيارة ── */}
@@ -947,91 +883,6 @@ export default function VehiclesManagementPage() {
                 >
                   {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                   <span>{isEditVehicle ? "حفظ التعديلات" : "إضافة السيارة"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── نافذة إضافة / تعديل الفنيين والسائقين ── */}
-      {personnelModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center bg-teal-700 text-white p-4 rounded-t-2xl shrink-0">
-              <h2 className="text-lg font-black flex items-center gap-2">
-                <Briefcase size={20} />
-                {isEditPersonnel ? "تعديل بيانات الفرد" : "إضافة فرد جديد (سائق / فني / مهندس)"}
-              </h2>
-              <button onClick={() => setPersonnelModalOpen(false)} className="hover:text-red-300">
-                <X size={22} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePersonnel} className="p-6 space-y-4">
-              <Field label="الاسم بالكامل *">
-                <input
-                  required
-                  className={inputClass}
-                  value={editingPerson.name || ""}
-                  onChange={(e) => setEditingPerson({ ...editingPerson, name: e.target.value })}
-                  placeholder="مثال: أحمد صالح"
-                />
-              </Field>
-
-              <Field label="التصنيف الوظيفي *">
-                <select
-                  required
-                  className={inputClass}
-                  value={editingPerson.role || "سائق"}
-                  onChange={(e) =>
-                    setEditingPerson({
-                      ...editingPerson,
-                      role: e.target.value as "سائق" | "فني" | "مهندس"
-                    })
-                  }
-                >
-                  <option value="سائق">سائق</option>
-                  <option value="فني">فني</option>
-                  <option value="مهندس">مهندس</option>
-                </select>
-              </Field>
-
-              <Field label="رقم الهاتف">
-                <input
-                  type="tel"
-                  className={inputClass}
-                  value={editingPerson.phone || ""}
-                  onChange={(e) => setEditingPerson({ ...editingPerson, phone: e.target.value })}
-                  placeholder="01xxxxxxxxx"
-                />
-              </Field>
-
-              <Field label="ملاحظات">
-                <textarea
-                  className={inputClass}
-                  rows={2}
-                  value={editingPerson.notes || ""}
-                  onChange={(e) => setEditingPerson({ ...editingPerson, notes: e.target.value })}
-                  placeholder="أي ملاحظات إضافية..."
-                />
-              </Field>
-
-              <div className="flex gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  type="button"
-                  onClick={() => setPersonnelModalOpen(false)}
-                  className="flex-1 py-2.5 bg-white border text-gray-700 font-bold rounded-xl hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl flex justify-center items-center gap-2 cursor-pointer"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                  <span>{isEditPersonnel ? "تحديث البيانات" : "حفظ الفرد"}</span>
                 </button>
               </div>
             </form>
