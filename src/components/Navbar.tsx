@@ -1,334 +1,161 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import {
   Search,
+  Bell,
   Moon,
   Sun,
-  Bell,
-  Menu,
-  CheckCircle2,
-  AlertCircle,
-  Info,
-  Clock
+  LogOut
 } from "lucide-react";
 
-interface NotificationItem {
-  id: number | string;
-  title?: string;
-  message?: string;
-  content?: string;
-  type?: string;
-  is_read?: number | boolean;
-  read?: boolean;
-  createdAt?: string;
-  created_at?: string;
-}
-
-export default function Navbar({ onMenuClick }: { onMenuClick?: () => void }) {
-  const context = (useApp() as any) || {};
-  const {
-    user,
-    theme,
-    toggleTheme,
-    toggleDarkMode,
-    setTheme,
-    lang,
-    language,
-    setLang,
-    setLanguage,
-    toggleLanguage,
-    toggleLang,
-    toggleSidebar
-  } = context;
-
-  // ── 1. منطق اللغة (عرض EN على العربي و AR على الإنجليزي) ──
-  const currentLang = lang || language || "ar";
-  const isArabic = currentLang === "ar";
-
-  const handleToggleLanguage = () => {
-    const nextLang = isArabic ? "en" : "ar";
-    if (typeof toggleLanguage === "function") {
-      toggleLanguage();
-    } else if (typeof toggleLang === "function") {
-      toggleLang();
-    } else if (typeof setLang === "function") {
-      setLang(nextLang);
-    } else if (typeof setLanguage === "function") {
-      setLanguage(nextLang);
-    }
-  };
-
-  // ── 2. منطق الوضع الليلي / النهاري المباشر والمضمون ──
-  const [isDark, setIsDark] = useState(false);
+export default function Navbar() {
+  const router = useRouter();
+  const { user } = useApp() || {};
+  const [darkMode, setDarkMode] = useState(false);
+  const [lang, setLang] = useState("ar");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const isDarkStored =
-      document.documentElement.classList.contains("dark") ||
-      localStorage.getItem("fleet360_theme") === "dark" ||
-      localStorage.getItem("theme") === "dark" ||
-      theme === "dark";
+    try {
+      const isDark =
+        localStorage.getItem("fleet360_dark") === "true" ||
+        localStorage.getItem("fleet360_theme") === "dark" ||
+        document.documentElement.classList.contains("dark");
+      setDarkMode(isDark);
 
-    setIsDark(isDarkStored);
-    if (isDarkStored) {
+      const savedLang =
+        localStorage.getItem("fleet360_lang") ||
+        localStorage.getItem("lang") ||
+        "ar";
+      setLang(savedLang);
+    } catch (e) {}
+  }, []);
+
+  const toggleDark = () => {
+    const nextMode = !darkMode;
+    setDarkMode(nextMode);
+    if (nextMode) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [theme]);
-
-  const handleToggleTheme = () => {
-    const nextDark = !isDark;
-    setIsDark(nextDark);
-
-    if (nextDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("fleet360_theme", "dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("fleet360_theme", "light");
-      localStorage.setItem("theme", "light");
-    }
-
-    if (typeof toggleTheme === "function") toggleTheme();
-    if (typeof toggleDarkMode === "function") toggleDarkMode();
-    if (typeof setTheme === "function") setTheme(nextDark ? "dark" : "light");
+    try {
+      localStorage.setItem("fleet360_dark", String(nextMode));
+      localStorage.setItem("fleet360_theme", nextMode ? "dark" : "light");
+    } catch (e) {}
   };
 
-  // ── 3. منطق قائمة الإشعارات التفاعلية ──
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const notificationsRef = useRef<HTMLDivElement>(null);
-
-  const fetchNotifications = useCallback(async () => {
+  const toggleLanguage = () => {
+    const nextLang = lang === "ar" ? "en" : "ar";
+    setLang(nextLang);
+    document.documentElement.setAttribute("lang", nextLang);
+    document.documentElement.setAttribute("dir", nextLang === "ar" ? "rtl" : "ltr");
     try {
-      const res = await fetch("/api/notifications");
-      if (res.ok) {
-        const d = await res.json();
-        const list = Array.isArray(d) ? d : d.notifications || [];
-        setNotifications(list);
-      }
-    } catch (err) {
-      console.error("Failed to load notifications:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
-  // إغلاق قائمة الإشعارات عند النقر خارجها
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        notificationsRef.current &&
-        !notificationsRef.current.contains(event.target as Node)
-      ) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const unreadCount = notifications.filter(
-    (n) => !n.is_read && !n.read && n.is_read !== 1
-  ).length;
-
-  const markAllAsRead = async () => {
-    try {
-      await fetch("/api/notifications/read-all", { method: "POST" }).catch(() => {});
-      await fetch("/api/notifications", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "read_all" })
-      }).catch(() => {});
-
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, is_read: 1, read: true }))
-      );
-    } catch (err) {
-      console.error("Error marking all read:", err);
-    }
+      localStorage.setItem("fleet360_lang", nextLang);
+    } catch (e) {}
   };
 
-  const markAsRead = async (id: number | string) => {
+  // دالة تسجيل الخروج السريع ومسح بيانات الجلسة
+  const handleLogout = async () => {
+    if (!confirm("هل أنت متأكد من رغبتك في تسجيل الخروج؟")) return;
     try {
-      await fetch(`/api/notifications/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_read: 1, read: true })
-      }).catch(() => {});
-
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: 1, read: true } : n))
-      );
-    } catch (err) {
-      console.error("Error marking read:", err);
-    }
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {}
+    try {
+      localStorage.removeItem("fleet360_token");
+      document.cookie =
+        "fleet360_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    } catch (e) {}
+    router.push("/login");
   };
+
+  const displayName = user?.name || "مدير النظام الرئيسي";
+  const displayRole = user?.role || "owner";
+  const firstLetter = displayName.trim().charAt(0) || "م";
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-colors">
-      {/* ── الجانب الأيمن: القائمة والبحث الشامل ── */}
-      <div className="flex items-center gap-4 flex-1 max-w-md">
-        <button
-          type="button"
-          onClick={onMenuClick || toggleSidebar}
-          className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 md:hidden"
-          aria-label="Toggle Menu"
-        >
-          <Menu size={20} />
-        </button>
-
-        <div className="relative w-full max-w-xs">
-          <input
-            type="text"
-            placeholder="البحث الشامل..."
-            className="w-full pl-4 pr-10 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 dark:text-white"
-          />
-          <Search
-            size={16}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+    <header className="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 md:px-6 py-3 transition-colors">
+      <div className="flex items-center justify-between gap-4">
+        {/* ── شريط البحث الشامل ── */}
+        <div className="flex items-center flex-1 max-w-md">
+          <div className="relative w-full">
+            <Search
+              size={18}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="البحث الشامل..."
+              className="w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-xs rounded-xl pr-10 pl-4 py-2 border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition-all"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* ── الجانب الأيسر: الإجراءات ── */}
-      <div className="flex items-center gap-3">
-        {/* زر تغيير اللغة (يعكس النص الخارجي كما هو مطلوب) */}
-        <button
-          type="button"
-          onClick={handleToggleLanguage}
-          className="px-3 py-1.5 text-xs font-black tracking-wider uppercase border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-          title="تغيير اللغة"
-        >
-          {isArabic ? "EN" : "AR"}
-        </button>
-
-        {/* زر الدارك / اللايت ثيم */}
-        <button
-          type="button"
-          onClick={handleToggleTheme}
-          className="p-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-          aria-label="Toggle Theme"
-          title={isDark ? "تفعيل الوضع النهاري" : "تفعيل الوضع الليلي"}
-        >
-          {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} />}
-        </button>
-
-        {/* زر وقائمة الإشعارات */}
-        <div className="relative" ref={notificationsRef}>
+        {/* ── الإجراءات، بيانات المستخدم، وزر تسجيل الخروج ── */}
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
+          {/* زر تبديل اللغة */}
           <button
             type="button"
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            aria-label="Notifications"
-            title="الإشعارات"
+            onClick={toggleLanguage}
+            title="تغيير اللغة"
+            className="px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
           >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full animate-pulse">
-                {unreadCount > 9 ? "+9" : unreadCount}
-              </span>
-            )}
+            {lang === "ar" ? "EN" : "عربي"}
           </button>
 
-          {/* النافذة المنسدلة للإشعارات */}
-          {showNotifications && (
-            <div className="absolute left-0 rtl:right-auto rtl:left-0 ltr:right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl z-50 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-gray-900 dark:text-white">الإشعارات</span>
-                  {unreadCount > 0 && (
-                    <span className="px-2 py-0.5 text-xs font-bold text-red-700 bg-red-100 dark:bg-red-900/40 dark:text-red-300 rounded-full">
-                      {unreadCount} جديد
-                    </span>
-                  )}
-                </div>
-                {unreadCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={markAllAsRead}
-                    className="text-xs font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 hover:underline cursor-pointer"
-                  >
-                    تحديد الكل كمقروء
-                  </button>
-                )}
-              </div>
+          {/* زر تبديل الوضع الليلي */}
+          <button
+            type="button"
+            onClick={toggleDark}
+            title={darkMode ? "الوضع النهاري" : "الوضع الليلي"}
+            className="p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+          >
+            {darkMode ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} />}
+          </button>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
-                {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400 text-xs">
-                    لا توجد إشعارات جديدة حالياً
-                  </div>
-                ) : (
-                  notifications.map((notif) => {
-                    const isUnread = !notif.is_read && !notif.read && notif.is_read !== 1;
-                    return (
-                      <div
-                        key={notif.id}
-                        onClick={() => markAsRead(notif.id)}
-                        className={`p-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer flex gap-3 items-start ${
-                          isUnread ? "bg-teal-50/40 dark:bg-teal-950/20" : ""
-                        }`}
-                      >
-                        <div
-                          className={`mt-0.5 p-2 rounded-xl shrink-0 ${
-                            notif.type === "warning" || notif.type === "danger"
-                              ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                              : notif.type === "success"
-                              ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-                          }`}
-                        >
-                          <Bell size={14} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                              {notif.title || "تنبيه تشغيلي"}
-                            </p>
-                            {isUnread && (
-                              <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-snug line-clamp-2">
-                            {notif.message || notif.content || ""}
-                          </p>
-                          {(notif.createdAt || notif.created_at) && (
-                            <span className="text-[10px] text-gray-400 mt-1 block">
-                              {new Date(notif.createdAt || notif.created_at).toLocaleDateString("ar-EG", {
-                                hour: "2-digit",
-                                minute: "2-digit"
-                              })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+          {/* زر الإشعارات */}
+          <button
+            type="button"
+            title="الإشعارات والطلبات"
+            onClick={() => router.push("/dashboard/approvals")}
+            className="relative p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+          >
+            <Bell size={18} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-teal-500 rounded-full" />
+          </button>
+
+          <div className="h-6 w-px bg-gray-200 dark:border-gray-800 mx-1 hidden sm:block" />
+
+          {/* شارة المستخدم الحالية */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-teal-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm">
+              {firstLetter}
+            </div>
+            <div className="hidden sm:block text-right">
+              <div className="text-xs font-black text-gray-900 dark:text-white leading-tight">
+                {displayName}
+              </div>
+              <div className="text-[10px] text-teal-600 dark:text-teal-400 font-mono font-bold leading-tight">
+                {displayRole}
               </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* بيانات المستخدم الحالي */}
-        <div className="flex items-center gap-2.5 pr-2 border-r border-gray-200 dark:border-gray-800">
-          <div className="flex flex-col text-left rtl:text-right">
-            <span className="text-xs font-bold text-gray-800 dark:text-white leading-tight">
-              {user?.name || "مدير النظام الرئيسي"}
-            </span>
-            <span className="text-[10px] text-gray-500 dark:text-gray-400">
-              {user?.roleName || user?.role || "owner"}
-            </span>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs shadow-sm">
-            {user?.name ? user.name.trim().charAt(0) : "م"}
-          </div>
+          {/* ── الإضافة رقم 2: زر تسجيل الخروج السريع في الهيدر العلوي ── */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="تسجيل الخروج من الحساب"
+            className="flex items-center gap-1.5 p-2 md:px-3 md:py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-600 dark:hover:text-white transition-all cursor-pointer shadow-xs border border-rose-100 dark:border-rose-900/50"
+          >
+            <LogOut size={16} />
+            <span className="hidden md:inline">تسجيل الخروج</span>
+          </button>
         </div>
       </div>
     </header>
