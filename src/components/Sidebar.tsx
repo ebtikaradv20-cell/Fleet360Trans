@@ -99,25 +99,25 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* ── 2. ترويسة اللوجو: لوجو كبير جداً + الكلام تحته مباشرة + مساحة مشدودة على مقاسهم بالتمام ── */}
-        <div className="py-2.5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-[#162952] border-b border-slate-800/80 transition-colors">
-          <div className="flex items-center justify-center w-full overflow-hidden">
+        {/* ── 2. ترويسة اللوجو: مساحة مشدودة على مقاسهم + أبيض بالنهار وأسود بالليل + انقلاب ألوان اللوجو والنص تلقائياً ── */}
+        <div className="py-2.5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-white dark:bg-black border-b border-gray-200 dark:border-slate-800/80 transition-colors duration-300">
+          <div className="flex items-center justify-center w-full my-0.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo.png"
               alt="TAQA Gas Logo"
               className={`${
-                collapsed ? "w-11 h-11" : "w-full max-w-[220px] h-24 scale-110"
-              } object-contain transition-all duration-300 brightness-0 invert drop-shadow-md`}
+                collapsed ? "w-11 h-11" : "w-full max-w-[240px] h-28 scale-125"
+              } object-contain transition-all duration-300 brightness-0 dark:invert drop-shadow-xs`}
             />
           </div>
 
           {!collapsed && (
-            <div className="flex flex-col items-center mt-0.5 w-full">
-              <h1 className="font-black text-xl tracking-wider text-white leading-tight drop-shadow-sm">
+            <div className="flex flex-col items-center mt-1 w-full">
+              <h1 className="font-black text-xl tracking-wider text-black dark:text-white leading-tight transition-colors duration-300">
                 FLEET 360
               </h1>
-              <p className="text-[10px] font-bold text-sky-200 tracking-wider mt-0.5 uppercase opacity-90">
+              <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 tracking-wider mt-0.5 uppercase transition-colors duration-300">
                 TAQA GAS COMPANY
               </p>
             </div>
