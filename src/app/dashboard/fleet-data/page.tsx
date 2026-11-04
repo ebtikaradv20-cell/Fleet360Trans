@@ -44,27 +44,27 @@ interface Vehicle {
   model?: string;
 }
 
-// 1. بيانات القالب النموذجي
+// 1. بيانات القالب النموذجي المتوافقة مع النظام
 const sampleTemplateData = [
   {
-    "رقم اوردر الساب": "SAP-9012",
-    "رقم العربية": "ل ن ط 7618",
+    "رقم SAP": "SAP-9012",
+    "رقم اللوحة": "ل ن ط 7618",
     "التاريخ": "2026-10-01",
     "القسم": "صيانة",
     "وصف العملية": "صيانة ميكانيكا وعفشة",
     "التكلفة": 2500
   },
   {
-    "رقم اوردر الساب": "SAP-9013",
-    "رقم العربية": "ل ن ط 7618",
+    "رقم SAP": "SAP-9013",
+    "رقم اللوحة": "ل ن ط 7618",
     "التاريخ": "2026-10-02",
     "القسم": "وقود",
     "وصف العملية": "تفويل سولار 60 لتر",
     "التكلفة": 850
   },
   {
-    "رقم اوردر الساب": "SAP-9014",
-    "رقم العربية": "ل ن ط 7618",
+    "رقم SAP": "SAP-9014",
+    "رقم اللوحة": "ل ن ط 7618",
     "التاريخ": "2026-10-03",
     "القسم": "زيوت",
     "وصف العملية": "غيار زيت وفلتر 10000 كم",
@@ -77,6 +77,92 @@ const safeNum = (val: any): number => {
   const n = parseFloat(String(val).replace(/[^0-9.-]/g, ""));
   return isNaN(n) ? 0 : n;
 };
+
+// محرك استخراج قيم الأعمدة بمرونة فائقة لتفادي أي اختلاف في مسميات الشيت
+function getRowVal(row: Record<string, any>, ...keys: string[]): any {
+  if (!row) return "";
+  const rowKeys = Object.keys(row);
+  
+  // 1. فحص مباشر وتطابق تام
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== "") {
+      return row[k];
+    }
+  }
+
+  // 2. فحص مرن بدون مسافات أو علامات خاصة
+  for (const k of keys) {
+    const cleanK = k.toLowerCase().replace(/[\s_\-–()]/g, "");
+    for (const rk of rowKeys) {
+      const cleanRk = rk.toLowerCase().replace(/[\s_\-–()]/g, "");
+      if (cleanRk === cleanK && row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== "") {
+        return row[rk];
+      }
+    }
+  }
+
+  // 3. فحص جزئي ذكي
+  for (const k of keys) {
+    const cleanK = k.toLowerCase().replace(/[\s_\-–()]/g, "");
+    for (const rk of rowKeys) {
+      const cleanRk = rk.toLowerCase().replace(/[\s_\-–()]/g, "");
+      if ((cleanRk.includes(cleanK) || cleanK.includes(cleanRk)) && row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== "") {
+        return row[rk];
+      }
+    }
+  }
+
+  return "";
+}
+
+// محرك تحويل التواريخ الصارم لتوليد صيغة YYYY-MM-DD بدون أخطاء التوقيت الدولي
+function parseDateToISO(val: any): string {
+  if (!val) return new Date().toISOString().slice(0, 10);
+
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return new Date().toISOString().slice(0, 10);
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, "0");
+    const d = String(val.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  // فحص أرقام إكسيل التسلسلية مثل 45531
+  if (typeof val === "number" || (!isNaN(Number(val)) && !String(val).includes("-") && !String(val).includes("/"))) {
+    const serial = Number(val);
+    const dateObj = new Date(Math.round((serial - 25569) * 86400 * 1000));
+    if (!isNaN(dateObj.getTime())) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const d = String(dateObj.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  const str = String(val).trim();
+  if (str.includes("/") || str.includes("-")) {
+    const delim = str.includes("/") ? "/" : "-";
+    const parts = str.split(delim);
+    if (parts.length === 3) {
+      if (parts[2].length === 4) { // DD/MM/YYYY
+        return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+      }
+      if (parts[0].length === 4) { // YYYY/MM/DD
+        return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+      }
+    }
+  }
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function FleetDataPage() {
   const router = useRouter();
@@ -111,6 +197,7 @@ export default function FleetDataPage() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
+  // ── جلب وقراءة كافة العمليات مع توحيد مفاتيح ساب وتكلفة وتاريخ الوقود ──
   const loadFleetData = useCallback(async () => {
     setLoading(true);
     try {
@@ -134,21 +221,26 @@ export default function FleetDataPage() {
         const wod = await woRes.json();
         const woList = Array.isArray(wod) ? wod : wod.data || [];
         woList
-          .filter((w: any) => !w.is_deleted && w.status !== "deleted")
+          .filter((w: any) => !w.is_deleted && w.status !== "deleted" && w.isDeleted !== 1)
           .forEach((w: any) => {
+            const rawSap = w.sapNumber || w.sap_number || w.sapNo || w.sap_no || w.sap || w.sapOrderId || "-";
+            const rawCost = safeNum(w.cost ?? w.total_cost ?? w.totalCost ?? w.amount);
+            const rawDate = w.startDate || w.start_date || w.date || (w.createdAt ? w.createdAt.slice(0, 10) : "-");
+            const pNum = w.plateNumber || w.plate_number || "";
+
             list.push({
               id: `wo-${w.id}`,
               rawId: w.id,
-              sapNumber: w.sapNumber || w.sap_number || "-",
-              plateNumber: w.plateNumber || w.plate_number || "",
-              date: w.startDate || w.start_date || (w.createdAt ? w.createdAt.slice(0, 10) : "-"),
+              sapNumber: rawSap,
+              plateNumber: pNum,
+              date: rawDate,
               section: "صيانة",
               sectionKey: "work-orders",
               title: w.maintenanceType || w.maintenance_type || "أمر صيانة",
               description: w.description || w.workshop || "صيانة مركبة",
-              cost: safeNum(w.cost),
+              cost: rawCost,
               status: w.status,
-              routeUrl: `/dashboard/work-orders?search=${encodeURIComponent(w.plateNumber || "")}`
+              routeUrl: `/dashboard/work-orders?search=${encodeURIComponent(pNum)}`
             });
           });
       }
@@ -157,19 +249,24 @@ export default function FleetDataPage() {
         const oild = await oilRes.json();
         const oilList = Array.isArray(oild) ? oild : oild.data || [];
         oilList
-          .filter((o: any) => !o.is_deleted)
+          .filter((o: any) => !o.is_deleted && o.isDeleted !== 1)
           .forEach((o: any) => {
+            const rawSap = o.sapNumber || o.sap_number || (o.notes && o.notes.includes("SAP") ? o.notes.replace(/.*SAP[:\s-]*/i, "").trim() : "-");
+            const rawCost = safeNum(o.cost ?? o.total_cost ?? o.totalCost ?? o.amount);
+            const rawDate = o.changeDate || o.change_date || o.date || (o.createdAt ? o.createdAt.slice(0, 10) : "-");
+            const pNum = o.plateNumber || o.plate_number || "";
+
             list.push({
               id: `oil-${o.id}`,
               rawId: o.id,
-              sapNumber: o.sapNumber || o.sap_number || "-",
-              plateNumber: o.plateNumber || o.plate_number || "",
-              date: o.changeDate || o.change_date || (o.createdAt ? o.createdAt.slice(0, 10) : "-"),
+              sapNumber: rawSap || "-",
+              plateNumber: pNum,
+              date: rawDate,
               section: "زيوت",
               sectionKey: "oil",
               title: o.oilType || o.oil_type || "غيار زيت",
-              description: `${o.oilBrand || ""} - غيار عند ${safeNum(o.odometerAtChange)} كم`,
-              cost: safeNum(o.cost),
+              description: `${o.oilBrand || o.brand || ""} - غيار عند ${safeNum(o.currentKm ?? o.current_km ?? o.odometerAtChange ?? o.odometer)} كم`,
+              cost: rawCost,
               routeUrl: `/dashboard/oil-changes`
             });
           });
@@ -179,41 +276,52 @@ export default function FleetDataPage() {
         const tired = await tireRes.json();
         const tireList = Array.isArray(tired) ? tired : tired.data || [];
         tireList
-          .filter((t: any) => !t.is_deleted)
+          .filter((t: any) => !t.is_deleted && t.isDeleted !== 1)
           .forEach((t: any) => {
+            const rawSap = t.sapNumber || t.sap_number || (t.notes && t.notes.includes("SAP") ? t.notes.replace(/.*SAP[:\s-]*/i, "").trim() : "-");
+            const rawCost = safeNum(t.cost ?? t.total_cost ?? t.totalCost ?? t.amount);
+            const rawDate = t.installDate || t.install_date || t.date || (t.createdAt ? t.createdAt.slice(0, 10) : "-");
+            const pNum = t.plateNumber || t.plate_number || "";
+
             list.push({
               id: `tire-${t.id}`,
               rawId: t.id,
-              sapNumber: t.sapNumber || t.sap_number || "-",
-              plateNumber: t.plateNumber || t.plate_number || "",
-              date: t.installDate || t.install_date || (t.createdAt ? t.createdAt.slice(0, 10) : "-"),
+              sapNumber: rawSap || "-",
+              plateNumber: pNum,
+              date: rawDate,
               section: "كاوتش",
               sectionKey: "tires",
               title: `كاوتش ${t.brand || ""}`,
-              description: `مقاس: ${t.size || ""} - عدد ${t.tireCount || 4} فرد كاوتش`,
-              cost: safeNum(t.cost),
+              description: `مقاس: ${t.size || "-"} - عدد ${t.tireCount || 4} فرد كاوتش`,
+              cost: rawCost,
               routeUrl: `/dashboard/oil-changes`
             });
           });
       }
 
+      // ✅ تصحيح قراءة تكلفة وتاريخ الوقود بنسبة 100%
       if (fuelRes && fuelRes.ok) {
         const fueld = await fuelRes.json();
-        const fuelList = Array.isArray(fueld) ? fueld : fueld.data || [];
+        const fuelList = Array.isArray(fueld) ? fueld : (fueld.data && Array.isArray(fueld.data) ? fueld.data : []);
         fuelList
-          .filter((f: any) => !f.is_deleted)
+          .filter((f: any) => !f.is_deleted && f.isDeleted !== 1)
           .forEach((f: any) => {
+            const rawCost = safeNum(f.totalCost ?? f.total_cost ?? f.cost ?? f.amount ?? f.price);
+            const rawDate = f.fuelDate || f.fuel_date || f.date || f.fillDate || (f.createdAt ? f.createdAt.slice(0, 10) : "-");
+            const rawSap = f.sapNumber || f.sap_number || (f.notes && f.notes.includes("SAP") ? f.notes.replace(/.*SAP[:\s-]*/i, "").trim() : "-");
+            const pNum = f.plateNumber || f.plate_number || "";
+
             list.push({
               id: `fuel-${f.id}`,
               rawId: f.id,
-              sapNumber: f.sapNumber || f.sap_number || "-",
-              plateNumber: f.plateNumber || f.plate_number || "",
-              date: f.date || f.fillDate || (f.createdAt ? f.createdAt.slice(0, 10) : "-"),
+              sapNumber: rawSap || "-",
+              plateNumber: pNum,
+              date: rawDate,
               section: "وقود",
               sectionKey: "fuel",
               title: `تموين ${f.fuelType || "وقود"}`,
-              description: `${safeNum(f.liters)} لتر - ${f.stationName || "محطة التموين"}`,
-              cost: safeNum(f.cost || f.totalCost),
+              description: f.notes || `${safeNum(f.liters ?? f.litres)} لتر - ${f.station || f.stationName || "محطة التموين"}`,
+              cost: rawCost,
               routeUrl: `/dashboard/fuel`
             });
           });
@@ -223,7 +331,7 @@ export default function FleetDataPage() {
         const inspd = await inspRes.json();
         const inspList = Array.isArray(inspd) ? inspd : inspd.data || [];
         inspList
-          .filter((i: any) => !i.is_deleted)
+          .filter((i: any) => !i.is_deleted && i.isDeleted !== 1)
           .forEach((i: any) => {
             list.push({
               id: `insp-${i.id}`,
@@ -294,7 +402,7 @@ export default function FleetDataPage() {
   const fuelCount = filteredRecords.filter((r) => r.section === "وقود").length;
   const oilCount = filteredRecords.filter((r) => r.section === "زيوت").length;
 
-  // 2. دالة استيراد وتحديث البيانات ومعالجة المعادلات الحسابية
+  // ── 2. محرك الاستيراد الذكي ومنع التكرار (Smart Upsert Engine) ──
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -303,27 +411,57 @@ export default function FleetDataPage() {
       let addedCount = 0;
 
       for (const row of importedRows) {
-        const sap = String(row["رقم اوردر الساب"] || row["رقم الساب"] || "").trim();
-        const plate = String(row["رقم العربية"] || row["رقم اللوحة"] || "").trim();
-        const d = row["التاريخ"] || new Date().toISOString().slice(0, 10);
-        const section = String(row["القسم"] || "").trim();
-        const desc = String(row["وصف العملية"] || row["وصف الصيانه او العملية"] || "").trim();
-        const costVal = safeNum(row["التكلفة"]);
+        // قراءة مرنة تدعم كافة التسميات المحتملة من أي شيت
+        const sap = String(
+          getRowVal(row, "رقم SAP", "رقم ساب", "رقم اوردر الساب", "رقم الساب", "أمر ساب", "امر ساب", "SAP", "ساب", "sapNumber", "sap_number") || ""
+        ).trim();
+
+        const plate = String(
+          getRowVal(row, "رقم اللوحة", "اللوحة", "رقم العربية", "العربية", "رقم السيارة", "السيارة", "رقم المركبة", "plateNumber", "plate_number") || ""
+        ).trim();
+
+        const rawDate = getRowVal(row, "التاريخ", "تاريخ", "تاريخ التموين", "تاريخ العملية", "تاريخ الصيانة", "تاريخ التزود", "date", "fuelDate", "startDate");
+        const formattedDate = parseDateToISO(rawDate);
+
+        const sectionStr = String(getRowVal(row, "القسم", "نوع العملية", "نوع الصيانة", "البيان", "section") || "").trim();
+        const desc = String(getRowVal(row, "وصف العملية", "وصف الصيانه او العملية", "الوصف", "البيان", "ملاحظات", "تفاصيل", "description", "notes") || "").trim();
+        
+        let costVal = safeNum(getRowVal(row, "التكلفة", "التكلفة (ج.م)", "المبلغ", "القيمة", "الإجمالي", "الاجمالي", "إجمالي التكلفة", "السعر", "cost", "totalCost", "amount"));
+        const litersVal = safeNum(getRowVal(row, "اللترات", "اللتر", "كمية الوقود", "عدد اللترات", "liters", "litres"));
+        const odometerVal = safeNum(getRowVal(row, "العداد", "قراءة العداد", "عداد العربية", "كيلومتر", "odometer", "currentKm"));
 
         if (!plate) continue;
 
-        const existingRecord = allRecords.find(
-          (r) =>
-            (sap && sap !== "-" && r.sapNumber === sap) ||
-            (r.plateNumber === plate && r.date === d && r.description === desc)
-        );
+        // إذا كانت التكلفة غير مسجلة ولكن اللترات مسجلة
+        if (!costVal && litersVal > 0) {
+          costVal = litersVal * 15; // سعر تقريبي افتراضي في حال غياب المبلغ الصريح
+        }
 
-        if (
-          section.includes("وقود") ||
-          desc.includes("سولار") ||
-          desc.includes("بنزين") ||
-          desc.includes("تفويل")
-        ) {
+        // فحص نوع القسم
+        const combinedText = `${sectionStr} ${desc}`.toLowerCase();
+        let targetSection: "fuel" | "oil" | "tires" | "work-orders" = "work-orders";
+        
+        if (combinedText.includes("وقود") || combinedText.includes("سولار") || combinedText.includes("بنزين") || combinedText.includes("تفويل")) {
+          targetSection = "fuel";
+        } else if (combinedText.includes("كاوتش") || combinedText.includes("إطار") || combinedText.includes("اطار") || combinedText.includes("tire")) {
+          targetSection = "tires";
+        } else if (combinedText.includes("زيت") || combinedText.includes("زيوت") || combinedText.includes("فلتر")) {
+          targetSection = "oil";
+        }
+
+        // فحص وجود سجل مطابق (منع التكرار الذكي)
+        const existingRecord = allRecords.find((r) => {
+          if (sap && sap !== "-" && r.sapNumber && r.sapNumber !== "-" && r.sapNumber.toLowerCase() === sap.toLowerCase()) {
+            return true;
+          }
+          const samePlate = r.plateNumber.replace(/\s+/g, "") === plate.replace(/\s+/g, "");
+          const sameDate = r.date === formattedDate;
+          const sameSection = r.sectionKey === targetSection;
+          return samePlate && sameDate && sameSection;
+        });
+
+        // ⛽ 1. توجيه سجلات الوقود بالمفاتيح الكاملة
+        if (targetSection === "fuel") {
           const method = existingRecord && existingRecord.sectionKey === "fuel" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/fuel/${existingRecord.rawId}` : "/api/fuel";
 
@@ -332,21 +470,32 @@ export default function FleetDataPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               id: existingRecord?.rawId,
-              sapNumber: sap,
               plateNumber: plate,
-              date: d,
-              notes: desc,
+              plate_number: plate,
+              // إرسال كافة مسميات المبالغ والتواريخ لضمان الحفظ المباشر
+              totalCost: costVal,
+              total_cost: costVal,
               cost: costVal,
-              fuelType: desc.includes("بنزين") ? "بنزين" : "سولار",
-              liters: 0
+              amount: costVal,
+              fuelDate: formattedDate,
+              fuel_date: formattedDate,
+              date: formattedDate,
+              liters: litersVal || 0,
+              litres: litersVal || 0,
+              odometer: odometerVal || 0,
+              current_odometer: odometerVal || 0,
+              station: "محطة تموين معتمدة",
+              notes: sap ? `${desc} - SAP: ${sap}` : desc,
+              sapNumber: sap,
+              sap_number: sap,
+              fuelType: desc.includes("بنزين") ? "بنزين" : "سولار"
             })
           });
+
           if (method === "PUT") updatedCount++; else addedCount++;
-        } else if (
-          section.includes("زيت") ||
-          desc.includes("زيت") ||
-          desc.includes("فلتر")
-        ) {
+
+        // 💧 2. توجيه الزيوت والفلاتر
+        } else if (targetSection === "oil") {
           const method = existingRecord && existingRecord.sectionKey === "oil" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/oil-changes/${existingRecord.rawId}` : "/api/oil-changes";
 
@@ -356,20 +505,32 @@ export default function FleetDataPage() {
             body: JSON.stringify({
               id: existingRecord?.rawId,
               plateNumber: plate,
-              oilType: desc || "غيار زيت",
-              changeDate: d,
+              plate_number: plate,
+              oilType: desc || "غيار زيت وفلاتر",
+              oil_type: desc || "غيار زيت وفلاتر",
+              changeDate: formattedDate,
+              change_date: formattedDate,
+              date: formattedDate,
               cost: costVal,
+              total_cost: costVal,
+              totalCost: costVal,
+              currentKm: odometerVal,
+              current_km: odometerVal,
+              odometer: odometerVal,
+              nextKm: odometerVal > 0 ? odometerVal + 5000 : 0,
+              next_km: odometerVal > 0 ? odometerVal + 5000 : 0,
               filterChanged: desc.includes("فلتر"),
-              notes: `رقم SAP: ${sap}`
+              filterType: desc.includes("فلتر") ? "مع فلتر" : "بدون فلتر",
+              notes: sap ? `${desc} - SAP: ${sap}` : desc,
+              sapNumber: sap,
+              sap_number: sap
             })
           });
+
           if (method === "PUT") updatedCount++; else addedCount++;
-        } else if (
-          section.includes("كاوتش") ||
-          section.includes("إطار") ||
-          desc.includes("كاوتش") ||
-          desc.includes("إطار")
-        ) {
+
+        // 🔘 3. توجيه الكاوتش والإطارات
+        } else if (targetSection === "tires") {
           const method = existingRecord && existingRecord.sectionKey === "tires" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/tires/${existingRecord.rawId}` : "/api/tires";
 
@@ -379,14 +540,24 @@ export default function FleetDataPage() {
             body: JSON.stringify({
               id: existingRecord?.rawId,
               plateNumber: plate,
+              plate_number: plate,
               brand: desc || "إطارات جديدة",
               size: "-",
               cost: costVal,
-              installDate: d,
-              notes: `رقم SAP: ${sap}`
+              total_cost: costVal,
+              totalCost: costVal,
+              installDate: formattedDate,
+              install_date: formattedDate,
+              date: formattedDate,
+              notes: sap ? `رقم SAP: ${sap}` : desc,
+              sapNumber: sap,
+              sap_number: sap
             })
           });
+
           if (method === "PUT") updatedCount++; else addedCount++;
+
+        // 🔧 4. توجيه أوامر الصيانة برقم SAP الكامل
         } else {
           const method = existingRecord && existingRecord.sectionKey === "work-orders" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/work-orders/${existingRecord.rawId}` : "/api/work-orders";
@@ -397,20 +568,33 @@ export default function FleetDataPage() {
             body: JSON.stringify({
               id: existingRecord?.rawId,
               sapNumber: sap,
+              sap_number: sap,
+              sapNo: sap,
+              sap_no: sap,
+              orderNumber: sap ? (sap.startsWith("WO-") ? sap : `WO-${sap}`) : undefined,
+              order_number: sap ? (sap.startsWith("WO-") ? sap : `WO-${sap}`) : undefined,
               plateNumber: plate,
-              startDate: d,
-              maintenanceType: desc.length < 30 ? desc : "صيانة ميكانيكا",
+              plate_number: plate,
+              startDate: formattedDate,
+              start_date: formattedDate,
+              date: formattedDate,
+              maintenanceType: desc.length < 35 ? desc : "صيانة ميكانيكا",
+              maintenance_type: desc.length < 35 ? desc : "صيانة ميكانيكا",
               description: desc,
               cost: costVal,
+              total_cost: costVal,
+              totalCost: costVal,
               status: "completed",
-              operationType: "صيانة دورية"
+              operationType: "صيانة دورية",
+              operation_type: "صيانة دورية"
             })
           });
+
           if (method === "PUT") updatedCount++; else addedCount++;
         }
       }
 
-      alert(`تمت مزامنة الشيت بنجاح:\n- تم تحديث: ${updatedCount} معاملة\n- تم تسجيل: ${addedCount} معاملة جديدة`);
+      alert(`تمت مزامنة الشيت بنجاح وفق القواعد الصارمة:\n- تم تحديث: ${updatedCount} معاملة مسجلة\n- تم تسجيل: ${addedCount} معاملة جديدة`);
       loadFleetData();
     } catch (err) {
       console.error("Sync error:", err);
@@ -421,17 +605,16 @@ export default function FleetDataPage() {
   // 3. شيت الملخص المحسوب شاملاً المعادلات والإجماليات
   const excelSummaryData = [
     ...filteredRecords.map((row) => ({
-      "رقم اوردر الساب": row.sapNumber,
-      "رقم العربية": row.plateNumber,
+      "رقم SAP": row.sapNumber,
+      "رقم اللوحة": row.plateNumber,
       "التاريخ": row.date,
       "القسم": row.section,
       "وصف العملية": `${row.title} - ${row.description}`,
       "التكلفة (ج.م)": safeNum(row.cost)
     })),
-    // سطر الإجمالي المحسوب في نهاية الشيت
     {
-      "رقم اوردر الساب": "المجموع الكلي",
-      "رقم العربية": `إجمالي العمليات: ${filteredRecords.length}`,
+      "رقم SAP": "المجموع الكلي",
+      "رقم اللوحة": `إجمالي العمليات: ${filteredRecords.length}`,
       "التاريخ": `صيانة: ${maintenanceCount}`,
       "القسم": `وقود: ${fuelCount} | زيوت: ${oilCount}`,
       "وصف العملية": "إجمالي مبالغ المعاملات المنفذة",
@@ -442,19 +625,19 @@ export default function FleetDataPage() {
   const columns = [
     {
       key: "sapNumber",
-      header: "رقم اوردر الساب",
+      header: "رقم SAP",
       render: (r: FleetRecord) =>
         r.sapNumber && r.sapNumber !== "-" ? (
           <span className="font-mono text-xs font-black text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
             {r.sapNumber}
           </span>
         ) : (
-          <span className="text-gray-400 text-xs">-</span>
+          <span className="text-gray-400 text-xs font-bold">-</span>
         )
     },
     {
       key: "plateNumber",
-      header: "رقم العربية",
+      header: "رقم اللوحة",
       render: (r: FleetRecord) => (
         <span className="font-black text-gray-900 dark:text-white">{r.plateNumber}</span>
       )
@@ -462,11 +645,15 @@ export default function FleetDataPage() {
     {
       key: "date",
       header: "التاريخ",
-      render: (r: FleetRecord) => (
-        <span className="font-mono text-xs text-gray-600 dark:text-gray-300">
-          {r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-"}
-        </span>
-      )
+      render: (r: FleetRecord) => {
+        if (!r.date || r.date === "-") return <span className="text-gray-400 text-xs">-</span>;
+        const d = new Date(r.date);
+        return (
+          <span className="font-mono text-xs text-gray-600 dark:text-gray-300">
+            {!isNaN(d.getTime()) ? d.toLocaleDateString("en-GB") : r.date}
+          </span>
+        );
+      }
     },
     {
       key: "section",
@@ -563,7 +750,7 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── 2. الهيدر: 3 أزرار إكسيل رئيسية فقط ── */}
+      {/* ── 2. الهيدر: أزرار الإكسيل الثلاثية ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -578,14 +765,12 @@ export default function FleetDataPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* 1. زر تحميل القالب */}
           <ExportExcelButton
             data={sampleTemplateData}
             fileName="قالب_داتا_الأسطول"
             buttonText="تحميل قالب"
           />
 
-          {/* 2. زر استيراد وتحديث البيانات */}
           {canWrite && (
             <ImportExcelButton
               onImport={handleImport}
@@ -593,7 +778,6 @@ export default function FleetDataPage() {
             />
           )}
 
-          {/* 3. زر تحميل شيت ملخص بالمعادلات */}
           <ExportExcelButton
             data={excelSummaryData}
             fileName="ملخص_معاملات_الأسطول"
