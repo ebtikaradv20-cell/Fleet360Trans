@@ -22,9 +22,10 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
+// داتا المنحنيات الانسيابية بتدريج متصل يضمن عدم التوقف المفاجئ
 const sparklineData = [
-  { value: 12 }, { value: 28 }, { value: 18 }, { value: 45 }, 
-  { value: 32 }, { value: 55 }, { value: 48 }
+  { value: 18 }, { value: 32 }, { value: 24 }, { value: 48 }, 
+  { value: 36 }, { value: 58 }, { value: 42 }, { value: 50 }
 ];
 
 const safeNum = (val: any): number => {
@@ -116,7 +117,6 @@ export default function DashboardPage() {
     ? safeWorkOrders.filter(w => w && w.status !== "completed" && w.status !== "مكتملة").length
     : safeNum(dashboardData?.summary?.openWorkOrders);
 
-  // حساب تكلفة الصيانة الإجمالية
   const calculatedMaintCost = safeWorkOrders.reduce((sum, w) => {
     return sum + safeNum(w.cost ?? w.total_cost ?? w.totalCost ?? w.amount ?? w.price);
   }, 0);
@@ -124,22 +124,17 @@ export default function DashboardPage() {
     ? calculatedMaintCost 
     : safeNum(dashboardData?.summary?.totalMaintenanceCost ?? dashboardData?.summary?.total_maintenance_cost ?? 200052.8);
 
-  // حساب تكلفة الوقود مع مراعاة كافة أسماء الحقول والشيت
   const calculatedFuelCost = safeFuelRecords.reduce((sum, r) => {
-    const direct = safeNum(r?.totalCost ?? r?.total_cost ?? r?.cost ?? r?.amount ?? r?.price ?? r?.totalPrice);
+    const direct = safeNum(r?.totalCost ?? r?.total_cost ?? r?.cost ?? r?.amount ?? r?.price);
     if (direct > 0) return sum + direct;
-    const liters = safeNum(r?.liters ?? r?.litres ?? r?.quantity ?? r?.fuelAmount);
-    const price = safeNum(r?.costPerLiter ?? r?.cost_per_liter ?? r?.unitPrice);
+    const liters = safeNum(r?.liters ?? r?.litres ?? r?.quantity);
+    const price = safeNum(r?.costPerLiter ?? r?.cost_per_liter);
     return sum + (liters * price);
   }, 0);
 
   const totalFuelCost = calculatedFuelCost > 0 
     ? calculatedFuelCost 
-    : safeNum(
-        dashboardData?.summary?.totalFuelCost ?? 
-        dashboardData?.summary?.total_fuel_cost ?? 
-        dashboardData?.stats?.totalFuelCost
-      );
+    : safeNum(dashboardData?.summary?.totalFuelCost ?? dashboardData?.summary?.total_fuel_cost ?? dashboardData?.stats?.totalFuelCost);
 
   const totalFuelOps = safeFuelRecords.length > 0 
     ? safeFuelRecords.length 
@@ -206,7 +201,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── الكروت الأربعة المتناسقة ── */}
+      {/* ── الكروت الأربعة المتطورة بالمنحنيات المدمجة كلياً ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* الكارت 1: السيارات */}
@@ -221,11 +216,19 @@ export default function DashboardPage() {
               <Car size={22} className="text-white" />
             </div>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+          {/* المنحنى المدمج كلياً بدون هوامش أو قطع */}
+          <div className="absolute -bottom-1 -left-3 -right-3 h-20 overflow-hidden pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-500">
             {mounted && (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sparklineData}>
-                  <Area type="monotone" dataKey="value" stroke="#2DD4BF" fill="#0D9488" fillOpacity={0.3} strokeWidth={2}/>
+                <AreaChart data={sparklineData} margin={{ top: 10, right: -15, left: -15, bottom: -5 }}>
+                  <defs>
+                    <linearGradient id="waveCard1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2DD4BF" stopOpacity={0.45} />
+                      <stop offset="60%" stopColor="#2DD4BF" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#2DD4BF" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="value" stroke="#2DD4BF" strokeWidth={2.5} fill="url(#waveCard1)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -244,11 +247,19 @@ export default function DashboardPage() {
               <Wrench size={22} className="text-white" />
             </div>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+          {/* المنحنى المدمج كلياً بدون هوامش أو قطع */}
+          <div className="absolute -bottom-1 -left-3 -right-3 h-20 overflow-hidden pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-500">
             {mounted && (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sparklineData}>
-                  <Area type="monotone" dataKey="value" stroke="#93C5FD" fill="#60A5FA" fillOpacity={0.3} strokeWidth={2}/>
+                <AreaChart data={sparklineData} margin={{ top: 10, right: -15, left: -15, bottom: -5 }}>
+                  <defs>
+                    <linearGradient id="waveCard2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#93C5FD" stopOpacity={0.45} />
+                      <stop offset="60%" stopColor="#93C5FD" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#93C5FD" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="value" stroke="#60A5FA" strokeWidth={2.5} fill="url(#waveCard2)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -271,18 +282,26 @@ export default function DashboardPage() {
               <Droplet size={22} className="text-white" />
             </div>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+          {/* المنحنى المدمج كلياً بدون هوامش أو قطع */}
+          <div className="absolute -bottom-1 -left-3 -right-3 h-20 overflow-hidden pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-500">
             {mounted && (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sparklineData}>
-                  <Area type="monotone" dataKey="value" stroke="#BAE6FD" fill="#93C5FD" fillOpacity={0.3} strokeWidth={2}/>
+                <AreaChart data={sparklineData} margin={{ top: 10, right: -15, left: -15, bottom: -5 }}>
+                  <defs>
+                    <linearGradient id="waveCard3" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#BAE6FD" stopOpacity={0.45} />
+                      <stop offset="60%" stopColor="#BAE6FD" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#BAE6FD" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="value" stroke="#38BDF8" strokeWidth={2.5} fill="url(#waveCard3)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
           </div>
         </Link>
 
-        {/* الكارت 4: إجمالي تكلفة الصيانة + زر التحويل لداتا الأسطول الشاملة */}
+        {/* الكارت 4: إجمالي تكلفة الصيانة + الزر المدمج لداتا الأسطول الشاملة */}
         <div className="group bg-gradient-to-br from-blue-700 via-sky-600 to-sky-500 text-white rounded-2xl p-5 shadow-md hover:shadow-2xl transition-all hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between h-44 border border-sky-500/40">
           <div className="flex justify-between items-start relative z-10">
             <Link href="/dashboard/work-orders" className="flex-1">
@@ -310,11 +329,19 @@ export default function DashboardPage() {
             <span className="text-[10px] text-cyan-100 font-medium opacity-80">سجل شامل</span>
           </div>
 
-          <div className="absolute bottom-0 left-0 right-0 h-16 opacity-30 group-hover:opacity-75 transition-opacity duration-500 pointer-events-none">
+          {/* المنحنى المدمج كلياً بدون هوامش أو قطع */}
+          <div className="absolute -bottom-1 -left-3 -right-3 h-20 overflow-hidden pointer-events-none opacity-40 group-hover:opacity-80 transition-opacity duration-500">
             {mounted && (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sparklineData}>
-                  <Area type="monotone" dataKey="value" stroke="#E0F2FE" fill="#BAE6FD" fillOpacity={0.3} strokeWidth={2}/>
+                <AreaChart data={sparklineData} margin={{ top: 10, right: -15, left: -15, bottom: -5 }}>
+                  <defs>
+                    <linearGradient id="waveCard4" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#E0F2FE" stopOpacity={0.45} />
+                      <stop offset="60%" stopColor="#E0F2FE" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#E0F2FE" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="value" stroke="#BAE6FD" strokeWidth={2.5} fill="url(#waveCard4)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
