@@ -32,17 +32,16 @@ const Field = ({ label, children }: any) => (
 
 const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/50 outline-none";
 
-// دالة ذكية لمطابقة اللوحة الحقيقية حتى لو كانت مدمجة باسم الموديل
 const extractCleanPlate = (rawPlate: string, vehicleList: any[]) => {
   if (!rawPlate) return "";
-  const cleanRaw = rawPlate.replace(/\s+/g, " ").trim();
+  const cleanRaw = String(rawPlate).replace(/\s+/g, " ").trim();
 
   const exact = vehicleList.find(v => (v.plateNumber || v.plate_number || "").trim() === cleanRaw);
   if (exact) return exact.plateNumber || exact.plate_number;
 
   const matchedVehicle = vehicleList.find(v => {
     const vp = (v.plateNumber || v.plate_number || "").trim();
-    return vp && cleanRaw.includes(vp);
+    return vp && (cleanRaw.includes(vp) || vp.includes(cleanRaw));
   });
   if (matchedVehicle) return matchedVehicle.plateNumber || matchedVehicle.plate_number;
 
@@ -63,9 +62,14 @@ const normalizeOrder = (r: any) => {
   const model = r.vehicleModel || r.vehicle_model || r.model || "";
   const orderNumber = r.orderNumber || r.order_number || (r.id ? `WO-${r.id}` : "-");
   
+  // استخراج ذكي لرقم SAP من الحقل أو الوصف أو الملاحظات
   let sap = r.sapNumber || r.sap_number || r.sapNo || r.sap_no || r.sap || r.sapOrderId || r["رقم SAP"] || r["رقم ساب"] || "";
-  if (!sap && typeof r.description === "string" && r.description.includes("SAP")) {
+  if (!sap && typeof r.description === "string") {
     const match = r.description.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
+    if (match) sap = match[1];
+  }
+  if (!sap && typeof r.notes === "string") {
+    const match = r.notes.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
     if (match) sap = match[1];
   }
 
@@ -120,7 +124,7 @@ export default function WorkOrdersPage() {
     setLoading(true);
     try {
       const [resOrders, resVeh] = await Promise.all([
-        fetch("/api/work-orders").then(r => r.json()).catch(() => []),
+        fetch(`/api/work-orders?_t=${Date.now()}`, { cache: "no-store" }).then(r => r.json()).catch(() => []),
         fetch("/api/vehicles").then(r => r.json()).catch(() => [])
       ]);
 
@@ -181,7 +185,7 @@ export default function WorkOrdersPage() {
         count++;
       }
 
-      alert(`تم استيراد وتحديث ${count} أمر صيانة بنجاح برقم SAP.`);
+      alert(`تم استيراد وتحديث ${count} أمر صيانة بنجاح.`);
       loadData();
     } catch (err) {
       alert("حدث خطأ أثناء استيراد البيانات");
@@ -216,7 +220,6 @@ export default function WorkOrdersPage() {
         description: editing.description || ""
       };
 
-      // إرسال التحديث إلى الـ API الرئيسي مباشرة
       const res = await fetch("/api/work-orders", {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,10 +227,26 @@ export default function WorkOrdersPage() {
       });
 
       if (res.ok) {
+        // ✅ تحديث تفاؤلي فوري في الـ State يضمن ظهور التعديل ورقم SAP في الجدول لحظياً
+        if (isEdit) {
+          setData(prev => prev.map(item => {
+            if (item.id === editing.id) {
+              return normalizeOrder({
+                ...item,
+                ...payload,
+                sapNumber: payload.sapNumber,
+                sap_number: payload.sapNumber,
+                cost: payload.cost,
+                maintenanceType: payload.maintenanceType
+              });
+            }
+            return item;
+          }));
+        }
         setModalOpen(false);
         loadData();
       } else {
-        alert("حدث خطأ أثناء الحفظ");
+        alert("حدث خطأ أثناء حفظ أمر الصيانة");
       }
     } catch {
       alert("خطأ في الاتصال بالخادم");
@@ -427,7 +446,7 @@ export default function WorkOrdersPage() {
               key: "sapNumber", 
               header: "رقم SAP", 
               render: (r: any) => (
-                r.sapNumber ? (
+                r.sapNumber && r.sapNumber !== "-" ? (
                   <span className="font-mono font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded border border-teal-200 dark:border-teal-800 text-xs">
                     {r.sapNumber}
                   </span>
@@ -447,6 +466,15 @@ export default function WorkOrdersPage() {
               render: (r: any) => (
                 <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
                   {safeNum(r.cost).toLocaleString()} ج.م
+                </span>
+              ) 
+            },
+            { 
+              key: "startDate", 
+              header: "التاريخ", 
+              render: (r: any) => (
+                <span className="font-mono text-xs text-gray-600 dark:text-gray-400">
+                  {r.startDate || "-"}
                 </span>
               ) 
             },
@@ -489,7 +517,6 @@ export default function WorkOrdersPage() {
               onChange={(e) => setEditing({ ...editing, plateNumber: e.target.value })}
             >
               <option value="">-- اختر السيارة --</option>
-              {/* خيار الحماية الذكي: يضمن اختيار سيارة الأمر فوراً وعدم إظهار خانة فاضية */}
               {editing.plateNumber && !vehicles.some(v => (v.plateNumber || v.plate_number) === editing.plateNumber) && (
                 <option value={editing.plateNumber}>{editing.plateNumber}</option>
               )}
