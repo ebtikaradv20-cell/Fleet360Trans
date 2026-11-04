@@ -34,15 +34,18 @@ const safeNum = (val: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
-// دالة جلب آمنة جداً تضمن عدم انكسار الصفحة لو فشل أي API
+// دالة جلب آمنة جداً تدعم كافة هياكل الاستجابة وتضمن عدم انكسار الصفحة
 async function safeFetchArray(url: string): Promise<any[]> {
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
     if (Array.isArray(data)) return data;
-    if (data && Array.isArray(data.vehicles)) return data.vehicles;
     if (data && Array.isArray(data.data)) return data.data;
+    if (data && Array.isArray(data.vehicles)) return data.vehicles;
+    if (data && Array.isArray(data.records)) return data.records;
+    if (data && Array.isArray(data.fuelRecords)) return data.fuelRecords;
+    if (data && Array.isArray(data.rows)) return data.rows;
     return [];
   } catch {
     return [];
@@ -76,7 +79,7 @@ export default function DashboardPage() {
         safeFetchArray("/api/fuel"),
         safeFetchArray("/api/spare-parts"),
         safeFetchArray("/api/oil-changes"),
-        fetch("/api/dashboard").then(r => r.ok ? r.json() : {}).catch(() => ({}))
+        fetch("/api/dashboard", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}))
       ]);
 
       setVehicles(vehData);
@@ -99,24 +102,53 @@ export default function DashboardPage() {
     }
   }, [mounted, fetchAllDashboardData]);
 
-  // ── 3. الحسابات والنسب ──
+  // ── 3. الحسابات والنسب أفقياً ورأسياً ──
   const safeVehicles = Array.isArray(vehicles) ? vehicles : [];
   const safeWorkOrders = Array.isArray(workOrders) ? workOrders : [];
   const safeFuelRecords = Array.isArray(fuelRecords) ? fuelRecords : [];
   const safeSpareParts = Array.isArray(spareParts) ? spareParts : [];
   const safeOilChanges = Array.isArray(oilChanges) ? oilChanges : [];
 
-  const totalVehicles = safeVehicles.length;
-  const activeVehicles = safeVehicles.filter(v => v && v.status === "active").length;
-  const maintenanceVehicles = safeVehicles.filter(v => v && v.status === "maintenance").length;
-  const stoppedVehicles = safeVehicles.filter(v => v && v.status === "stopped").length;
+  const totalVehicles = safeVehicles.length || safeNum(dashboardData?.summary?.totalVehicles ?? dashboardData?.stats?.totalVehicles);
+  const activeVehicles = safeVehicles.filter(v => v && (v.status === "active" || v.status === "نشطة" || v.status === "نشط")).length;
+  const maintenanceVehicles = safeVehicles.filter(v => v && (v.status === "maintenance" || v.status === "صيانة")).length;
+  const stoppedVehicles = safeVehicles.filter(v => v && (v.status === "stopped" || v.status === "متوقفة" || v.status === "عاطل")).length;
   
   const activePct = totalVehicles ? Math.round((activeVehicles / totalVehicles) * 100) : 0;
   const maintPct = totalVehicles ? Math.round((maintenanceVehicles / totalVehicles) * 100) : 0;
   const stoppedPct = totalVehicles ? Math.round((stoppedVehicles / totalVehicles) * 100) : 0;
 
-  const openWorkOrders = safeWorkOrders.filter(w => w && w.status !== "completed").length;
-  const totalFuelCost = safeFuelRecords.reduce((sum, r) => sum + safeNum(r?.totalCost ?? r?.total_cost), 0);
+  const openWorkOrders = safeWorkOrders.length > 0 
+    ? safeWorkOrders.filter(w => w && w.status !== "completed").length
+    : safeNum(dashboardData?.summary?.totalMaintenanceOperations ?? dashboardData?.stats?.totalMaintenanceOperations);
+
+  // حساب إجمالي تكلفة الوقود بدعم كافة المسميات والعمليات الحسابية
+  const calculatedFuelCost = safeFuelRecords.reduce((sum, r) => {
+    const direct = safeNum(r?.totalCost ?? r?.total_cost ?? r?.cost ?? r?.amount);
+    if (direct > 0) return sum + direct;
+    const liters = safeNum(r?.liters ?? r?.litres ?? r?.quantity);
+    const price = safeNum(r?.costPerLiter ?? r?.cost_per_liter ?? r?.price);
+    return sum + (liters * price);
+  }, 0);
+
+  const totalFuelCost = calculatedFuelCost > 0 
+    ? calculatedFuelCost 
+    : safeNum(
+        dashboardData?.summary?.totalFuelCost ?? 
+        dashboardData?.summary?.total_fuel_cost ?? 
+        dashboardData?.stats?.totalFuelCost ?? 
+        dashboardData?.totalFuelCost
+      );
+
+  // حساب إجمالي عدد حركات ومعاملات الوقود
+  const totalFuelOps = safeFuelRecords.length > 0 
+    ? safeFuelRecords.length 
+    : safeNum(
+        dashboardData?.summary?.totalFuelOperations ?? 
+        dashboardData?.summary?.total_fuel_ops ?? 
+        dashboardData?.stats?.totalFuelOperations
+      );
+
   const lowStockParts = safeSpareParts.filter(p => p && safeNum(p.quantity) <= safeNum(p.minimumQuantity ?? p.minimum_quantity)).length;
 
   // ── 4. معالجة التنبيهات ──
@@ -126,22 +158,75 @@ export default function DashboardPage() {
   
   const expiringLicenses = safeVehicles.filter(v => {
     if (!v) return false;
-    const exp = v.license_expiry || v.licenseExpiry;
+    const exp = v.license_expiry || v.licenseExpiry || v.licenseEndDate;
     if (!exp) return false;
     const expiryDate = new Date(exp);
     return !isNaN(expiryDate.getTime()) && expiryDate <= thirtyDaysFromNow;
   }).length;
 
-  const lateOilChanges = safeOilChanges.filter(o => o && (o.kmAlert || o.dayAlert)).length;
-  const tireAlerts = safeWorkOrders.filter(w => w && String(w.maintenanceType || w.maintenance_type || "").includes("كاوتش") && w.status !== "completed").length;
+  const lateOilChanges = safeOilChanges.filter(o => o && (o.kmAlert || o.dayAlert || o.isLate || o.is_late)).length;
+  const tireAlerts = safeWorkOrders.filter(w => {
+    if (!w || w.status === "completed") return false;
+    const type = String(w.maintenanceType || w.maintenance_type || w.type || "").toLowerCase();
+    return type.includes("كاوتش") || type.includes("إطار") || type.includes("اطار") || type.includes("tire");
+  }).length;
 
-  // ── 5. تجهيز داتا الرسم البياني المالي ──
-  const monthlyAnalytics = Array.isArray(dashboardData?.monthlyAnalytics) ? dashboardData.monthlyAnalytics : [];
-  const chartData = monthlyAnalytics.map((m: any) => ({
-    name: m.month || "",
-    "تكلفة الوقود": safeNum(m.fuel_cost),
-    "تكلفة الصيانة": safeNum(m.maintenance_cost),
-  }));
+  // ── 5. تجهيز داتا الرسم البياني المالي مع نظام الحساب التلقائي ──
+  let chartData: any[] = [];
+  const monthlyFromApi = Array.isArray(dashboardData?.monthlyAnalytics) ? dashboardData.monthlyAnalytics : [];
+
+  if (monthlyFromApi.length > 0) {
+    chartData = monthlyFromApi.map((m: any) => ({
+      name: m.month || "",
+      "تكلفة الوقود": safeNum(m.fuel_cost ?? m.fuelCost),
+      "تكلفة الصيانة": safeNum(m.maintenance_cost ?? m.maintenanceCost),
+    }));
+  } else if (safeFuelRecords.length > 0 || safeWorkOrders.length > 0) {
+    // تجميع شهري مباشر لآخر 6 شهور في حال كان الـ API معتمداً على استعلام فارغ
+    const monthsMap: Record<string, { fuel: number; maintenance: number }> = {};
+    const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+      monthsMap[key] = { fuel: 0, maintenance: 0 };
+    }
+
+    safeFuelRecords.forEach(r => {
+      const rawDate = r.fuelDate || r.fuel_date || r.createdAt || r.created_at;
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+          if (monthsMap[key]) {
+            const cost = safeNum(r.totalCost ?? r.total_cost ?? r.cost ?? r.amount);
+            monthsMap[key].fuel += cost;
+          }
+        }
+      }
+    });
+
+    safeWorkOrders.forEach(w => {
+      const rawDate = w.startDate || w.start_date || w.createdAt || w.created_at;
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+          if (monthsMap[key]) {
+            const cost = safeNum(w.cost ?? w.total_cost);
+            monthsMap[key].maintenance += cost;
+          }
+        }
+      }
+    });
+
+    chartData = Object.entries(monthsMap).map(([name, val]) => ({
+      name,
+      "تكلفة الوقود": Math.round(val.fuel),
+      "تكلفة الصيانة": Math.round(val.maintenance),
+    }));
+  }
 
   if (loading || !mounted) {
     return (
@@ -222,6 +307,11 @@ export default function DashboardPage() {
             <div>
               <div className="text-sky-100 text-xs font-bold mb-1">إجمالي تكلفة الوقود</div>
               <span className="text-3xl font-black">{totalFuelCost.toLocaleString()} <span className="text-xs font-normal">ج.م</span></span>
+              {totalFuelOps > 0 && (
+                <span className="text-[11px] text-sky-200 font-semibold ms-2">
+                  {totalFuelOps} معاملة مسجلة
+                </span>
+              )}
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
               <Droplet size={22} className="text-white" />
