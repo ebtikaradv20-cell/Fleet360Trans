@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import DataTable from "@/components/ui/DataTable";
@@ -6,7 +7,15 @@ import Modal from "@/components/ui/Modal";
 import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ImportExcelButton from "@/components/ImportExcelButton";
-import { Fuel, DollarSign, Droplets, Search, Plus, Pencil, Trash2, X, Loader2, Paperclip, CheckCircle2, ImageIcon } from "lucide-react";
+import { 
+  Fuel, 
+  Plus, 
+  Pencil, 
+  Trash2, 
+  Paperclip, 
+  CheckCircle2, 
+  ImageIcon 
+} from "lucide-react";
 
 const safeNum = (val: any) => { 
   if (val === null || val === undefined) return 0;
@@ -16,14 +25,13 @@ const safeNum = (val: any) => {
 
 const Field = ({ label, children }: any) => (
   <div>
-    <label className="block text-xs font-bold text-gray-700 mb-1.5">{label}</label>
+    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>
     {children}
   </div>
 );
 
-const inputClass = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-teal-500/50 outline-none";
+const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/50 outline-none";
 
-// ✅ دالة التطبيع الأفقي لتوحيد مسميات الأعمدة بين قاعدة البيانات والشيت والواجهة
 const normalizeRecord = (r: any) => {
   const plate = r.plateNumber || r.plate_number || r.plate || "";
   const driver = r.driverName || r.driver_name || r.driver || "";
@@ -92,7 +100,6 @@ export default function FuelPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ التحقق من الصلاحيات
   const canWrite = user?.role === "owner" || user?.role === "super_admin" || user?.role === "admin" || user?.permissions?.includes("fuel:write");
 
   const load = useCallback(async () => {
@@ -213,7 +220,7 @@ export default function FuelPage() {
   };
 
   const handleDelete = async (id: number) => { 
-    if (confirm("حذف؟")) { 
+    if (confirm("هل أنت متأكد من حذف هذا السجل؟")) { 
       await fetch(`/api/fuel/${id}`, { method: "DELETE" }); 
       load(); 
     } 
@@ -222,10 +229,10 @@ export default function FuelPage() {
   return (
     <div className="w-full space-y-6" dir="rtl">
       
-      <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-5 rounded-2xl border shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl"><Fuel/></div>
-          <h1 className="text-xl font-black">سجلات الوقود</h1>
+          <h1 className="text-xl font-black text-gray-900 dark:text-white">سجلات الوقود</h1>
         </div>
         <div className="flex items-center gap-3">
           <ImportExcelButton templateColumns={["رقم اللوحة", "اللترات", "السعر"]} templateFileName="الوقود" mapRow={() => null} onImport={async () => {return {ok:0, failed:0}}} buttonText="استيراد" />
@@ -257,7 +264,7 @@ export default function FuelPage() {
                 setIsEdit(false); 
                 setModalOpen(true);
               }} 
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition-colors cursor-pointer"
             >
               <Plus size={18}/>إضافة وقود
             </button>
@@ -273,7 +280,7 @@ export default function FuelPage() {
             value={search} 
             onChange={e => setSearch(e.target.value)} 
             placeholder="بحث..." 
-            className="border rounded-lg px-2 py-1.5 text-xs outline-none w-32" 
+            className="border dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs outline-none w-32 dark:bg-gray-800 dark:text-white" 
           />
         </div>
         <FilterSelect 
@@ -290,14 +297,14 @@ export default function FuelPage() {
         />
       </FilterBar>
 
-      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable 
           columns={[
             { 
               key: "plateNumber", 
               header: "اللوحة", 
               render: (r: any) => (
-                <span className="font-bold text-blue-900">
+                <span className="font-bold text-blue-900 dark:text-blue-300">
                   {r.plateNumber || r.plate_number || "-"}
                 </span>
               ) 
@@ -306,7 +313,7 @@ export default function FuelPage() {
               key: "liters", 
               header: "اللترات", 
               render: (r: any) => (
-                <span className="font-bold text-sky-600">
+                <span className="font-bold text-sky-600 dark:text-sky-400">
                   {safeNum(r.liters ?? r.litres)} L
                 </span>
               ) 
@@ -315,7 +322,7 @@ export default function FuelPage() {
               key: "totalCost", 
               header: "الإجمالي", 
               render: (r: any) => (
-                <span className="font-bold text-emerald-600">
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
                   {safeNum(r.totalCost ?? r.total_cost).toLocaleString()} ج.م
                 </span>
               ) 
@@ -331,7 +338,7 @@ export default function FuelPage() {
               render: (r: any) => {
                 const inv = r.invoiceUrl || r.invoice_url;
                 return inv ? (
-                  <a href={inv} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md hover:bg-blue-100 transition-colors">
+                  <a href={inv} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-1 rounded-md hover:bg-blue-100 transition-colors">
                     <ImageIcon size={14} /> عرض
                   </a>
                 ) : (
@@ -349,11 +356,36 @@ export default function FuelPage() {
                 return isNaN(d.getTime()) ? String(rawDate).slice(0, 10) : d.toLocaleDateString("en-GB");
               } 
             },
+            {
+              key: "actions",
+              header: "إجراء",
+              render: (r: any) => (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditing(normalizeRecord(r));
+                      setIsEdit(true);
+                      setModalOpen(true);
+                    }}
+                    className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
+                  >
+                    <Pencil size={13} />
+                    <span>تعديل</span>
+                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={() => handleDelete(r.id)}
+                      className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-600 hover:text-white dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-600 px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-800 transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              )
+            }
           ]} 
           data={filteredData} 
           loading={loading} 
-          onEdit={canWrite ? (r: any) => { setEditing(normalizeRecord(r)); setIsEdit(true); setModalOpen(true); } : undefined} 
-          onDelete={user?.role === "admin" || user?.role === "owner" || user?.role === "super_admin" ? (r: any) => handleDelete(r.id) : undefined} 
         />
       </div>
       
@@ -424,7 +456,7 @@ export default function FuelPage() {
            <Field label="الإجمالي">
              <input 
                disabled 
-               className={`${inputClass} bg-gray-100 font-bold text-teal-600`} 
+               className={`${inputClass} bg-gray-100 dark:bg-gray-900 font-bold text-teal-600`} 
                value={editing.totalCost !== undefined && editing.totalCost !== null ? editing.totalCost : ""}
              />
            </Field>
@@ -448,17 +480,17 @@ export default function FuelPage() {
              />
            </Field>
            
-           <div className="col-span-2 p-4 bg-teal-50 rounded-xl border border-teal-200 flex justify-between items-center gap-4">
-             <div><p className="text-sm font-bold text-teal-900">مرفق الفاتورة/البون</p></div>
+           <div className="col-span-2 p-4 bg-teal-50 dark:bg-teal-950/30 rounded-xl border border-teal-200 dark:border-teal-800 flex justify-between items-center gap-4">
+             <div><p className="text-sm font-bold text-teal-900 dark:text-teal-300">مرفق الفاتورة/البون</p></div>
              <input type="file" ref={fileInputRef} accept="image/*,.pdf" onChange={handleFileUpload} className="hidden" />
-             <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-teal-700">
+             <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-teal-700 cursor-pointer">
                <Paperclip size={16} /> {editing.invoiceUrl ? "تغيير المرفق" : "إرفاق بون/فاتورة"}
              </button>
              {editing.invoiceUrl && <span className="text-xs font-bold text-emerald-600"><CheckCircle2 size={14} className="inline"/> تم الإرفاق</span>}
            </div>
 
-           <button type="submit" disabled={saving} className="col-span-2 py-3 bg-blue-900 text-white rounded-xl font-bold hover:bg-blue-950 transition-colors">
-             {saving ? "جاري الحفظ..." : "حفظ"}
+           <button type="submit" disabled={saving} className="col-span-2 py-3 bg-blue-900 hover:bg-blue-950 text-white rounded-xl font-bold transition-colors cursor-pointer">
+             {saving ? "جاري الحفظ..." : "حفظ التعديلات"}
            </button>
         </form>
       </Modal>
