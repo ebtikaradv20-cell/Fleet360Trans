@@ -32,6 +32,35 @@ const Field = ({ label, children }: any) => (
 
 const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/50 outline-none";
 
+// خوارزمية ذكية لمطابقة اللوحة الحقيقية ومنع ظهور "اختر السيارة"
+const extractCleanPlate = (rawPlate: string, vehicleList: any[]) => {
+  if (!rawPlate) return "";
+  const cleanRaw = String(rawPlate).replace(/\s+/g, " ").trim();
+
+  // 1. تطابق تام
+  const exact = vehicleList.find(v => (v.plateNumber || v.plate_number || "").trim() === cleanRaw);
+  if (exact) return exact.plateNumber || exact.plate_number;
+
+  // 2. تطابق جزئي مع اسم الموديل المدمج
+  const matchedVehicle = vehicleList.find(v => {
+    const vp = (v.plateNumber || v.plate_number || "").trim();
+    return vp && (cleanRaw.includes(vp) || vp.includes(cleanRaw));
+  });
+  if (matchedVehicle) return matchedVehicle.plateNumber || matchedVehicle.plate_number;
+
+  // 3. مطابقة الأرقام فقط
+  const digits = cleanRaw.replace(/[^0-9]/g, "");
+  if (digits) {
+    const digitMatch = vehicleList.find(v => {
+      const vp = (v.plateNumber || v.plate_number || "");
+      return vp.replace(/[^0-9]/g, "") === digits;
+    });
+    if (digitMatch) return digitMatch.plateNumber || digitMatch.plate_number;
+  }
+
+  return cleanRaw;
+};
+
 const normalizeRecord = (r: any) => {
   const plate = r.plateNumber || r.plate_number || r.plate || "";
   const driver = r.driverName || r.driver_name || r.driver || "";
@@ -105,7 +134,7 @@ export default function FuelPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try { 
-      const res = await fetch("/api/fuel"); 
+      const res = await fetch(`/api/fuel?_t=${Date.now()}`, { cache: "no-store" }); 
       const d = await res.json(); 
       const rawRows = Array.isArray(d) ? d : (d.data && Array.isArray(d.data) ? d.data : []);
       setData(rawRows.map(normalizeRecord)); 
@@ -164,6 +193,22 @@ export default function FuelPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleOpenEdit = (r: any) => {
+    const normalized = normalizeRecord(r);
+    const cleanPlate = extractCleanPlate(normalized.plateNumber, vehicles);
+    const matchedV = vehicles.find(v => (v.plateNumber || v.plate_number) === cleanPlate);
+
+    setEditing({
+      ...normalized,
+      plateNumber: cleanPlate,
+      plate_number: cleanPlate,
+      vehicleId: matchedV?.id || normalized.vehicleId || null,
+      driverName: matchedV?.driverName || matchedV?.driver_name || normalized.driverName || ""
+    });
+    setIsEdit(true);
+    setModalOpen(true);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault(); 
     setSaving(true);
@@ -207,13 +252,17 @@ export default function FuelPage() {
       });
 
       if (res.ok) { 
+        // تحديث محلي فوري
+        if (isEdit) {
+          setData(prev => prev.map(item => item.id === editing.id ? normalizeRecord({ ...item, ...payload }) : item));
+        }
         setModalOpen(false); 
         load(); 
       } else { 
-        alert("خطأ بالحفظ"); 
+        alert("خطأ أثناء الحفظ"); 
       }
     } catch { 
-      alert("خطأ اتصال"); 
+      alert("خطأ في الاتصال بالخادم"); 
     } finally { 
       setSaving(false); 
     }
@@ -259,7 +308,8 @@ export default function FuelPage() {
                   liters: "",
                   costPerLiter: "",
                   totalCost: "",
-                  odometer: ""
+                  odometer: "",
+                  plateNumber: ""
                 }); 
                 setIsEdit(false); 
                 setModalOpen(true);
@@ -362,11 +412,7 @@ export default function FuelPage() {
               render: (r: any) => (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => {
-                      setEditing(normalizeRecord(r));
-                      setIsEdit(true);
-                      setModalOpen(true);
-                    }}
+                    onClick={() => handleOpenEdit(r)}
                     className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
                   >
                     <Pencil size={13} />
@@ -375,7 +421,7 @@ export default function FuelPage() {
                   {canWrite && (
                     <button
                       onClick={() => handleDelete(r.id)}
-                      className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-600 hover:text-white dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-600 px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-800 transition-colors cursor-pointer"
+                      className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-600 hover:text-white dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-600 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-800 transition-colors cursor-pointer"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -395,7 +441,7 @@ export default function FuelPage() {
              <select 
                required 
                className={inputClass} 
-               value={editing.plateNumber || editing.plate_number || ""} 
+               value={editing.plateNumber || ""} 
                onChange={e => {
                  const selectedPlate = e.target.value;
                  const v = vehicles.find(x => (x.plateNumber || x.plate_number) === selectedPlate); 
@@ -409,7 +455,11 @@ export default function FuelPage() {
                  });
                }}
              >
-               <option value="">--اختر--</option>
+               <option value="">--اختر السيارة--</option>
+               {/* خيار الحماية الذكي: يضمن بقاء السيارة محددة دائماً ولا يظهر "اختر السيارة" */}
+               {editing.plateNumber && !vehicles.some(v => (v.plateNumber || v.plate_number) === editing.plateNumber) && (
+                 <option value={editing.plateNumber}>{editing.plateNumber}</option>
+               )}
                {vehicles.map(v => {
                  const p = v.plateNumber || v.plate_number;
                  return <option key={v.id || p} value={p}>{p}</option>;
