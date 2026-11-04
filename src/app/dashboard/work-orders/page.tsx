@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
 import DataTable from "@/components/ui/DataTable";
@@ -11,13 +12,10 @@ import {
   Plus, 
   CheckCircle2, 
   Clock, 
-  FileText, 
   DollarSign, 
   Pencil, 
   Trash2, 
-  Search, 
-  AlertCircle,
-  FileCheck2
+  FileText 
 } from "lucide-react";
 
 const safeNum = (val: any) => { 
@@ -26,26 +24,44 @@ const safeNum = (val: any) => {
   return isNaN(n) ? 0 : n; 
 };
 
+const Field = ({ label, children }: any) => (
+  <div>
+    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>
+    {children}
+  </div>
+);
+
+const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/50 outline-none";
+
 const normalizeOrder = (r: any) => {
   const plate = r.plateNumber || r.plate_number || r.vehiclePlate || r.plate || "";
   const model = r.vehicleModel || r.vehicle_model || r.model || "";
-  const orderNumber = r.orderNumber || r.order_number || r.workOrderId || r.id ? `WO-${r.orderNumber || r.order_number || r.id}` : "-";
+  const orderNumber = r.orderNumber || r.order_number || (r.id ? `WO-${r.id}` : "-");
   
-  // ✅ حل مشكلة قراءة رقم ساب من أي مفتاح قادم من الشيت أو قاعدة البيانات
-  const sap = r.sapNumber || r.sap_number || r.sapNo || r.sap_no || r.sap || r.sapOrderId || r.sap_order_id || r["رقم SAP"] || r["رقم ساب"] || "";
-  
+  // استخراج رقم SAP من الحقل المباشر أو البحث عنه داخل الوصف/الملاحظات
+  let sap = r.sapNumber || r.sap_number || r.sapNo || r.sap_no || r.sap || r.sapOrderId || r.sap_order_id || r["رقم SAP"] || r["رقم ساب"] || "";
+  if (!sap && typeof r.description === "string" && r.description.includes("SAP")) {
+    const match = r.description.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
+    if (match) sap = match[1];
+  }
+  if (!sap && typeof r.notes === "string" && r.notes.includes("SAP")) {
+    const match = r.notes.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
+    if (match) sap = match[1];
+  }
+
   const maintType = r.maintenanceType || r.maintenance_type || r.type || r.serviceType || "صيانة عامة";
   const opType = r.operationType || r.operation_type || r.service_nature || "صيانة جديدة";
   const status = r.status || (r.isCompleted ? "completed" : "pending");
   const cost = safeNum(r.cost ?? r.total_cost ?? r.totalCost ?? r.amount);
   const approvalTo = r.approvedBy || r.approved_by || r.targetApproval || r.target_approval || "-";
-  const startDate = r.startDate || r.start_date || r.date || r.createdAt || r.created_at || "";
+  
+  let startDate = r.startDate || r.start_date || r.date || (r.createdAt ? r.createdAt.slice(0, 10) : "");
+  if (startDate && startDate.includes("T")) startDate = startDate.split("T")[0];
 
   return {
     ...r,
     id: r.id,
     orderNumber: String(orderNumber).startsWith("WO-WO-") ? String(orderNumber).replace("WO-WO-", "WO-") : orderNumber,
-    rawOrderNumber: r.orderNumber || r.order_number || r.id,
     plateNumber: plate,
     vehicleDisplay: model ? `${model} ${plate}` : plate,
     maintenanceType: maintType,
@@ -54,7 +70,8 @@ const normalizeOrder = (r: any) => {
     targetApproval: approvalTo,
     status,
     cost,
-    startDate
+    startDate,
+    description: r.description || ""
   };
 };
 
@@ -65,7 +82,13 @@ export default function WorkOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"active" | "deleted">("active");
 
-  // الفلاتر المتطابقة تماماً مع أعمدة الجدول
+  // نافذة التعديل
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<any>({});
+  const [isEdit, setIsEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // الفلاتر
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("الكل");
   const [statusFilter, setStatusFilter] = useState("الكل");
@@ -97,13 +120,58 @@ export default function WorkOrdersPage() {
     loadData();
   }, [loadData]);
 
-  // تصفية السجلات المتطابقة
+  // حفظ التعديل أو إضافة أمر جديد
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        ...editing,
+        sapNumber: editing.sapNumber || "",
+        sap_number: editing.sapNumber || "",
+        sapNo: editing.sapNumber || "",
+        plateNumber: editing.plateNumber || "",
+        plate_number: editing.plateNumber || "",
+        maintenanceType: editing.maintenanceType || "صيانة عامة",
+        maintenance_type: editing.maintenanceType || "صيانة عامة",
+        operationType: editing.operationType || "صيانة جديدة",
+        operation_type: editing.operationType || "صيانة جديدة",
+        cost: safeNum(editing.cost),
+        total_cost: safeNum(editing.cost),
+        startDate: editing.startDate || new Date().toISOString().slice(0, 10),
+        start_date: editing.startDate || new Date().toISOString().slice(0, 10),
+        targetApproval: editing.targetApproval || "-",
+        target_approval: editing.targetApproval || "-",
+        description: editing.description || ""
+      };
+
+      const url = isEdit ? `/api/work-orders/${editing.id}` : "/api/work-orders";
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setModalOpen(false);
+        loadData();
+      } else {
+        alert("حدث خطأ أثناء الحفظ");
+      }
+    } catch {
+      alert("خطأ في الاتصال بالخادم");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const filteredData = data.filter(r => {
     const isDeleted = r.isDeleted === 1 || r.is_deleted === 1 || r.status === "deleted";
     if (activeTab === "active" && isDeleted) return false;
     if (activeTab === "deleted" && !isDeleted) return false;
 
-    // بحث شامل: رقم الأمر، رقم اللوحة، نوع الصيانة، رقم SAP
     const searchMatch = 
       !search || 
       String(r.orderNumber).toLowerCase().includes(search.toLowerCase()) ||
@@ -112,7 +180,7 @@ export default function WorkOrdersPage() {
       String(r.sapNumber).toLowerCase().includes(search.toLowerCase());
 
     const typeMatch = typeFilter === "الكل" || r.maintenanceType === typeFilter;
-    const statusMatch = statusFilter === "الكل" || r.status === statusFilter || (statusFilter === "مكتملة" && (r.status === "completed" || r.status === "مكتملة"));
+    const statusMatch = statusFilter === "الكل" || r.status === statusFilter;
     const sapMatch = sapFilter === "الكل" || (sapFilter === "يوجد SAP" ? Boolean(r.sapNumber) : !r.sapNumber);
 
     let dateMatch = true;
@@ -126,21 +194,18 @@ export default function WorkOrdersPage() {
     return searchMatch && typeMatch && statusMatch && sapMatch && dateMatch;
   });
 
-  // إحصائيات علوية حية
   const totalCost = data.reduce((s, r) => s + safeNum(r.cost), 0);
   const activeOrdersCount = data.filter(r => !(r.isDeleted === 1 || r.is_deleted === 1)).length;
-  const openOrdersCount = data.filter(r => r.status === "pending" || r.status === "open" || r.status === "قيد التنفيذ").length;
-  const completedCount = data.filter(r => r.status === "completed" || r.status === "مكتملة" || r.status === "صيانة جديدة").length;
+  const openOrdersCount = data.filter(r => r.status === "pending" || r.status === "open").length;
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      
-      {/* ── الكروت العلوية الثلاثية ── */}
+      {/* ── الكروت العلوية ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-5 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-blue-200 text-xs font-bold mb-1">إجمالي تكلفة الصيانة</p>
-            <h3 className="text-2xl font-black">{totalCost > 0 ? totalCost.toLocaleString() : "200,052.8"} <span className="text-sm font-normal">ج.م</span></h3>
+            <h3 className="text-2xl font-black">{totalCost.toLocaleString()} <span className="text-sm font-normal">ج.م</span></h3>
           </div>
           <div className="p-3 bg-white/10 rounded-xl"><DollarSign size={24} /></div>
         </div>
@@ -156,29 +221,40 @@ export default function WorkOrdersPage() {
         <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 text-white p-5 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-emerald-100 text-xs font-bold mb-1">صيانات مكتملة</p>
-            <h3 className="text-2xl font-black">{completedCount || activeOrdersCount}</h3>
+            <h3 className="text-2xl font-black">{activeOrdersCount}</h3>
           </div>
           <div className="p-3 bg-white/10 rounded-xl"><CheckCircle2 size={24} /></div>
         </div>
       </div>
 
-      {/* ── العنوان والإجراءات ── */}
-      <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-5 rounded-2xl border shadow-sm">
+      {/* ── الهيدر والإجراءات ── */}
+      <div className="flex flex-col md:flex-row justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl"><Wrench size={24}/></div>
           <div>
-            <h1 className="text-xl font-black">أوامر الشغل والصيانة</h1>
-            <p className="text-xs text-gray-500">إجمالي {filteredData.length} أمر مطابق</p>
+            <h1 className="text-xl font-black text-gray-900 dark:text-white">أوامر الشغل والصيانة</h1>
+            <p className="text-xs text-gray-500 mt-0.5">إجمالي {filteredData.length} أمر مطابق</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <ImportExcelButton templateColumns={["رقم اللوحة", "نوع الصيانة", "التكلفة", "رقم SAP"]} templateFileName="أوامر_الصيانة" mapRow={() => null} onImport={async () => ({ok:0, failed:0})} buttonText="استيراد وتحديث الشيت" />
-          <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition-colors">
-            <Plus size={18}/> طلب موافقة صيانة
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-900 text-white rounded-xl font-bold shadow-md hover:bg-blue-950 transition-colors">
-            <FileText size={18}/> إضافة فاتورة صيانة
-          </button>
+          {canWrite && (
+            <button 
+              onClick={() => {
+                setEditing({
+                  startDate: new Date().toISOString().slice(0, 10),
+                  operationType: "صيانة جديدة",
+                  status: "completed",
+                  cost: ""
+                });
+                setIsEdit(false);
+                setModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-teal-700 transition-colors cursor-pointer"
+            >
+              <Plus size={18}/> إضافة أمر صيانة
+            </button>
+          )}
         </div>
       </div>
 
@@ -186,19 +262,19 @@ export default function WorkOrdersPage() {
       <div className="flex gap-2">
         <button 
           onClick={() => setActiveTab("active")} 
-          className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === "active" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "active" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}`}
         >
           الأوامر النشطة ({activeOrdersCount})
         </button>
         <button 
           onClick={() => setActiveTab("deleted")} 
-          className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === "deleted" ? "bg-red-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+          className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "deleted" ? "bg-red-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}`}
         >
           سجل المحذوفات والمرفوض (0)
         </button>
       </div>
 
-      {/* ── شريط الفلاتر المتطابق تماماً مع الأعمدة ── */}
+      {/* ── شريط الفلاتر ── */}
       <FilterBar dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} showDateRange>
         <div className="flex items-center gap-2">
           <label className="text-xs font-bold text-gray-500">بحث:</label>
@@ -207,7 +283,7 @@ export default function WorkOrdersPage() {
             value={search} 
             onChange={e => setSearch(e.target.value)} 
             placeholder="بحث بالأمر، اللوحة، SAP..." 
-            className="border rounded-lg px-2.5 py-1.5 text-xs outline-none w-44 focus:ring-2 focus:ring-teal-500/30" 
+            className="border dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-xs outline-none w-44 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/30" 
           />
         </div>
 
@@ -216,18 +292,6 @@ export default function WorkOrdersPage() {
           value={typeFilter} 
           onChange={setTypeFilter} 
           options={[{value:"الكل", label:"الكل"}, ...[...new Set(data.map(d => d.maintenanceType).filter(Boolean))].map(x => ({value:x, label:x}))]} 
-        />
-
-        <FilterSelect 
-          label="الحالة" 
-          value={statusFilter} 
-          onChange={setStatusFilter} 
-          options={[
-            {value:"الكل", label:"الكل"},
-            {value:"completed", label:"مكتملة"},
-            {value:"pending", label:"قيد الانتظار"},
-            {value:"in_progress", label:"جاري العمل"}
-          ]} 
         />
 
         <FilterSelect 
@@ -242,15 +306,15 @@ export default function WorkOrdersPage() {
         />
       </FilterBar>
 
-      {/* ── الجدول المتطابق مع قراءة SAP والألوان الأصلية ── */}
-      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+      {/* ── جدول البيانات مع الترقيم التلقائي لـ 10 أوامر وزر التعديل ── */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable 
           columns={[
             { 
               key: "orderNumber", 
               header: "رقم الأمر", 
               render: (r: any) => (
-                <span className="font-mono font-bold text-blue-900">
+                <span className="font-mono font-bold text-blue-900 dark:text-blue-300">
                   {r.orderNumber}
                 </span>
               ) 
@@ -259,7 +323,7 @@ export default function WorkOrdersPage() {
               key: "vehicleDisplay", 
               header: "اللوحة", 
               render: (r: any) => (
-                <span className="font-bold text-gray-900">
+                <span className="font-bold text-gray-900 dark:text-white">
                   {r.vehicleDisplay || r.plateNumber}
                 </span>
               ) 
@@ -268,7 +332,7 @@ export default function WorkOrdersPage() {
               key: "maintenanceType", 
               header: "نوع الصيانة", 
               render: (r: any) => (
-                <span className="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg text-xs font-bold inline-block">
+                <span className="bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 px-2.5 py-1 rounded-lg text-xs font-bold inline-block">
                   {r.maintenanceType}
                 </span>
               ) 
@@ -277,7 +341,7 @@ export default function WorkOrdersPage() {
               key: "operationType", 
               header: "نوع العملية", 
               render: (r: any) => (
-                <span className="bg-sky-50 text-sky-600 border border-sky-200 px-2.5 py-0.5 rounded-md text-xs font-bold inline-block">
+                <span className="bg-sky-50 text-sky-600 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 px-2.5 py-0.5 rounded-md text-xs font-bold inline-block">
                   {r.operationType}
                 </span>
               ) 
@@ -287,7 +351,7 @@ export default function WorkOrdersPage() {
               header: "رقم SAP", 
               render: (r: any) => (
                 r.sapNumber ? (
-                  <span className="font-mono font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-xs">
+                  <span className="font-mono font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded border border-teal-200 dark:border-teal-800 text-xs">
                     {r.sapNumber}
                   </span>
                 ) : (
@@ -298,23 +362,144 @@ export default function WorkOrdersPage() {
             { 
               key: "targetApproval", 
               header: "موجه للموافقة إلى", 
-              render: (r: any) => <span className="text-xs text-gray-600 font-medium">{r.targetApproval}</span> 
+              render: (r: any) => <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">{r.targetApproval}</span> 
             },
             { 
               key: "cost", 
               header: "التكلفة", 
               render: (r: any) => (
-                <span className="font-bold text-emerald-600 text-xs">
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
                   {safeNum(r.cost).toLocaleString()} ج.م
                 </span>
               ) 
             },
+            {
+              key: "actions",
+              header: "إجراء",
+              render: (r: any) => (
+                <button
+                  onClick={() => {
+                    setEditing({ ...r });
+                    setIsEdit(true);
+                    setModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
+                >
+                  <Pencil size={13} />
+                  <span>تعديل</span>
+                </button>
+              )
+            }
           ]} 
           data={filteredData} 
           loading={loading} 
         />
       </div>
 
+      {/* ── نافذة تعديل وإضافة أمر الصيانة ── */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEdit ? "تعديل أمر الشغل والصيانة" : "إضافة أمر صيانة جديد"} size="lg">
+        <form onSubmit={handleSave} className="grid grid-cols-2 gap-4">
+          <Field label="السيارة / رقم اللوحة">
+            <select
+              required
+              className={inputClass}
+              value={editing.plateNumber || ""}
+              onChange={(e) => setEditing({ ...editing, plateNumber: e.target.value })}
+            >
+              <option value="">-- اختر السيارة --</option>
+              {vehicles.map((v) => {
+                const p = v.plateNumber || v.plate_number;
+                return <option key={v.id || p} value={p}>{p}</option>;
+              })}
+            </select>
+          </Field>
+
+          <Field label="رقم SAP">
+            <input
+              type="text"
+              className={inputClass}
+              value={editing.sapNumber || ""}
+              onChange={(e) => setEditing({ ...editing, sapNumber: e.target.value })}
+              placeholder="مثال: SAP-9012"
+            />
+          </Field>
+
+          <Field label="نوع الصيانة">
+            <input
+              type="text"
+              required
+              className={inputClass}
+              value={editing.maintenanceType || ""}
+              onChange={(e) => setEditing({ ...editing, maintenanceType: e.target.value })}
+              placeholder="مثال: تجديد رخصة، ميكانيكا، كهرباء..."
+            />
+          </Field>
+
+          <Field label="نوع العملية">
+            <select
+              className={inputClass}
+              value={editing.operationType || "صيانة جديدة"}
+              onChange={(e) => setEditing({ ...editing, operationType: e.target.value })}
+            >
+              <option value="صيانة جديدة">صيانة جديدة</option>
+              <option value="صيانة دورية">صيانة دورية</option>
+              <option value="إصلاح عاجل">إصلاح عاجل</option>
+            </select>
+          </Field>
+
+          <Field label="التكلفة (ج.م)">
+            <input
+              type="number"
+              step="0.01"
+              required
+              className={inputClass}
+              value={editing.cost !== undefined ? editing.cost : ""}
+              onChange={(e) => setEditing({ ...editing, cost: e.target.value })}
+              placeholder="0.00"
+            />
+          </Field>
+
+          <Field label="تاريخ الصيانة">
+            <input
+              type="date"
+              required
+              className={inputClass}
+              value={editing.startDate || ""}
+              onChange={(e) => setEditing({ ...editing, startDate: e.target.value })}
+            />
+          </Field>
+
+          <Field label="موجه للموافقة إلى">
+            <input
+              type="text"
+              className={inputClass}
+              value={editing.targetApproval || ""}
+              onChange={(e) => setEditing({ ...editing, targetApproval: e.target.value })}
+              placeholder="اسم المدير / المسؤول"
+            />
+          </Field>
+
+          <div className="col-span-2">
+            <Field label="الوصف والتفاصيل">
+              <textarea
+                rows={2}
+                className={inputClass}
+                value={editing.description || ""}
+                onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                placeholder="تفاصيل الصيانة وقطع الغيار المشتراة..."
+              />
+            </Field>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="col-span-2 py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition-colors"
+          >
+            {saving ? "جاري الحفظ والتحديث..." : "حفظ بيانات الصيانة"}
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 }
