@@ -56,7 +56,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── زر القائمة للموبايل ── */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
@@ -66,7 +65,6 @@ export default function Sidebar() {
         <Menu size={22} />
       </button>
 
-      {/* ── خلفية معتمة للهواتف ── */}
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -74,7 +72,6 @@ export default function Sidebar() {
         />
       )}
 
-      {/* ── الشريط الجانبي الثابت ── */}
       <aside
         className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-2xl shrink-0 overflow-hidden ${
           collapsed ? "w-20" : "w-72"
@@ -82,7 +79,7 @@ export default function Sidebar() {
           mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        {/* ── 1. شريط التحكم العلوي وزر السهم المستقل ── */}
+        {/* ── شريط التحكم العلوي ── */}
         <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-800/80 shrink-0 bg-[#091530]">
           {!collapsed && (
             <span className="text-[11px] font-bold text-slate-400">القائمة الرئيسية</span>
@@ -99,32 +96,38 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* ── 2. ترويسة اللوجو: مساحة مشدودة على مقاسهم + أبيض بالنهار وأسود بالليل + انقلاب ألوان اللوجو والنص تلقائياً ── */}
-        <div className="py-2.5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-white dark:bg-black border-b border-gray-200 dark:border-slate-800/80 transition-colors duration-300">
-          <div className="flex items-center justify-center w-full my-0.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.png"
-              alt="TAQA Gas Logo"
-              className={`${
-                collapsed ? "w-11 h-11" : "w-full max-w-[240px] h-28 scale-125"
-              } object-contain transition-all duration-300 brightness-0 dark:invert drop-shadow-xs`}
-            />
-          </div>
-
-          {!collapsed && (
-            <div className="flex flex-col items-center mt-1 w-full">
-              <h1 className="font-black text-xl tracking-wider text-black dark:text-white leading-tight transition-colors duration-300">
-                FLEET 360
-              </h1>
-              <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 tracking-wider mt-0.5 uppercase transition-colors duration-300">
-                TAQA GAS COMPANY
-              </p>
+        {/* ── ترويسة اللوجو: بدون أبيض نهائياً + تصميم زجاجي عصري مدمج ومشدود على مقاسه بالملي ── */}
+        <div className="py-2.5 px-3 border-b border-slate-800/80 shrink-0">
+          <div className={`flex flex-col items-center justify-center text-center rounded-2xl transition-all ${
+            collapsed 
+              ? "p-1.5 bg-transparent" 
+              : "py-3 px-2 bg-gradient-to-b from-[#132857]/80 via-[#0F1E40]/50 to-transparent border border-blue-500/20 shadow-inner"
+          }`}>
+            <div className="flex items-center justify-center w-full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="TAQA Gas Logo"
+                className={`${
+                  collapsed ? "w-10 h-10" : "w-full max-w-[190px] h-20"
+                } object-contain transition-all duration-300 brightness-0 invert drop-shadow-[0_2px_12px_rgba(14,165,233,0.35)]`}
+              />
             </div>
-          )}
+
+            {!collapsed && (
+              <div className="flex flex-col items-center mt-1 w-full">
+                <h1 className="font-black text-xl tracking-wider text-white leading-tight drop-shadow-sm">
+                  FLEET 360
+                </h1>
+                <p className="text-[10px] font-bold text-sky-400 tracking-wider mt-0.5 uppercase opacity-95">
+                  TAQA GAS COMPANY
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* ── 3. قائمة الصفحات: البار النشط بالتدرج الأصفر المتلاشي لليسار ── */}
+        {/* ── قائمة الصفحات بالبار الأصفر المتلاشي لليسار ── */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
           {navigationItems.map((item) => {
             const Icon = item.icon;
