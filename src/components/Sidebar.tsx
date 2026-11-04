@@ -15,8 +15,7 @@ import {
   Users,
   ChevronRight,
   ChevronLeft,
-  Menu,
-  X
+  Menu
 } from "lucide-react";
 
 const navigationItems = [
@@ -57,7 +56,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── زر القائمة للموبايل ── */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
@@ -67,7 +65,6 @@ export default function Sidebar() {
         <Menu size={22} />
       </button>
 
-      {/* ── خلفية معتمة للهواتف ── */}
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -75,7 +72,6 @@ export default function Sidebar() {
         />
       )}
 
-      {/* ── الشريط الجانبي الثابت ── */}
       <aside
         className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-2xl shrink-0 overflow-hidden ${
           collapsed ? "w-20" : "w-72"
@@ -83,7 +79,7 @@ export default function Sidebar() {
           mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        {/* ── 1. شريط التحكم العلوي وزر السهم المستقل ── */}
+        {/* ── شريط التحكم العلوي ── */}
         <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-800/80 shrink-0 bg-[#091530]">
           {!collapsed && (
             <span className="text-[11px] font-bold text-slate-400">القائمة الرئيسية</span>
@@ -100,8 +96,8 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* ── 2. ترويسة اللوجو: مساحة بلون أفتح + لوجو أكبر بكثير + الاسم تحته مباشرة ── */}
-        <div className="py-5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-[#152B59] border-b border-slate-800/80 transition-colors">
+        {/* ── ترويسة اللوجو: مساحة أفتح + لوجو أكبر بكثير + الاسم تحته مباشرة ── */}
+        <div className="py-5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-[#162952] border-b border-slate-800/80 transition-colors">
           <div className="flex items-center justify-center w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -114,7 +110,7 @@ export default function Sidebar() {
           </div>
 
           {!collapsed && (
-            <div className="flex flex-col items-center mt-1.5 w-full">
+            <div className="flex flex-col items-center mt-1 w-full">
               <h1 className="font-black text-2xl tracking-wider text-white leading-tight drop-shadow-sm">
                 FLEET 360
               </h1>
@@ -125,7 +121,7 @@ export default function Sidebar() {
           )}
         </div>
 
-        {/* ── 3. قائمة الصفحات: البار النشط بالتدرج الأصفر المتلاشي لليسار ── */}
+        {/* ── قائمة الصفحات بالبار الأصفر المتلاشي لليسار ── */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
           {navigationItems.map((item) => {
             const Icon = item.icon;
