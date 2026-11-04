@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
 import DataTable from "@/components/ui/DataTable";
@@ -12,11 +13,7 @@ import {
   Disc, 
   DollarSign, 
   Pencil, 
-  Trash2, 
-  CheckCircle2, 
-  Calendar, 
-  Gauge, 
-  Loader2 
+  Trash2 
 } from "lucide-react";
 
 const safeNum = (val: any) => { 
@@ -27,12 +24,12 @@ const safeNum = (val: any) => {
 
 const Field = ({ label, children }: any) => (
   <div>
-    <label className="block text-xs font-bold text-gray-700 mb-1.5">{label}</label>
+    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">{label}</label>
     {children}
   </div>
 );
 
-const inputClass = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-teal-500/50 outline-none";
+const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/50 outline-none";
 
 const normalizeOilRecord = (r: any) => {
   const plate = r.plateNumber || r.plate_number || r.plate || "";
@@ -46,7 +43,8 @@ const normalizeOilRecord = (r: any) => {
     changeDate = changeDate.split("T")[0];
   }
 
-  const currentKm = safeNum(r.currentKm ?? r.current_km ?? r.odometer ?? r.currentOdometer);
+  // دعم استخراج العداد الحالي والعداد القادم من أي عمود محتمل
+  const currentKm = safeNum(r.currentKm ?? r.current_km ?? r.odometerAtChange ?? r.odometer ?? r.currentOdometer);
   const nextKm = safeNum(r.nextKm ?? r.next_km ?? r.nextOdometer ?? r.next_change_km ?? (currentKm > 0 ? currentKm + 5000 : 0));
   const cost = safeNum(r.cost ?? r.total_cost ?? r.totalCost ?? r.amount);
 
@@ -54,7 +52,7 @@ const normalizeOilRecord = (r: any) => {
     ...r,
     id: r.id,
     plateNumber: plate,
-    vehicleDisplay: model ? `${model} ${plate}` : plate,
+    vehicleDisplay: model && !plate.includes(model) ? `${model} ${plate}` : plate,
     oilType,
     brand,
     filterType,
@@ -72,12 +70,10 @@ export default function OilChangesPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"oil" | "tires">("oil");
 
-  // نافذة التعديل
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>({});
   const [saving, setSaving] = useState(false);
 
-  // الفلاتر المتطابقة مع الجدول
   const [search, setSearch] = useState("");
   const [filterChoice, setFilterChoice] = useState("الكل");
   const [dateFrom, setDateFrom] = useState("");
@@ -107,41 +103,56 @@ export default function OilChangesPage() {
     loadData();
   }, [loadData]);
 
-  // حفظ التعديلات وحل مشكلة العدادات الناقصة
+  // حفظ التعديلات وحل مشكلة عدم قراءة التعديل نهائياً
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       const payload = {
         ...editing,
+        id: editing.id,
         currentKm: safeNum(editing.currentKm),
         current_km: safeNum(editing.currentKm),
         odometer: safeNum(editing.currentKm),
+        odometerAtChange: safeNum(editing.currentKm),
+        odometer_at_change: safeNum(editing.currentKm),
         nextKm: safeNum(editing.nextKm),
         next_km: safeNum(editing.nextKm),
         next_change_km: safeNum(editing.nextKm),
         cost: safeNum(editing.cost),
         total_cost: safeNum(editing.cost),
+        totalCost: safeNum(editing.cost),
         oilType: editing.oilType,
         oil_type: editing.oilType,
         brand: editing.brand,
         filterType: editing.filterType,
         filter_type: editing.filterType,
+        filterChanged: String(editing.filterType).includes("مع"),
         changeDate: editing.changeDate,
         change_date: editing.changeDate
       };
 
-      const res = await fetch(`/api/oil-changes/${editing.id}`, {
+      // محاولة الإرسال للـ dynamic route أولاً
+      let res = await fetch(`/api/oil-changes/${editing.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
+      // مسار احتياطي في حال عدم وجود المسار الفرعي
+      if (!res.ok) {
+        res = await fetch(`/api/oil-changes`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      }
+
       if (res.ok) {
         setModalOpen(false);
         loadData();
       } else {
-        alert("حدث خطأ أثناء الحفظ");
+        alert("حدث خطأ أثناء حفظ التعديل");
       }
     } catch {
       alert("خطأ في الاتصال بالخادم");
@@ -178,8 +189,6 @@ export default function OilChangesPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      
-      {/* ── الكروت العلوية الثلاثية ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-5 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
@@ -192,8 +201,8 @@ export default function OilChangesPage() {
         <div className="bg-gradient-to-r from-teal-600 to-teal-500 text-white p-5 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-teal-100 text-xs font-bold mb-1">سجلات تغيير الزيت</p>
-            <h3 className="text-2xl font-black">{oilCount || 14}</h3>
-            <span className="text-xs text-teal-100 opacity-90 mt-1 block">التكلفة: {(totalCost || 15714).toLocaleString()} ج.م</span>
+            <h3 className="text-2xl font-black">{oilCount}</h3>
+            <span className="text-xs text-teal-100 opacity-90 mt-1 block">التكلفة: {totalCost.toLocaleString()} ج.م</span>
           </div>
           <div className="p-3 bg-white/10 rounded-xl"><Droplet size={24} /></div>
         </div>
@@ -208,34 +217,42 @@ export default function OilChangesPage() {
         </div>
       </div>
 
-      {/* ── الرأس والإجراءات ── */}
-      <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-5 rounded-2xl border shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl"><Droplet size={24}/></div>
           <div>
-            <h1 className="text-xl font-black">إدارة الزيوت والفلاتر</h1>
-            <p className="text-xs text-gray-500">عرض {filteredData.length} سجل مطابق</p>
+            <h1 className="text-xl font-black text-gray-900 dark:text-white">إدارة الزيوت والفلاتر</h1>
+            <p className="text-xs text-gray-500 mt-0.5">عرض {filteredData.length} سجل مطابق</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <ImportExcelButton templateColumns={["رقم اللوحة", "نوع الزيت", "العداد", "التكلفة"]} templateFileName="الزيوت" mapRow={() => null} onImport={async () => ({ok:0, failed:0})} buttonText="استيراد وتحديث الشيت" />
-          <button onClick={() => { setEditing({ changeDate: new Date().toISOString().slice(0, 10), currentKm: "", nextKm: "", filterType: "مع فلتر" }); setModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-bold shadow-md hover:bg-teal-700 transition-colors">
+          <button 
+            onClick={() => { 
+              setEditing({ 
+                changeDate: new Date().toISOString().slice(0, 10), 
+                currentKm: "", 
+                nextKm: "", 
+                filterType: "مع فلتر" 
+              }); 
+              setModalOpen(true); 
+            }} 
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-teal-700 transition-colors cursor-pointer"
+          >
             <Plus size={18}/> إضافة غيار زيت
           </button>
         </div>
       </div>
 
-      {/* ── التبويبات ── */}
       <div className="flex gap-2">
-        <button onClick={() => setActiveTab("oil")} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === "oil" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-          الزيوت والفلاتر ({oilCount || 14})
+        <button onClick={() => setActiveTab("oil")} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "oil" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}`}>
+          الزيوت والفلاتر ({oilCount})
         </button>
-        <button onClick={() => setActiveTab("tires")} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === "tires" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+        <button onClick={() => setActiveTab("tires")} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "tires" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}`}>
           الكاوتش والإطارات (0)
         </button>
       </div>
 
-      {/* ── الفلاتر المتطابقة ── */}
       <FilterBar dateFrom={dateFrom} dateTo={dateTo} onDateFromChange={setDateFrom} onDateToChange={setDateTo} showDateRange>
         <div className="flex items-center gap-2">
           <label className="text-xs font-bold text-gray-500">بحث:</label>
@@ -244,7 +261,7 @@ export default function OilChangesPage() {
             value={search} 
             onChange={e => setSearch(e.target.value)} 
             placeholder="بحث باللوحة أو النوع..." 
-            className="border rounded-lg px-2.5 py-1.5 text-xs outline-none w-44 focus:ring-2 focus:ring-teal-500/30" 
+            className="border dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-xs outline-none w-44 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/30" 
           />
         </div>
 
@@ -260,15 +277,14 @@ export default function OilChangesPage() {
         />
       </FilterBar>
 
-      {/* ── الجدول مع زر التعديل لإدخال النواقص ── */}
-      <div className="bg-white rounded-2xl shadow-md border overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable 
           columns={[
             { 
               key: "vehicleDisplay", 
               header: "رقم اللوحة", 
               render: (r: any) => (
-                <span className="font-bold text-blue-900">
+                <span className="font-bold text-blue-900 dark:text-blue-300">
                   {r.vehicleDisplay || r.plateNumber}
                 </span>
               ) 
@@ -276,18 +292,18 @@ export default function OilChangesPage() {
             { 
               key: "oilType", 
               header: "نوع ومواصفة الزيت", 
-              render: (r: any) => <span className="font-medium text-gray-800 text-xs">{r.oilType}</span> 
+              render: (r: any) => <span className="font-medium text-gray-800 dark:text-gray-200 text-xs">{r.oilType}</span> 
             },
             { 
               key: "brand", 
               header: "الماركة", 
-              render: (r: any) => <span className="text-gray-500 text-xs">{r.brand}</span> 
+              render: (r: any) => <span className="text-gray-500 dark:text-gray-400 text-xs">{r.brand}</span> 
             },
             { 
               key: "filterType", 
               header: "الفلتر", 
               render: (r: any) => (
-                <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${r.filterType.includes("مع") ? "bg-teal-50 text-teal-700 border border-teal-200" : "bg-gray-100 text-gray-600"}`}>
+                <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${r.filterType.includes("مع") ? "bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
                   {r.filterType}
                 </span>
               ) 
@@ -305,7 +321,7 @@ export default function OilChangesPage() {
               key: "currentKm", 
               header: "العداد عند التغيير", 
               render: (r: any) => (
-                <span className="font-bold text-teal-700">
+                <span className="font-bold text-teal-700 dark:text-teal-400">
                   {safeNum(r.currentKm).toLocaleString()} كم
                 </span>
               ) 
@@ -314,18 +330,18 @@ export default function OilChangesPage() {
               key: "nextKm", 
               header: "الغيار القادم", 
               render: (r: any) => (
-                <span className="font-bold text-teal-600">
+                <span className="font-bold text-teal-600 dark:text-teal-300">
                   {safeNum(r.nextKm).toLocaleString()} كم
                 </span>
               ) 
             },
             {
               key: "actions",
-              header: "تعديل النواقص",
+              header: "إجراء",
               render: (r: any) => (
                 <button 
-                  onClick={() => { setEditing(r); setModalOpen(true); }}
-                  className="flex items-center gap-1 text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg border border-teal-200 transition-colors"
+                  onClick={() => { setEditing(normalizeOilRecord(r)); setModalOpen(true); }}
+                  className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
                 >
                   <Pencil size={13} />
                   <span>تعديل</span>
@@ -338,11 +354,10 @@ export default function OilChangesPage() {
         />
       </div>
 
-      {/* ── نافذة التعديل وإضافة النواقص ── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="تعديل بيانات غيار الزيت والعداد" size="lg">
         <form onSubmit={handleSave} className="grid grid-cols-2 gap-4">
           <Field label="السيارة / اللوحة">
-            <input disabled className={`${inputClass} bg-gray-100 font-bold text-blue-900`} value={editing.vehicleDisplay || editing.plateNumber || ""} />
+            <input disabled className={`${inputClass} bg-gray-100 dark:bg-gray-900 font-bold text-blue-900 dark:text-blue-300`} value={editing.vehicleDisplay || editing.plateNumber || ""} />
           </Field>
 
           <Field label="نوع ومواصفة الزيت">
@@ -393,12 +408,11 @@ export default function OilChangesPage() {
             <input type="number" step="0.01" className={inputClass} value={editing.cost !== undefined ? editing.cost : ""} onChange={e => setEditing({ ...editing, cost: e.target.value })} placeholder="0.00" />
           </Field>
 
-          <button type="submit" disabled={saving} className="col-span-2 py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition-colors">
+          <button type="submit" disabled={saving} className="col-span-2 py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition-colors cursor-pointer">
             {saving ? "جاري الحفظ والتحديث..." : "حفظ التعديلات والعدادات"}
           </button>
         </form>
       </Modal>
-
     </div>
   );
 }
