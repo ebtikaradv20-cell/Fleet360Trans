@@ -105,8 +105,8 @@ export async function PUT(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const id = body.id;
-    if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
+    const id = Number(body.id);
+    if (!id || isNaN(id)) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
     const plate = String(body.plateNumber || body.plate_number || "").trim();
     const sap = String(body.sapNumber || body.sap_number || body.sapNo || body.sap || body["رقم SAP"] || body["رقم ساب"] || "").trim();
@@ -128,12 +128,12 @@ export async function PUT(req: NextRequest) {
         cost = ${cost},
         start_date = ${startDate}::date,
         description = ${desc}
-      WHERE id = ${Number(id)}
+      WHERE id = ${id}
     `);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, id, sap_number: sap });
   } catch (error: any) {
     console.error("PUT work-orders error:", error);
-    return NextResponse.json({ error: "Failed to update work order" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update work order", details: error.message }, { status: 500 });
   }
 }
