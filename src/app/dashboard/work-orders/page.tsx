@@ -57,22 +57,44 @@ const extractCleanPlate = (rawPlate: string, vehicleList: any[]) => {
   return cleanRaw;
 };
 
+// دالة ماسح رقم SAP الشامل من أي مسمى أو نص
+const extractSap = (obj: any): string => {
+  if (!obj) return "";
+  for (const k of Object.keys(obj)) {
+    const lk = k.toLowerCase().replace(/[\s_\-–()]/g, "");
+    if (
+      lk.includes("sap") || 
+      lk.includes("ساب") || 
+      lk.includes("اوردر") || 
+      lk.includes("أوردر") || 
+      lk.includes("امرشغل") || 
+      lk.includes("أمرشغل")
+    ) {
+      const val = String(obj[k] || "").trim();
+      if (val && val !== "-" && val !== "0" && !val.startsWith("WO-")) {
+        return val;
+      }
+    }
+  }
+
+  if (typeof obj.description === "string") {
+    const match = obj.description.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
+    if (match) return match[1];
+  }
+  if (typeof obj.notes === "string") {
+    const match = obj.notes.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
+    if (match) return match[1];
+  }
+
+  return "";
+};
+
 const normalizeOrder = (r: any) => {
   const plate = r.plateNumber || r.plate_number || r.vehiclePlate || r.plate || "";
   const model = r.vehicleModel || r.vehicle_model || r.model || "";
   const orderNumber = r.orderNumber || r.order_number || (r.id ? `WO-${r.id}` : "-");
   
-  // استخراج ذكي لرقم SAP من الحقل أو الوصف أو الملاحظات
-  let sap = r.sapNumber || r.sap_number || r.sapNo || r.sap_no || r.sap || r.sapOrderId || r["رقم SAP"] || r["رقم ساب"] || "";
-  if (!sap && typeof r.description === "string") {
-    const match = r.description.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
-    if (match) sap = match[1];
-  }
-  if (!sap && typeof r.notes === "string") {
-    const match = r.notes.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
-    if (match) sap = match[1];
-  }
-
+  const sap = extractSap(r);
   const maintType = r.maintenanceType || r.maintenance_type || r.type || r.serviceType || "صيانة عامة";
   const opType = r.operationType || r.operation_type || r.service_nature || "صيانة جديدة";
   const status = r.status || (r.isCompleted ? "completed" : "pending");
@@ -149,15 +171,7 @@ export default function WorkOrdersPage() {
     try {
       let count = 0;
       for (const row of importedRows) {
-        let sap = "";
-        for (const k of Object.keys(row)) {
-          const lk = k.toLowerCase();
-          if (lk.includes("sap") || lk.includes("ساب") || lk.includes("اوردر")) {
-            sap = String(row[k] || "").trim();
-            if (sap) break;
-          }
-        }
-
+        const sap = extractSap(row);
         const plate = String(
           row["رقم اللوحة"] || row["اللوحة"] || row["رقم العربية"] || row["العربية"] || row["plateNumber"] || ""
         ).trim();
@@ -220,29 +234,37 @@ export default function WorkOrdersPage() {
         description: editing.description || ""
       };
 
-      const res = await fetch("/api/work-orders", {
-        method: isEdit ? "PUT" : "POST",
+      // محاولة الإرسال للـ endpoint المحدد أولاً مع fallback للمسار العام
+      let res = await fetch(`/api/work-orders/${editing.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
+      if (!res.ok) {
+        res = await fetch("/api/work-orders", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      }
+
       if (res.ok) {
         // ✅ تحديث تفاؤلي فوري في الـ State يضمن ظهور التعديل ورقم SAP في الجدول لحظياً
-        if (isEdit) {
-          setData(prev => prev.map(item => {
-            if (item.id === editing.id) {
-              return normalizeOrder({
-                ...item,
-                ...payload,
-                sapNumber: payload.sapNumber,
-                sap_number: payload.sapNumber,
-                cost: payload.cost,
-                maintenanceType: payload.maintenanceType
-              });
-            }
-            return item;
-          }));
-        }
+        setData(prev => prev.map(item => {
+          if (item.id === editing.id) {
+            return normalizeOrder({
+              ...item,
+              ...payload,
+              sapNumber: payload.sapNumber,
+              sap_number: payload.sapNumber,
+              cost: payload.cost,
+              maintenanceType: payload.maintenanceType
+            });
+          }
+          return item;
+        }));
+
         setModalOpen(false);
         loadData();
       } else {
