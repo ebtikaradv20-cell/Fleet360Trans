@@ -44,7 +44,6 @@ interface Vehicle {
   model?: string;
 }
 
-// ── 1. بيانات القالب النموذجي الشامل لكافة العمليات ──
 const sampleTemplateData = [
   {
     "رقم SAP": "SAP-9011",
@@ -78,17 +77,6 @@ const sampleTemplateData = [
     "اللترات": 0,
     "العداد": 146000,
     "المحطة": "مركز خدمة معتمد"
-  },
-  {
-    "رقم SAP": "SAP-9014",
-    "رقم اللوحة": "ل ن ط 7618",
-    "التاريخ": "2026-10-05",
-    "القسم": "كاوتش",
-    "وصف العملية": "تغيير 2 فردة كاوتش أمامي",
-    "التكلفة": 4800,
-    "اللترات": 0,
-    "العداد": 146500,
-    "المحطة": "-"
   }
 ];
 
@@ -98,7 +86,33 @@ const safeNum = (val: any): number => {
   return isNaN(n) ? 0 : n;
 };
 
-// محرك استخراج قيم الأعمدة بمرونة فائقة لتفادي أي اختلاف في مسميات الشيت
+// دالة فحص ذكي لاستخراج رقم SAP من أي عمود في الشيت مهما كان المسمى
+function extractSapFromRow(row: Record<string, any>): string {
+  if (!row) return "";
+  for (const k of Object.keys(row)) {
+    const cleanK = k.toLowerCase().replace(/[\s_\-–()]/g, "");
+    if (
+      cleanK.includes("sap") ||
+      cleanK.includes("ساب") ||
+      cleanK.includes("اوردر") ||
+      cleanK.includes("أوردر") ||
+      cleanK.includes("امرشغل") ||
+      cleanK.includes("أمرشغل")
+    ) {
+      const val = String(row[k] || "").trim();
+      if (val && val !== "-" && val !== "0" && !val.startsWith("WO-")) {
+        return val;
+      }
+    }
+  }
+
+  const desc = String(row["وصف العملية"] || row["وصف الصيانه او العملية"] || row["description"] || "");
+  const match = desc.match(/SAP[:\s-]*([A-Za-z0-9-_]+)/i);
+  if (match) return match[1];
+
+  return "";
+}
+
 function getRowVal(row: Record<string, any>, ...keys: string[]): any {
   if (!row) return "";
   const rowKeys = Object.keys(row);
@@ -132,7 +146,6 @@ function getRowVal(row: Record<string, any>, ...keys: string[]): any {
   return "";
 }
 
-// محرك تحويل التواريخ لتوليد صيغة YYYY-MM-DD
 function parseDateToISO(val: any): string {
   if (!val) return new Date().toISOString().slice(0, 10);
 
@@ -160,10 +173,10 @@ function parseDateToISO(val: any): string {
     const delim = str.includes("/") ? "/" : "-";
     const parts = str.split(delim);
     if (parts.length === 3) {
-      if (parts[2].length === 4) { // DD/MM/YYYY
+      if (parts[2].length === 4) {
         return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
       }
-      if (parts[0].length === 4) { // YYYY/MM/DD
+      if (parts[0].length === 4) {
         return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
       }
     }
@@ -218,10 +231,10 @@ export default function FleetDataPage() {
     try {
       const [vehRes, woRes, oilRes, tireRes, fuelRes, inspRes] = await Promise.all([
         fetch("/api/vehicles").catch(() => null),
-        fetch("/api/work-orders").catch(() => null),
-        fetch("/api/oil-changes").catch(() => null),
+        fetch(`/api/work-orders?_t=${Date.now()}`, { cache: "no-store" }).catch(() => null),
+        fetch(`/api/oil-changes?_t=${Date.now()}`, { cache: "no-store" }).catch(() => null),
         fetch("/api/tires").catch(() => null),
-        fetch("/api/fuel").catch(() => null),
+        fetch(`/api/fuel?_t=${Date.now()}`, { cache: "no-store" }).catch(() => null),
         fetch("/api/vehicle-inspections").catch(() => null)
       ]);
 
@@ -238,7 +251,7 @@ export default function FleetDataPage() {
         woList
           .filter((w: any) => !w.is_deleted && w.status !== "deleted" && w.isDeleted !== 1)
           .forEach((w: any) => {
-            const rawSap = w.sapNumber || w.sap_number || w.sapNo || w.sap_no || w.sap || w.sapOrderId || "-";
+            const rawSap = extractSapFromRow(w) || w.sapNumber || w.sap_number || "-";
             const rawCost = safeNum(w.cost ?? w.total_cost ?? w.totalCost ?? w.amount);
             const rawDate = w.startDate || w.start_date || w.date || (w.createdAt ? w.createdAt.slice(0, 10) : "-");
             const pNum = w.plateNumber || w.plate_number || "";
@@ -266,7 +279,7 @@ export default function FleetDataPage() {
         oilList
           .filter((o: any) => !o.is_deleted && o.isDeleted !== 1)
           .forEach((o: any) => {
-            const rawSap = o.sapNumber || o.sap_number || (o.notes && o.notes.includes("SAP") ? o.notes.replace(/.*SAP[:\s-]*/i, "").trim() : "-");
+            const rawSap = extractSapFromRow(o) || "-";
             const rawCost = safeNum(o.cost ?? o.total_cost ?? o.totalCost ?? o.amount);
             const rawDate = o.changeDate || o.change_date || o.date || (o.createdAt ? o.createdAt.slice(0, 10) : "-");
             const pNum = o.plateNumber || o.plate_number || "";
@@ -274,13 +287,13 @@ export default function FleetDataPage() {
             list.push({
               id: `oil-${o.id}`,
               rawId: o.id,
-              sapNumber: rawSap || "-",
+              sapNumber: rawSap,
               plateNumber: pNum,
               date: rawDate,
               section: "زيوت",
               sectionKey: "oil",
               title: o.oilType || o.oil_type || "غيار زيت",
-              description: `${o.oilBrand || o.brand || ""} - غيار عند ${safeNum(o.currentKm ?? o.current_km ?? o.odometerAtChange ?? o.odometer)} كم`,
+              description: `${o.oilBrand || o.brand || ""} - غيار عند ${safeNum(o.currentKm ?? o.current_km)} كم`,
               cost: rawCost,
               routeUrl: `/dashboard/oil-changes`
             });
@@ -293,7 +306,6 @@ export default function FleetDataPage() {
         tireList
           .filter((t: any) => !t.is_deleted && t.isDeleted !== 1)
           .forEach((t: any) => {
-            const rawSap = t.sapNumber || t.sap_number || (t.notes && t.notes.includes("SAP") ? t.notes.replace(/.*SAP[:\s-]*/i, "").trim() : "-");
             const rawCost = safeNum(t.cost ?? t.total_cost ?? t.totalCost ?? t.amount);
             const rawDate = t.installDate || t.install_date || t.date || (t.createdAt ? t.createdAt.slice(0, 10) : "-");
             const pNum = t.plateNumber || t.plate_number || "";
@@ -301,7 +313,7 @@ export default function FleetDataPage() {
             list.push({
               id: `tire-${t.id}`,
               rawId: t.id,
-              sapNumber: rawSap || "-",
+              sapNumber: extractSapFromRow(t) || "-",
               plateNumber: pNum,
               date: rawDate,
               section: "كاوتش",
@@ -322,19 +334,18 @@ export default function FleetDataPage() {
           .forEach((f: any) => {
             const rawCost = safeNum(f.totalCost ?? f.total_cost ?? f.cost ?? f.amount ?? f.price);
             const rawDate = f.fuelDate || f.fuel_date || f.date || f.fillDate || (f.createdAt ? f.createdAt.slice(0, 10) : "-");
-            const rawSap = f.sapNumber || f.sap_number || (f.notes && f.notes.includes("SAP") ? f.notes.replace(/.*SAP[:\s-]*/i, "").trim() : "-");
             const pNum = f.plateNumber || f.plate_number || "";
 
             list.push({
               id: `fuel-${f.id}`,
               rawId: f.id,
-              sapNumber: rawSap || "-",
+              sapNumber: extractSapFromRow(f) || "-",
               plateNumber: pNum,
               date: rawDate,
               section: "وقود",
               sectionKey: "fuel",
               title: `تموين ${f.fuelType || "وقود"}`,
-              description: f.notes || `${safeNum(f.liters ?? f.litres)} لتر - ${f.station || f.stationName || "محطة التموين"}`,
+              description: f.notes || `${safeNum(f.liters ?? f.litres)} لتر - ${f.station || "محطة تموين معتمدة"}`,
               cost: rawCost,
               routeUrl: `/dashboard/fuel`
             });
@@ -416,7 +427,6 @@ export default function FleetDataPage() {
   const fuelCount = filteredRecords.filter((r) => r.section === "وقود").length;
   const oilCount = filteredRecords.filter((r) => r.section === "زيوت").length;
 
-  // ── 2. محرك الاستيراد الذكي ومنع التكرار ──
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -425,23 +435,22 @@ export default function FleetDataPage() {
       let addedCount = 0;
 
       for (const row of importedRows) {
-        const sap = String(
-          getRowVal(row, "رقم SAP", "رقم ساب", "رقم اوردر الساب", "رقم الساب", "أمر ساب", "امر ساب", "SAP", "ساب", "sapNumber", "sap_number") || ""
-        ).trim();
+        // ماسح ذكي لالتقاط رقم SAP من أي عمود في الشيت
+        const sap = extractSapFromRow(row);
 
         const plate = String(
-          getRowVal(row, "رقم اللوحة", "اللوحة", "رقم العربية", "العربية", "رقم السيارة", "السيارة", "رقم المركبة", "plateNumber", "plate_number") || ""
+          getRowVal(row, "رقم اللوحة", "اللوحة", "رقم العربية", "العربية", "رقم السيارة", "السيارة", "plateNumber", "plate_number") || ""
         ).trim();
 
-        const rawDate = getRowVal(row, "التاريخ", "تاريخ", "تاريخ التموين", "تاريخ العملية", "تاريخ الصيانة", "تاريخ التزود", "date", "fuelDate", "startDate");
+        const rawDate = getRowVal(row, "التاريخ", "تاريخ", "تاريخ التموين", "تاريخ العملية", "تاريخ الصيانة", "date", "fuelDate", "startDate");
         const formattedDate = parseDateToISO(rawDate);
 
         const sectionStr = String(getRowVal(row, "القسم", "نوع العملية", "نوع الصيانة", "البيان", "section") || "").trim();
-        const desc = String(getRowVal(row, "وصف العملية", "وصف الصيانه او العملية", "الوصف", "البيان", "ملاحظات", "تفاصيل", "description", "notes") || "").trim();
+        const desc = String(getRowVal(row, "وصف العملية", "وصف الصيانه او العملية", "الوصف", "البيان", "ملاحظات", "description", "notes") || "").trim();
         
-        let costVal = safeNum(getRowVal(row, "التكلفة", "التكلفة (ج.م)", "المبلغ", "القيمة", "الإجمالي", "الاجمالي", "إجمالي التكلفة", "السعر", "cost", "totalCost", "amount"));
-        const litersVal = safeNum(getRowVal(row, "اللترات", "اللتر", "كمية الوقود", "عدد اللترات", "liters", "litres"));
-        const odometerVal = safeNum(getRowVal(row, "العداد", "قراءة العداد", "عداد العربية", "كيلومتر", "odometer", "currentKm"));
+        let costVal = safeNum(getRowVal(row, "التكلفة", "التكلفة (ج.م)", "المبلغ", "القيمة", "الإجمالي", "cost", "totalCost", "amount"));
+        const litersVal = safeNum(getRowVal(row, "اللترات", "اللتر", "كمية الوقود", "liters", "litres"));
+        const odometerVal = safeNum(getRowVal(row, "العداد", "قراءة العداد", "odometer", "currentKm"));
 
         if (!plate) continue;
 
@@ -564,6 +573,7 @@ export default function FleetDataPage() {
           if (method === "PUT") updatedCount++; else addedCount++;
 
         } else {
+          // 🔧 توجيه أوامر الصيانة برقم SAP الكامل
           const method = existingRecord && existingRecord.sectionKey === "work-orders" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/work-orders/${existingRecord.rawId}` : "/api/work-orders";
 
@@ -607,7 +617,6 @@ export default function FleetDataPage() {
     }
   };
 
-  // 3. شيت الملخص المحسوب
   const excelSummaryData = [
     ...filteredRecords.map((row) => ({
       "رقم SAP": row.sapNumber,
@@ -714,7 +723,6 @@ export default function FleetDataPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
-      {/* ── 1. البطاقات الإحصائية ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex justify-between items-start relative z-10">
@@ -755,7 +763,6 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── 2. الهيدر: أزرار الإكسيل الثلاثية ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
@@ -770,14 +777,12 @@ export default function FleetDataPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* 1. زر تحميل القالب الحقيقي */}
           <ExportExcelButton
             data={sampleTemplateData}
             fileName="قالب_داتا_الأسطول_الشامل"
             buttonText="تحميل قالب"
           />
 
-          {/* 2. زر استيراد وتحديث البيانات */}
           {canWrite && (
             <ImportExcelButton
               onImport={handleImport}
@@ -785,7 +790,6 @@ export default function FleetDataPage() {
             />
           )}
 
-          {/* 3. زر تحميل شيت ملخص بالمعادلات */}
           <ExportExcelButton
             data={excelSummaryData}
             fileName="ملخص_معاملات_الأسطول"
@@ -794,7 +798,6 @@ export default function FleetDataPage() {
         </div>
       </div>
 
-      {/* ── 3. شريط الفلاتر ── */}
       <FilterBar>
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500 dark:text-gray-400">بحث:</label>
@@ -869,7 +872,6 @@ export default function FleetDataPage() {
         </div>
       </FilterBar>
 
-      {/* ── 4. بار السكاشن ── */}
       <div className="flex gap-2 p-1.5 bg-white dark:bg-gray-900 rounded-xl w-fit border border-gray-200 dark:border-gray-800 shadow-sm overflow-x-auto max-w-full">
         <button
           onClick={() => setActiveSection("all")}
@@ -944,7 +946,6 @@ export default function FleetDataPage() {
         </button>
       </div>
 
-      {/* ── 5. جدول البيانات ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <DataTable
           columns={columns}
