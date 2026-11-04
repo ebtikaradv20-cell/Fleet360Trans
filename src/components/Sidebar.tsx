@@ -56,6 +56,7 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* ── زر القائمة للموبايل ── */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
@@ -65,6 +66,7 @@ export default function Sidebar() {
         <Menu size={22} />
       </button>
 
+      {/* ── خلفية معتمة للهواتف ── */}
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -72,6 +74,7 @@ export default function Sidebar() {
         />
       )}
 
+      {/* ── الشريط الجانبي الثابت ── */}
       <aside
         className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-2xl shrink-0 overflow-hidden ${
           collapsed ? "w-20" : "w-72"
@@ -79,7 +82,7 @@ export default function Sidebar() {
           mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        {/* ── شريط التحكم العلوي ── */}
+        {/* ── 1. شريط التحكم العلوي وزر السهم المستقل ── */}
         <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-800/80 shrink-0 bg-[#091530]">
           {!collapsed && (
             <span className="text-[11px] font-bold text-slate-400">القائمة الرئيسية</span>
@@ -96,32 +99,32 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* ── ترويسة اللوجو: مساحة أفتح + لوجو أكبر بكثير + الاسم تحته مباشرة ── */}
-        <div className="py-5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-[#162952] border-b border-slate-800/80 transition-colors">
-          <div className="flex items-center justify-center w-full">
+        {/* ── 2. ترويسة اللوجو: لوجو كبير جداً + الكلام تحته مباشرة + مساحة مشدودة على مقاسهم بالتمام ── */}
+        <div className="py-2.5 px-3 flex flex-col items-center justify-center text-center shrink-0 bg-[#162952] border-b border-slate-800/80 transition-colors">
+          <div className="flex items-center justify-center w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo.png"
               alt="TAQA Gas Logo"
               className={`${
-                collapsed ? "w-12 h-12" : "w-48 h-36 max-h-36"
-              } object-contain transition-all duration-300 brightness-0 invert drop-shadow-lg`}
+                collapsed ? "w-11 h-11" : "w-full max-w-[220px] h-24 scale-110"
+              } object-contain transition-all duration-300 brightness-0 invert drop-shadow-md`}
             />
           </div>
 
           {!collapsed && (
-            <div className="flex flex-col items-center mt-1 w-full">
-              <h1 className="font-black text-2xl tracking-wider text-white leading-tight drop-shadow-sm">
+            <div className="flex flex-col items-center mt-0.5 w-full">
+              <h1 className="font-black text-xl tracking-wider text-white leading-tight drop-shadow-sm">
                 FLEET 360
               </h1>
-              <p className="text-[11px] font-bold text-sky-200 tracking-wider mt-0.5 uppercase opacity-90">
+              <p className="text-[10px] font-bold text-sky-200 tracking-wider mt-0.5 uppercase opacity-90">
                 TAQA GAS COMPANY
               </p>
             </div>
           )}
         </div>
 
-        {/* ── قائمة الصفحات بالبار الأصفر المتلاشي لليسار ── */}
+        {/* ── 3. قائمة الصفحات: البار النشط بالتدرج الأصفر المتلاشي لليسار ── */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
           {navigationItems.map((item) => {
             const Icon = item.icon;
