@@ -32,23 +32,20 @@ const Field = ({ label, children }: any) => (
 
 const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/50 outline-none";
 
-// دالة المطابقة الذكية للسيارات: تفصل اسم الموديل وتستخرج اللوحة الحقيقية
+// دالة ذكية لمطابقة اللوحة الحقيقية حتى لو كانت مدمجة باسم الموديل
 const extractCleanPlate = (rawPlate: string, vehicleList: any[]) => {
   if (!rawPlate) return "";
   const cleanRaw = rawPlate.replace(/\s+/g, " ").trim();
 
-  // 1. تطابق تام
   const exact = vehicleList.find(v => (v.plateNumber || v.plate_number || "").trim() === cleanRaw);
   if (exact) return exact.plateNumber || exact.plate_number;
 
-  // 2. إذا كان الموديل مدمجاً مع اللوحة
   const matchedVehicle = vehicleList.find(v => {
     const vp = (v.plateNumber || v.plate_number || "").trim();
     return vp && cleanRaw.includes(vp);
   });
   if (matchedVehicle) return matchedVehicle.plateNumber || matchedVehicle.plate_number;
 
-  // 3. مطابقة أرقام اللوحة
   const digits = cleanRaw.replace(/[^0-9]/g, "");
   if (digits) {
     const digitMatch = vehicleList.find(v => {
@@ -142,7 +139,6 @@ export default function WorkOrdersPage() {
     loadData();
   }, [loadData]);
 
-  // استيراد أوامر الصيانة برقم SAP الذكي
   const handleImportOrders = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -193,7 +189,6 @@ export default function WorkOrdersPage() {
   };
 
   const handleOpenEdit = (r: any) => {
-    // مطابقة السيارة تلقائياً عند فتح التعديل لمنع ظهور "اختر السيارة"
     const matchedPlate = extractCleanPlate(r.plateNumber || r.vehicleDisplay, vehicles);
     setEditing({
       ...r,
@@ -209,6 +204,7 @@ export default function WorkOrdersPage() {
     try {
       const payload = {
         ...editing,
+        id: editing.id,
         sapNumber: editing.sapNumber || "",
         sap_number: editing.sapNumber || "",
         plateNumber: editing.plateNumber || "",
@@ -220,11 +216,9 @@ export default function WorkOrdersPage() {
         description: editing.description || ""
       };
 
-      const url = isEdit ? `/api/work-orders/${editing.id}` : "/api/work-orders";
-      const method = isEdit ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
+      // إرسال التحديث إلى الـ API الرئيسي مباشرة
+      const res = await fetch("/api/work-orders", {
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
@@ -485,7 +479,6 @@ export default function WorkOrdersPage() {
         />
       </div>
 
-      {/* ── نافذة التعديل مع ثبات اختيار السيارة ── */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEdit ? "تعديل أمر الشغل والصيانة" : "إضافة أمر صيانة جديد"} size="lg">
         <form onSubmit={handleSave} className="grid grid-cols-2 gap-4">
           <Field label="السيارة / رقم اللوحة">
@@ -496,7 +489,7 @@ export default function WorkOrdersPage() {
               onChange={(e) => setEditing({ ...editing, plateNumber: e.target.value })}
             >
               <option value="">-- اختر السيارة --</option>
-              {/* خيار الحماية الذكي: يضمن ظهور سيارة الأمر دائماً حتى لو كانت مسجلة بموديل مدمج */}
+              {/* خيار الحماية الذكي: يضمن اختيار سيارة الأمر فوراً وعدم إظهار خانة فاضية */}
               {editing.plateNumber && !vehicles.some(v => (v.plateNumber || v.plate_number) === editing.plateNumber) && (
                 <option value={editing.plateNumber}>{editing.plateNumber}</option>
               )}
