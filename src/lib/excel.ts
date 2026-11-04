@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import * as XLSX from "xlsx"; // سنحتفظ به للقراءة فقط لأنها أسرع
+import * as XLSX from "xlsx";
 
 // ── 1. دالة تصدير الإكسيل (منسقة وملونة) ──
 export const exportToExcel = async (data: any[], fileName: string) => {
@@ -11,23 +11,20 @@ export const exportToExcel = async (data: any[], fileName: string) => {
 
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("البيانات", {
-    views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }], // RTL وتجميد الهيدر
+    views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }],
   });
 
-  // استخراج أسماء الأعمدة من أول صف
   const columns = Object.keys(data[0]);
   worksheet.columns = columns.map(col => ({
     header: col,
     key: col,
-    width: Math.max(col.length + 10, 20), // عرض تلقائي للعمود
+    width: Math.max(col.length + 10, 20),
   }));
 
-  // إضافة البيانات
   worksheet.addRows(data);
 
-  // ── التنسيق (Styling) ──
+  // التنسيق المؤسسي للأعمدة والهيدر
   worksheet.columns.forEach((column, colIndex) => {
-    // 1. تلوين الهيدر (أزرق مؤسسي)
     const headerCell = worksheet.getCell(1, colIndex + 1);
     headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A8A" } };
     headerCell.font = { color: { argb: "FFFFFFFF" }, bold: true, size: 12, name: "Arial" };
@@ -39,14 +36,13 @@ export const exportToExcel = async (data: any[], fileName: string) => {
       right: { style: "thin", color: { argb: "FFCBD5E1" } },
     };
 
-    // 2. تلوين الأعمدة (تبادل ألوان - Zebra Columns)
     const isEven = colIndex % 2 === 0;
     column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
-      if (rowNumber > 1) { // تخطي الهيدر
+      if (rowNumber > 1) {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: isEven ? "FFFFFFFF" : "FFF1F5F9" }, // أبيض ورصاصي فاتح
+          fgColor: { argb: isEven ? "FFFFFFFF" : "FFF1F5F9" },
         };
         cell.alignment = { horizontal: "center", vertical: "middle" };
         cell.border = {
@@ -59,12 +55,11 @@ export const exportToExcel = async (data: any[], fileName: string) => {
     });
   });
 
-  // حفظ وتحميل الملف
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), `${fileName}_${new Date().toLocaleDateString("en-GB").replace(/\//g, "-")}.xlsx`);
 };
 
-// ── 2. دالة تحميل قالب الإكسيل (للاستيراد) بنفس التنسيق ──
+// ── 2. دالة تحميل قالب الإكسيل المعتمد ──
 export const downloadExcelTemplate = async (columns: string[], fileName: string, sampleRow?: Record<string, any>) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("قالب إدخال البيانات", {
@@ -77,10 +72,9 @@ export const downloadExcelTemplate = async (columns: string[], fileName: string,
     worksheet.addRow(sampleRow);
   }
 
-  // تلوين الهيدر والأعمدة للقالب
   worksheet.columns.forEach((column, colIndex) => {
     const headerCell = worksheet.getCell(1, colIndex + 1);
-    headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } }; // أخضر مؤسسي للقالب
+    headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } };
     headerCell.font = { color: { argb: "FFFFFFFF" }, bold: true, size: 12 };
     headerCell.alignment = { horizontal: "center", vertical: "middle" };
 
@@ -97,7 +91,7 @@ export const downloadExcelTemplate = async (columns: string[], fileName: string,
   saveAs(new Blob([buffer]), `قالب_${fileName}.xlsx`);
 };
 
-// ── 3. قراءة الإكسيل (تعتمد على مكتبة xlsx لسرعتها في المتصفح) ──
+// ── 3. قراءة الإكسيل في المتصفح ──
 export const readExcelFile = (file: File): Promise<any[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
