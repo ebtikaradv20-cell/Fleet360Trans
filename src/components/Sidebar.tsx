@@ -1,153 +1,132 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Car,
-  Fuel,
-  Wrench,
-  Droplets,
-  ClipboardCheck,
-  Layers,
-  CheckSquare,
+import { 
+  LayoutDashboard, 
+  Car, 
+  Fuel, 
+  Wrench, 
+  Droplets, 
+  ShieldCheck, 
+  Database, 
+  CheckSquare, 
   Users,
-  ChevronRight,
   ChevronLeft,
-  Menu,
-  X
+  ChevronRight,
+  LogOut
 } from "lucide-react";
 
-const navigationItems = [
-  { name: "لوحة التحكم", href: "/dashboard", icon: LayoutDashboard },
-  { name: "السيارات", href: "/dashboard/vehicles", icon: Car },
-  { name: "الوقود", href: "/dashboard/fuel", icon: Fuel },
-  { name: "الصيانة", href: "/dashboard/work-orders", icon: Wrench },
-  { name: "الزيوت وقطع الغيار", href: "/dashboard/oil-changes", icon: Droplets },
-  { name: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: ClipboardCheck },
-  { name: "داتا الأسطول الشاملة", href: "/dashboard/fleet-data", icon: Layers },
-  { name: "الطلبات والموافقات", href: "/dashboard/approvals", icon: CheckSquare },
-  { name: "المستخدمون", href: "/dashboard/users", icon: Users },
-];
+interface SidebarProps {
+  collapsed?: boolean;
+  onToggle?: () => void;
+}
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("fleet360_sidebar_collapsed");
-      if (saved !== null) {
-        setCollapsed(saved === "true");
-      }
-    } catch (e) {}
-  }, []);
-
-  const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const nextState = !prev;
-      try {
-        localStorage.setItem("fleet360_sidebar_collapsed", String(nextState));
-      } catch (e) {}
-      return nextState;
-    });
-  };
+  const navItems = [
+    { label: "لوحة التحكم", href: "/dashboard", icon: LayoutDashboard },
+    { label: "السيارات", href: "/dashboard/vehicles", icon: Car },
+    { label: "الوقود", href: "/dashboard/fuel", icon: Fuel },
+    { label: "الصيانة", href: "/dashboard/work-orders", icon: Wrench },
+    { label: "الزيوت وقطع الغيار", href: "/dashboard/oil-changes", icon: Droplets },
+    { label: "فحص السيارات", href: "/dashboard/vehicle-inspection", icon: ShieldCheck },
+    { label: "داتا الأسطول الشاملة", href: "/dashboard/fleet-data", icon: Database },
+    { label: "الطلبات والموافقات", href: "/dashboard/approvals", icon: CheckSquare },
+    { label: "المستخدمون", href: "/dashboard/users", icon: Users },
+  ];
 
   return (
-    <>
-      {/* ── زر القائمة للموبايل ── */}
-      <button
-        type="button"
-        onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 right-3 z-40 p-2.5 rounded-xl bg-[#0B1A3B] text-white shadow-lg border border-slate-700 cursor-pointer"
-        aria-label="فتح القائمة"
-      >
-        <Menu size={22} />
-      </button>
-
-      {/* ── خلفية معتمة للهواتف ── */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity"
-        />
-      )}
-
-      {/* ── الشريط الجانبي الثابت ── */}
-      <aside
-        className={`fixed md:sticky top-0 right-0 h-screen z-50 bg-[#0B1A3B] text-white flex flex-col border-l border-slate-800 transition-all duration-300 ease-in-out select-none shadow-2xl shrink-0 overflow-hidden ${
-          collapsed ? "w-20" : "w-72"
-        } ${
-          mobileOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
-        }`}
-      >
-        {/* ── 1. شريط التحكم العلوي وزر السهم المستقل تماماً (يفتح ويغلق دائماً) ── */}
-        <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-800/80 shrink-0 bg-[#091530]">
-          {!collapsed && (
-            <span className="text-[11px] font-bold text-slate-400">القائمة الرئيسية</span>
-          )}
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            title={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
-            className={`p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer ${
-              collapsed ? "mx-auto" : ""
-            }`}
-          >
-            {collapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-          </button>
-        </div>
-
-        {/* ── 2. ترويسة اللوجو: كبير وبدون إطار وباللون الأبيض بالكامل ── */}
-        <div className="p-4 flex flex-col items-center justify-center text-center shrink-0 border-b border-slate-800/60">
-          <div className="flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.png"
-              alt="TAQA Gas Logo"
-              className={`${
-                collapsed ? "w-10 h-10" : "w-24 h-24"
-              } object-contain transition-all duration-300 brightness-0 invert drop-shadow-md`}
-            />
+    <aside 
+      className={`fixed top-0 right-0 h-screen bg-[#0B1325] border-l border-blue-950/60 z-40 transition-all duration-300 flex flex-col justify-between ${
+        collapsed ? "w-20" : "w-64"
+      }`}
+      dir="rtl"
+    >
+      {/* ── الجزء العلوي: اللوجو والهوية ── */}
+      <div>
+        <div className="p-5 flex items-center justify-between border-b border-white/5 relative">
+          <div className={`flex items-center gap-3 overflow-hidden transition-all ${collapsed ? "justify-center w-full" : ""}`}>
+            {/* أيقونة / لوجو TAQA Gas */}
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-teal-300 flex items-center justify-center text-[#0B1325] font-black shadow-md shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20m0-20a8 8 0 018 8v4a8 8 0 01-8 8m0-20a8 8 0 00-8 8v4a8 8 0 008 8" />
+              </svg>
+            </div>
+            {!collapsed && (
+              <div className="flex flex-col">
+                <span className="font-black text-white text-base tracking-wider">FLEET 360</span>
+                <span className="text-[10px] text-teal-300 font-bold tracking-widest uppercase">TAQA GAS COMPANY</span>
+              </div>
+            )}
           </div>
 
-          {!collapsed && (
-            <div className="flex flex-col items-center mt-2.5">
-              <h1 className="font-black text-lg tracking-wider text-white">FLEET 360</h1>
-              <p className="text-[11px] font-bold text-slate-300 tracking-wide mt-0.5">
-                TAQA GAS COMPANY
-              </p>
-            </div>
+          {onToggle && !collapsed && (
+            <button 
+              onClick={onToggle}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+            >
+              <ChevronRight size={18} />
+            </button>
           )}
         </div>
 
-        {/* ── 3. قائمة الصفحات: متقاربة من بعضها في الأعلى ── */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
-          {navigationItems.map((item) => {
+        {/* ── قائمة الروابط مع تصميم السهم الانسيابي المتداخل ── */}
+        <nav className="p-3 space-y-1.5 mt-2">
+          {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            // فحص الرابط النشط بدقة
+            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
-                title={collapsed ? item.name : undefined}
-                className={`flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-bold transition-all ${
+                className={`relative group flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-300 ${
                   isActive
-                    ? "bg-teal-600 text-white shadow-md shadow-teal-900/30"
-                    : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
-                } ${collapsed ? "justify-center px-0 py-2.5" : "text-xs"}`}
+                    ? "bg-white dark:bg-[#0B1325] text-teal-700 dark:text-teal-400 font-black shadow-lg shadow-black/10"
+                    : "text-gray-300 hover:text-white hover:bg-white/5 font-medium"
+                } ${collapsed ? "justify-center px-2" : ""}`}
               >
-                <Icon size={19} className="shrink-0" />
-                {!collapsed && <span className="truncate">{item.name}</span>}
+                {/* أيقونة العنصر */}
+                <Icon 
+                  size={20} 
+                  className={`shrink-0 transition-transform duration-300 group-hover:scale-110 ${
+                    isActive ? "text-teal-600 dark:text-teal-400" : "text-gray-400 group-hover:text-white"
+                  }`} 
+                />
+
+                {/* نص الرابط */}
+                {!collapsed && (
+                  <span className="text-sm tracking-wide">
+                    {item.label}
+                  </span>
+                )}
+
+                {/* ── سهم متداخل فخم يتجه لليسار داخل مساحة صفحة السكشن ── */}
+                {isActive && (
+                  <div 
+                    className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 
+                               border-y-[9px] border-y-transparent 
+                               border-r-[11px] border-r-white dark:border-r-[#0B1325] 
+                               drop-shadow-[-3px_0_3px_rgba(0,0,0,0.06)] 
+                               transition-all duration-300 pointer-events-none" 
+                  />
+                )}
               </Link>
             );
           })}
         </nav>
-      </aside>
-    </>
+      </div>
+
+      {/* ── أسفل القائمة: معلومات الإصدار ── */}
+      {!collapsed && (
+        <div className="p-4 border-t border-white/5 text-center">
+          <p className="text-[11px] text-gray-500 font-semibold">نظام إدارة الأسطول الشامل</p>
+          <p className="text-[10px] text-teal-400/80 font-bold mt-0.5">Enterprise v3.2</p>
+        </div>
+      )}
+    </aside>
   );
 }
