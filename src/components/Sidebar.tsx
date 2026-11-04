@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -14,7 +14,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  Menu
 } from "lucide-react";
 
 interface SidebarProps {
@@ -22,8 +22,22 @@ interface SidebarProps {
   onToggle?: () => void;
 }
 
-export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
+export default function Sidebar({ collapsed: initialCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  // محرك حالة داخلي يضمن عمل زر الطي حتى في حال عدم تمرير دالة خارجية
+  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
+
+  useEffect(() => {
+    setIsCollapsed(initialCollapsed);
+  }, [initialCollapsed]);
+
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+    } else {
+      setIsCollapsed(prev => !prev);
+    }
+  };
 
   const navItems = [
     { label: "لوحة التحكم", href: "/dashboard", icon: LayoutDashboard },
@@ -40,21 +54,21 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   return (
     <aside 
       className={`fixed top-0 right-0 h-screen bg-[#0B1325] border-l border-blue-950/60 z-40 transition-all duration-300 flex flex-col justify-between ${
-        collapsed ? "w-20" : "w-64"
+        isCollapsed ? "w-20" : "w-64"
       }`}
       dir="rtl"
     >
-      {/* ── الجزء العلوي: اللوجو والهوية ── */}
-      <div>
-        <div className="p-5 flex items-center justify-between border-b border-white/5 relative">
-          <div className={`flex items-center gap-3 overflow-hidden transition-all ${collapsed ? "justify-center w-full" : ""}`}>
-            {/* أيقونة / لوجو TAQA Gas */}
+      {/* ── الجزء العلوي: اللوجو وزر طي القائمة المستمر ── */}
+      <div className="flex flex-col">
+        <div className="p-4 flex items-center justify-between border-b border-white/10 relative">
+          <div className={`flex items-center gap-3 overflow-hidden ${isCollapsed ? "justify-center w-full" : ""}`}>
+            {/* أيقونة اللوجو الرئيسية */}
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-teal-300 flex items-center justify-center text-[#0B1325] font-black shadow-md shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v20m0-20a8 8 0 018 8v4a8 8 0 01-8 8m0-20a8 8 0 00-8 8v4a8 8 0 008 8" />
               </svg>
             </div>
-            {!collapsed && (
+            {!isCollapsed && (
               <div className="flex flex-col">
                 <span className="font-black text-white text-base tracking-wider">FLEET 360</span>
                 <span className="text-[10px] text-teal-300 font-bold tracking-widest uppercase">TAQA GAS COMPANY</span>
@@ -62,56 +76,58 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             )}
           </div>
 
-          {onToggle && !collapsed && (
-            <button 
-              onClick={onToggle}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-            >
-              <ChevronRight size={18} />
-            </button>
-          )}
+          {/* زر طي/توسيع القائمة: يظهر دائماً في الحالتين المطوية والمفتوحة */}
+          <button 
+            type="button"
+            onClick={handleToggle}
+            title={isCollapsed ? "توسيع القائمة" : "طي القائمة"}
+            className={`p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-gray-300 hover:text-white transition-all border border-white/5 shadow-sm ${
+              isCollapsed ? "mt-3 mx-auto" : ""
+            }`}
+          >
+            {isCollapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
         </div>
 
-        {/* ── قائمة الروابط مع تصميم السهم الانسيابي المتداخل ── */}
-        <nav className="p-3 space-y-1.5 mt-2">
+        {/* ── قائمة الروابط: منزلة لتحت قليلاً بمحاذاة مساحة المحتوى مع تصميم الاندماج الكامل ── */}
+        <nav className="p-3 space-y-2 mt-6 pt-2 overflow-y-auto max-h-[calc(100vh-140px)]">
           {navItems.map((item) => {
             const Icon = item.icon;
-            // فحص الرابط النشط بدقة
+            // فحص دقيق للرابط النشط لمنع التعارض بين الصفحات الرئيسية والفرعية
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative group flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-300 ${
+                className={`relative group flex items-center gap-3.5 px-4 py-3 transition-all duration-200 ${
                   isActive
-                    ? "bg-white dark:bg-[#0B1325] text-teal-700 dark:text-teal-400 font-black shadow-lg shadow-black/10"
-                    : "text-gray-300 hover:text-white hover:bg-white/5 font-medium"
-                } ${collapsed ? "justify-center px-2" : ""}`}
+                    ? "bg-gray-50 dark:bg-gray-900 text-teal-900 dark:text-teal-300 font-black -ml-3 pl-5 rounded-r-2xl rounded-l-none border-r-4 border-teal-500 shadow-md"
+                    : "text-gray-300 hover:text-white hover:bg-white/5 font-medium rounded-xl ml-0"
+                } ${isCollapsed ? "justify-center px-2 !ml-0 !rounded-xl" : ""}`}
               >
                 {/* أيقونة العنصر */}
                 <Icon 
                   size={20} 
-                  className={`shrink-0 transition-transform duration-300 group-hover:scale-110 ${
+                  className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${
                     isActive ? "text-teal-600 dark:text-teal-400" : "text-gray-400 group-hover:text-white"
                   }`} 
                 />
 
                 {/* نص الرابط */}
-                {!collapsed && (
-                  <span className="text-sm tracking-wide">
+                {!isCollapsed && (
+                  <span className="text-sm tracking-wide truncate">
                     {item.label}
                   </span>
                 )}
 
-                {/* ── سهم متداخل فخم يتجه لليسار داخل مساحة صفحة السكشن ── */}
-                {isActive && (
-                  <div 
-                    className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 
-                               border-y-[9px] border-y-transparent 
-                               border-r-[11px] border-r-white dark:border-r-[#0B1325] 
-                               drop-shadow-[-3px_0_3px_rgba(0,0,0,0.06)] 
-                               transition-all duration-300 pointer-events-none" 
+                {/* ── المؤشر الانسيابي المدمج كلياً في خلفية الصفحة في الوضعين النهاري والليلي ── */}
+                {isActive && !isCollapsed && (
+                  <span 
+                    className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-0 h-0 
+                               border-y-[10px] border-y-transparent 
+                               border-r-[10px] border-r-gray-50 dark:border-r-gray-900 
+                               z-30 pointer-events-none drop-shadow-[-3px_0_2px_rgba(0,0,0,0.06)]"
                   />
                 )}
               </Link>
@@ -120,11 +136,11 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         </nav>
       </div>
 
-      {/* ── أسفل القائمة: معلومات الإصدار ── */}
-      {!collapsed && (
-        <div className="p-4 border-t border-white/5 text-center">
-          <p className="text-[11px] text-gray-500 font-semibold">نظام إدارة الأسطول الشامل</p>
-          <p className="text-[10px] text-teal-400/80 font-bold mt-0.5">Enterprise v3.2</p>
+      {/* ── الجزء السفلي: تفاصيل النظام والإصدار ── */}
+      {!isCollapsed && (
+        <div className="p-4 border-t border-white/10 text-center">
+          <p className="text-[11px] text-gray-400 font-semibold">نظام إدارة الأسطول الشامل</p>
+          <p className="text-[10px] text-teal-400 font-bold mt-0.5">Enterprise v3.2</p>
         </div>
       )}
     </aside>
