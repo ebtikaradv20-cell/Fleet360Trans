@@ -44,31 +44,51 @@ interface Vehicle {
   model?: string;
 }
 
-// 1. بيانات القالب النموذجي المتوافقة مع النظام
+// ── 1. بيانات القالب النموذجي الشامل لكافة العمليات ──
 const sampleTemplateData = [
   {
-    "رقم SAP": "SAP-9012",
+    "رقم SAP": "SAP-9011",
     "رقم اللوحة": "ل ن ط 7618",
     "التاريخ": "2026-10-01",
     "القسم": "صيانة",
-    "وصف العملية": "صيانة ميكانيكا وعفشة",
-    "التكلفة": 2500
+    "وصف العملية": "صيانة ميكانيكا وعفشة وتغيير تيل فرامل",
+    "التكلفة": 2500,
+    "اللترات": 0,
+    "العداد": 145000,
+    "المحطة": "-"
   },
   {
-    "رقم SAP": "SAP-9013",
+    "رقم SAP": "SAP-9012",
     "رقم اللوحة": "ل ن ط 7618",
     "التاريخ": "2026-10-02",
     "القسم": "وقود",
     "وصف العملية": "تفويل سولار 60 لتر",
-    "التكلفة": 850
+    "التكلفة": 850,
+    "اللترات": 60,
+    "العداد": 145250,
+    "المحطة": "محطة وطنية - دسوق"
+  },
+  {
+    "رقم SAP": "SAP-9013",
+    "رقم اللوحة": "ل ن ط 7618",
+    "التاريخ": "2026-10-03",
+    "القسم": "زيوت",
+    "وصف العملية": "غيار زيت وفلتر أصلي 10000 كم",
+    "التكلفة": 1200,
+    "اللترات": 0,
+    "العداد": 146000,
+    "المحطة": "مركز خدمة معتمد"
   },
   {
     "رقم SAP": "SAP-9014",
     "رقم اللوحة": "ل ن ط 7618",
-    "التاريخ": "2026-10-03",
-    "القسم": "زيوت",
-    "وصف العملية": "غيار زيت وفلتر 10000 كم",
-    "التكلفة": 1200
+    "التاريخ": "2026-10-05",
+    "القسم": "كاوتش",
+    "وصف العملية": "تغيير 2 فردة كاوتش أمامي",
+    "التكلفة": 4800,
+    "اللترات": 0,
+    "العداد": 146500,
+    "المحطة": "-"
   }
 ];
 
@@ -83,14 +103,12 @@ function getRowVal(row: Record<string, any>, ...keys: string[]): any {
   if (!row) return "";
   const rowKeys = Object.keys(row);
   
-  // 1. فحص مباشر وتطابق تام
   for (const k of keys) {
     if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== "") {
       return row[k];
     }
   }
 
-  // 2. فحص مرن بدون مسافات أو علامات خاصة
   for (const k of keys) {
     const cleanK = k.toLowerCase().replace(/[\s_\-–()]/g, "");
     for (const rk of rowKeys) {
@@ -101,7 +119,6 @@ function getRowVal(row: Record<string, any>, ...keys: string[]): any {
     }
   }
 
-  // 3. فحص جزئي ذكي
   for (const k of keys) {
     const cleanK = k.toLowerCase().replace(/[\s_\-–()]/g, "");
     for (const rk of rowKeys) {
@@ -115,7 +132,7 @@ function getRowVal(row: Record<string, any>, ...keys: string[]): any {
   return "";
 }
 
-// محرك تحويل التواريخ الصارم لتوليد صيغة YYYY-MM-DD بدون أخطاء التوقيت الدولي
+// محرك تحويل التواريخ لتوليد صيغة YYYY-MM-DD
 function parseDateToISO(val: any): string {
   if (!val) return new Date().toISOString().slice(0, 10);
 
@@ -127,7 +144,6 @@ function parseDateToISO(val: any): string {
     return `${y}-${m}-${d}`;
   }
 
-  // فحص أرقام إكسيل التسلسلية مثل 45531
   if (typeof val === "number" || (!isNaN(Number(val)) && !String(val).includes("-") && !String(val).includes("/"))) {
     const serial = Number(val);
     const dateObj = new Date(Math.round((serial - 25569) * 86400 * 1000));
@@ -197,7 +213,6 @@ export default function FleetDataPage() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // ── جلب وقراءة كافة العمليات مع توحيد مفاتيح ساب وتكلفة وتاريخ الوقود ──
   const loadFleetData = useCallback(async () => {
     setLoading(true);
     try {
@@ -299,7 +314,6 @@ export default function FleetDataPage() {
           });
       }
 
-      // ✅ تصحيح قراءة تكلفة وتاريخ الوقود بنسبة 100%
       if (fuelRes && fuelRes.ok) {
         const fueld = await fuelRes.json();
         const fuelList = Array.isArray(fueld) ? fueld : (fueld.data && Array.isArray(fueld.data) ? fueld.data : []);
@@ -402,7 +416,7 @@ export default function FleetDataPage() {
   const fuelCount = filteredRecords.filter((r) => r.section === "وقود").length;
   const oilCount = filteredRecords.filter((r) => r.section === "زيوت").length;
 
-  // ── 2. محرك الاستيراد الذكي ومنع التكرار (Smart Upsert Engine) ──
+  // ── 2. محرك الاستيراد الذكي ومنع التكرار ──
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
 
@@ -411,7 +425,6 @@ export default function FleetDataPage() {
       let addedCount = 0;
 
       for (const row of importedRows) {
-        // قراءة مرنة تدعم كافة التسميات المحتملة من أي شيت
         const sap = String(
           getRowVal(row, "رقم SAP", "رقم ساب", "رقم اوردر الساب", "رقم الساب", "أمر ساب", "امر ساب", "SAP", "ساب", "sapNumber", "sap_number") || ""
         ).trim();
@@ -432,12 +445,10 @@ export default function FleetDataPage() {
 
         if (!plate) continue;
 
-        // إذا كانت التكلفة غير مسجلة ولكن اللترات مسجلة
         if (!costVal && litersVal > 0) {
-          costVal = litersVal * 15; // سعر تقريبي افتراضي في حال غياب المبلغ الصريح
+          costVal = litersVal * 15;
         }
 
-        // فحص نوع القسم
         const combinedText = `${sectionStr} ${desc}`.toLowerCase();
         let targetSection: "fuel" | "oil" | "tires" | "work-orders" = "work-orders";
         
@@ -449,7 +460,6 @@ export default function FleetDataPage() {
           targetSection = "oil";
         }
 
-        // فحص وجود سجل مطابق (منع التكرار الذكي)
         const existingRecord = allRecords.find((r) => {
           if (sap && sap !== "-" && r.sapNumber && r.sapNumber !== "-" && r.sapNumber.toLowerCase() === sap.toLowerCase()) {
             return true;
@@ -460,7 +470,6 @@ export default function FleetDataPage() {
           return samePlate && sameDate && sameSection;
         });
 
-        // ⛽ 1. توجيه سجلات الوقود بالمفاتيح الكاملة
         if (targetSection === "fuel") {
           const method = existingRecord && existingRecord.sectionKey === "fuel" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/fuel/${existingRecord.rawId}` : "/api/fuel";
@@ -472,7 +481,6 @@ export default function FleetDataPage() {
               id: existingRecord?.rawId,
               plateNumber: plate,
               plate_number: plate,
-              // إرسال كافة مسميات المبالغ والتواريخ لضمان الحفظ المباشر
               totalCost: costVal,
               total_cost: costVal,
               cost: costVal,
@@ -494,7 +502,6 @@ export default function FleetDataPage() {
 
           if (method === "PUT") updatedCount++; else addedCount++;
 
-        // 💧 2. توجيه الزيوت والفلاتر
         } else if (targetSection === "oil") {
           const method = existingRecord && existingRecord.sectionKey === "oil" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/oil-changes/${existingRecord.rawId}` : "/api/oil-changes";
@@ -529,7 +536,6 @@ export default function FleetDataPage() {
 
           if (method === "PUT") updatedCount++; else addedCount++;
 
-        // 🔘 3. توجيه الكاوتش والإطارات
         } else if (targetSection === "tires") {
           const method = existingRecord && existingRecord.sectionKey === "tires" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/tires/${existingRecord.rawId}` : "/api/tires";
@@ -557,7 +563,6 @@ export default function FleetDataPage() {
 
           if (method === "PUT") updatedCount++; else addedCount++;
 
-        // 🔧 4. توجيه أوامر الصيانة برقم SAP الكامل
         } else {
           const method = existingRecord && existingRecord.sectionKey === "work-orders" ? "PUT" : "POST";
           const url = method === "PUT" ? `/api/work-orders/${existingRecord.rawId}` : "/api/work-orders";
@@ -602,7 +607,7 @@ export default function FleetDataPage() {
     }
   };
 
-  // 3. شيت الملخص المحسوب شاملاً المعادلات والإجماليات
+  // 3. شيت الملخص المحسوب
   const excelSummaryData = [
     ...filteredRecords.map((row) => ({
       "رقم SAP": row.sapNumber,
@@ -765,12 +770,14 @@ export default function FleetDataPage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* 1. زر تحميل القالب الحقيقي */}
           <ExportExcelButton
             data={sampleTemplateData}
-            fileName="قالب_داتا_الأسطول"
+            fileName="قالب_داتا_الأسطول_الشامل"
             buttonText="تحميل قالب"
           />
 
+          {/* 2. زر استيراد وتحديث البيانات */}
           {canWrite && (
             <ImportExcelButton
               onImport={handleImport}
@@ -778,6 +785,7 @@ export default function FleetDataPage() {
             />
           )}
 
+          {/* 3. زر تحميل شيت ملخص بالمعادلات */}
           <ExportExcelButton
             data={excelSummaryData}
             fileName="ملخص_معاملات_الأسطول"
