@@ -6,17 +6,26 @@ import { Upload, Loader2 } from "lucide-react";
 
 interface ImportExcelButtonProps {
   onImport: (data: any[]) => void | Promise<void>;
+  templateColumns?: string[];
+  templateFileName?: string;
+  mapRow?: (row: any) => any;
   buttonText?: string;
   className?: string;
 }
 
 export default function ImportExcelButton({
   onImport,
-  buttonText = "استيراد بيانات وتحديث",
+  buttonText = "استيراد وتحديث الشيت",
   className,
 }: ImportExcelButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+
+  const cleanKey = (key: string): string => {
+    return key
+      .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "") // إزالة الرموز غير المرئية ومسافات HTML
+      .trim();
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -25,13 +34,10 @@ export default function ImportExcelButton({
     setLoading(true);
 
     try {
-      const buffer = await file.arrayBuffer();
-      // قراءة البايتات مع تفعيل معالجة التواريخ وحساب المعادلات
-      const workbook = XLSX.read(buffer, {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(new Uint8Array(arrayBuffer), {
         type: "array",
         cellDates: true,
-        cellNF: false,
-        cellText: false,
       });
 
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
@@ -40,35 +46,30 @@ export default function ImportExcelButton({
       }
 
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-
-      // raw: false لضمان حساب أي معادلات إكسيل واستخراج ناتجها الفعلي
       const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, {
         defval: "",
-        raw: false,
-        dateNF: "yyyy-mm-dd",
       });
 
       if (!rawRows || rawRows.length === 0) {
-        alert("الملف فارغ ولا يحتوي على بيانات.");
+        alert("الملف فارغ ولا يحتوي على أي بيانات.");
         return;
       }
 
-      // تنظيف أسماء الأعمدة من المسافات الزائدة وضبط القيم
+      // تنظيف المفاتيح والقيم بصرامة لمنع أخطاء قراءة الأعمدة
       const cleanedData = rawRows.map((row) => {
         const cleanRow: Record<string, any> = {};
-        for (const key of Object.keys(row)) {
-          const cleanKey = key.trim();
-          let val = row[key];
-          if (typeof val === "string") val = val.trim();
-          cleanRow[cleanKey] = val;
-        }
+        Object.keys(row).forEach((key) => {
+          const k = cleanKey(key);
+          const val = row[key];
+          cleanRow[k] = typeof val === "string" ? val.trim() : val;
+        });
         return cleanRow;
       });
 
       await onImport(cleanedData);
     } catch (err: any) {
       console.error("Excel Read Error:", err);
-      alert("خطأ أثناء قراءة الشيت: " + (err?.message || "يرجى التأكد من اختيار ملف بصيغة .xlsx صالحة"));
+      alert("حدث خطأ أثناء قراءة الملف: " + (err?.message || "يرجى اختيار ملف .xlsx صالح"));
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -76,7 +77,7 @@ export default function ImportExcelButton({
   };
 
   return (
-    <div className="inline-block">
+    <div className="relative inline-block">
       <input
         type="file"
         ref={fileInputRef}
@@ -90,11 +91,11 @@ export default function ImportExcelButton({
         onClick={() => fileInputRef.current?.click()}
         className={
           className ||
-          "flex items-center gap-2 px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+          "flex items-center gap-2 px-4 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer disabled:opacity-50"
         }
       >
-        {loading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-        <span>{loading ? "جاري الاستيراد والتحديث..." : buttonText}</span>
+        {loading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+        <span>{loading ? "جاري قراءة الشيت..." : buttonText}</span>
       </button>
     </div>
   );
